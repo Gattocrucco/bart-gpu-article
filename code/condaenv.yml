@@ -1,0 +1,17 @@
+name: bart-gpu-article
+channels:
+  - conda-forge
+dependencies:
+  - python < 3.13
+  - pip:
+    - jax==0.4.26
+    - jaxlib==0.4.26
+    - bartz<0.5
+    - matplotlib<4
+    - matplotlib-label-lines<0.8
+    - polars[pandas]<2
+    - numpy<3
+    - rpy2<4
+    - wrapt_timeout_decorator<2
+    - xgboost<3
+    - scikit-learn<2
