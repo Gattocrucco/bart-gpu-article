@@ -61,7 +61,7 @@ Each figure-producing script saves figures in a directory with the same name of 
 
 ## How to run notebooks
 
-TODO
+Google Colab allows to open notebooks from arbitrary github repositories. You'll have to fork out 10$ for the GPUs I use in the paper.
 
 ## Scripts & notebooks
 
