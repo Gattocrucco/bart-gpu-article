@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/880171976.svg)](https://doi.org/10.5281/zenodo.14010504)
+
 # bart-gpu-article
 
 Code to reproduce the results in Petrillo (2024), "Very fast Bayesian Additive Regression Trees on GPU".
