@@ -2,7 +2,7 @@
 
 # bart-gpu-article
 
-Code to reproduce the results in Petrillo (2024), "Very fast Bayesian Additive Regression Trees on GPU".
+Code to reproduce the results in Petrillo (2024), "Very fast Bayesian Additive Regression Trees on GPU", [arXiv:2410.23244](https://arxiv.org/abs/2410.23244).
 
 ## Files setup
 
