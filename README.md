@@ -40,6 +40,7 @@ If you don't have Python experience, here is a possible detailed path to install
 
 * Install [homebrew](https://brew.sh)
 * `$ brew install micromamba`
+* `$ micromamba shell init`
 * `$ micromamba env create -f condaenv.yml`
 * `$ micromamba activate bart-gpu-article`
 
@@ -67,11 +68,11 @@ Google Colab allows to open notebooks from arbitrary github repositories. You'll
 
 ## Scripts & notebooks
 
-* `speed-benchmark-*.py`: scripts to produce the CPU timings for figure 3.
-* `speed-benchmark-*.ipynb`: notebooks to produce the GPU timings for figure 3.
-* `speed-benchmark-plot.py`: makes figure 3; the results of the previous scripts have to be copy-pasted in this script.
-* `test-rmse.py`: produce the data for figure 4.
-* `test-rmse-plot.py`: make figure 4; the output of `test-rmse.py` has to be copy-pasted
+* `speed-benchmark-*.py`: scripts to produce the CPU timings for figures 3, 5.
+* `speed-benchmark-*.ipynb`: notebooks to produce the GPU timings for figures 3, 5.
+* `speed-benchmark-plot.py`: makes figures 3, 5; the results of the previous scripts have to be copy-pasted in this script.
+* `test-rmse.py`: produce the data for figures 4, 6.
+* `test-rmse-plot.py`: make figures 4, 6; the output of `test-rmse.py` has to be copy-pasted
 
 ## Troubleshooting
 

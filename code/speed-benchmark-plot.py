@@ -233,8 +233,8 @@ else:
     figs = []
     for i in range(len(groups)):
         fig, ax = plt.subplots(
-            figsize=[5, 4],
-            num=f'benchmark-plot-{i}',
+            figsize=[4.5, 4],
+            num=f'speed-benchmark-plot-{i}',
             clear=True,
             layout='constrained',
         )
@@ -264,14 +264,17 @@ for ax, (keys, group) in zip(axs, groups):
         ax.set(xscale='log', yscale='log')
         ax.set_xlim(10, ax.get_xlim()[1])
         xvals = None
-    elif ss.is_first_row() and ss.is_first_col():
-        xvals = [200, 3500, 300, 19_000, 5000]
-    elif ss.is_first_row() and ss.is_last_col():
-        xvals = [200, 100, 300, 40_000, 10_000]
-    elif ss.is_last_row() and ss.is_first_col():
-        xvals = [200, 3500, 300, 19_000, 5000]
-    else:
-        xvals = [200, 100, 300, 40_000, 40_000]
+    
+    match keys:
+        case (_, None, _, None):
+            xvals = [200, 3500, 300, 19_000, 5000]
+        case (None, _, _, None):
+            xvals = [200, 100, 300, 40_000, 10_000]
+        case (_, None, None, _):
+            xvals = [200, 3500, 300, 19_000, 5000]
+        case (None, _, None, _):
+            xvals = [200, 100, 300, 40_000, 40_000]
+    
     labellines.labelLines(ax.get_lines(), xvals=xvals, outline_width=3)
     
     ax.grid(linestyle='--')

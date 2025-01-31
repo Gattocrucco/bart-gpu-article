@@ -158,7 +158,7 @@ else:
     figs = []
     for i in range(len(groups)):
         fig, ax = plt.subplots(
-            figsize=[4.8, 3.5],
+            figsize=[4.5, 3.5],
             num=f'test-rmse-plot-{i}',
             clear=True,
             layout='constrained',
@@ -193,12 +193,15 @@ for ax, (keys, group) in zip(axs, groups):
     )
     legend_kw = dict(
         title=legend_title,
-        loc='upper left',
     )
-    if not single_figure or (ss.is_first_row() and ss.is_first_col()):
-        ax.legend(**legend_kw)
+    if single_figure:
+        legend_kw.update(loc='upper left')
+        if ss.is_first_row() and ss.is_first_col():
+            ax.legend(**legend_kw)
+        else:
+            ax.legend([], [], **legend_kw)
     else:
-        ax.legend([], [], **legend_kw)
+        ax.legend(loc='best', **legend_kw)
     
     if ss.is_last_row():
         ax.set_xlabel('n')
