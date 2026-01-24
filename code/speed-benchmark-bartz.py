@@ -23,16 +23,45 @@ from jaxtyping import Array, Float32, Key, UInt
 # allocate all gpu memory
 putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
 
-# Config
-n_over_ntree = 8
-fixed_ntree = None  # 200 or None
-maxdepth = 6
-nvec = [2**p for p in range(1, 30)]
-n_over_p = 10
-fixed_p = 100  # 100 or None
-reps = 2
-ndpost_per_rep = 15
-cpu_max_memory = 16 * 2**30
+
+class UnitConfig(Module):
+    """Configuration for a single benchmark unit."""
+
+    n: int
+    ntree: int
+    p: int
+    maxdepth: int
+    reps: int
+    steps_per_rep: int
+    cpu_max_memory: int
+
+
+class Config(Module):
+    """General configuration of the script."""
+
+    fixed_ntree: int | None = 200
+    fixed_p: int | None = 100
+    n_over_ntree: int | None = None
+    n_over_p: int | None = None
+    maxdepth: int = 6
+    nvec: tuple[int, ...] = tuple(2**p for p in range(1, 30))
+    reps: int = 2
+    steps_per_rep: int = 15
+    cpu_max_memory: int = 16 * 2**30
+
+    def unit_config(self, n: int) -> UnitConfig:
+        """Return the specific config at sample size `n`."""
+        return UnitConfig(
+            n=n,
+            ntree=max(1, n // self.n_over_ntree)
+            if self.fixed_ntree is None
+            else self.fixed_ntree,
+            p=max(1, n // self.n_over_p) if self.fixed_p is None else self.fixed_p,
+            maxdepth=self.maxdepth,
+            reps=self.reps,
+            steps_per_rep=self.steps_per_rep,
+            cpu_max_memory=self.cpu_max_memory,
+        )
 
 
 class Data(Module):
@@ -110,6 +139,7 @@ class BartzConfig(Module):
 
     n_save: int = field(static=True)
     num_trees: int = field(static=True)
+    maxdepth: int = field(static=True)
 
 
 class Bartz(Benchmark):
@@ -124,7 +154,7 @@ class Bartz(Benchmark):
             offset=0.0,
             max_split=data.max_split,
             num_trees=config.num_trees,
-            p_nonterminal=make_p_nonterminal(maxdepth, 0.95, 2),
+            p_nonterminal=make_p_nonterminal(config.maxdepth, 0.95, 2),
             leaf_prior_cov_inv=jnp.float32(config.num_trees),
             error_cov_df=2.0,
             error_cov_scale=2.0,
@@ -160,38 +190,38 @@ def clock(f: Callable, *args: Any) -> float:
 device_kind = jnp.empty(0).devices().pop().device_kind
 
 
-def loop_body(key: Key[Array, ""], n: int, results: dict):
+def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict):
     # determine ntree and p for this n
-    ntree = max(1, n // n_over_ntree) if fixed_ntree is None else fixed_ntree
-    p = max(1, n // n_over_p) if fixed_p is None else fixed_p
-    expected_memory_usage = n * (ntree + p)
-    if device_kind == "cpu" and expected_memory_usage > cpu_max_memory:
+    expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
+    if device_kind == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
         # on cpu, jax won't raise out of memory errors, and just hang forever
         return
-    print(f"\nn = {n:_}, ntree = {ntree:_}, p = {p:_}")
+    print(f"\nn = {cfg.n:_}, ntree = {cfg.ntree:_}, p = {cfg.p:_}")
     print(f"expected memory usage: {num2si(expected_memory_usage)}B")
 
     # split random seed
-    keys = list(random.split(key, reps + 3))
+    keys = list(random.split(key, cfg.reps + 3))
     key = keys.pop()
 
     try:
         print("generate data...")
-        data = make_data(keys.pop(), n, p)
+        data = make_data(keys.pop(), cfg.n, cfg.p)
 
         bench = Bartz()
-        bench.setup(keys.pop(), data, BartzConfig(ndpost_per_rep, ntree))
+        bench.setup(
+            keys.pop(), data, BartzConfig(cfg.steps_per_rep, cfg.ntree, cfg.maxdepth)
+        )
 
         print("run...")
         times = []
-        for i in range(reps):
-            print(f"run {i + 1}/{reps} ", end="", flush=True)
+        for i in range(cfg.reps):
+            print(f"run {i + 1}/{cfg.reps} ", end="", flush=True)
             time = clock(bench.run, keys.pop())
             print(
-                f" {ndpost_per_rep} iterations in {format_time(time)} ({format_time(time / ndpost_per_rep)} per iteration)"
+                f" {cfg.steps_per_rep} iterations in {format_time(time)} ({format_time(time / cfg.steps_per_rep)} per iteration)"
             )
             times.append(time)
-        per_iter = min(times) / ndpost_per_rep
+        per_iter = min(times) / cfg.steps_per_rep
 
     except JaxRuntimeError as exc:
         # suppress out-of-memory errors, without saving results
@@ -211,13 +241,15 @@ key = random.key(202404151128)
 
 results = {}
 
-for n in nvec:
+config = Config()
+
+for n in config.nvec:
     # split random key
     keys = split(key)
     key = keys.pop()
 
     # run benchmark unit
-    loop_body(keys.pop(), n, results)
+    loop_body(keys.pop(), config.unit_config(n), results)
 
     # free memory
     collect()
@@ -225,10 +257,10 @@ for n in nvec:
 # print machine-readable output
 print(f"""
     {{
-        'package': 'bartz',
-        'device_kind': '{device_kind}',
-        {"'n/ntree': " + str(n_over_ntree) if fixed_ntree is None else "'ntree': " + str(ntree)},
-        {"'n/p': " + str(n_over_p) if fixed_p is None else "'p': " + str(p)},
-        'maxdepth': {maxdepth},
-        'results': {results},
-    }},""")
+    'package': 'bartz',
+    'device_kind': '{device_kind}',
+    {"'n/ntree': " + str(config.n_over_ntree) if config.fixed_ntree is None else "'ntree': " + str(config.fixed_ntree)},
+    {"'n/p': " + str(config.n_over_p) if config.fixed_p is None else "'p': " + str(config.fixed_p)},
+    'maxdepth': {config.maxdepth},
+    'results': {results},
+}},""")
