@@ -1,18 +1,13 @@
 """Speed benchmark for bartz on GPU."""
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from os import putenv
-from typing import Any
-
-from jaxtyping import Array, Float32, Key, UInt
-
-putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
-
 import math
-import time
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 from functools import partial
 from gc import collect
+from os import putenv
+from time import perf_counter
+from typing import Any
 
 from bartz import mcmcloop
 from bartz.mcmcstep import State, init, make_p_nonterminal
@@ -22,6 +17,10 @@ from equinox import Module, field
 from jax import block_until_ready, debug, jit, random
 from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
+from jaxtyping import Array, Float32, Key, UInt
+
+# allocate all gpu memory
+putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
 
 # Config
 n_over_ntree = 8
@@ -66,17 +65,10 @@ def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     return Data(X=X, y=y, max_split=max_split)
 
 
-class Timer:
-    def __enter__(self):
-        self.start = time.perf_counter()
-        return self
-
-    def __exit__(self, *_):
-        self.time = time.perf_counter() - self.start
-
-
-def num2si(x, fmt=lambda x: f"{x:#.3g}".rstrip("."), si=True, space=" "):
-    x = float(x)
+def num2si(
+    x: float, fmt=lambda x: f"{x:#.3g}".rstrip("."), si: bool = True, space: str = " "
+):
+    """Format a number using SI prefixes."""
     if x == 0:
         return fmt(x) + space
     exp = int(math.floor(math.log10(abs(x))))
@@ -93,7 +85,8 @@ def num2si(x, fmt=lambda x: f"{x:#.3g}".rstrip("."), si=True, space=" "):
     return f"{fmt(x3)}{exp3_text}"
 
 
-def format_time(t):
+def format_time(t: float):
+    """Format a time as multiple of seconds."""
     return f"{num2si(t)}s"
 
 
@@ -121,6 +114,7 @@ class Bartz(Benchmark):
     """Benchmark harness for the bartz mcmc step."""
 
     def setup(self, key: Key[Array, ""], data: Data, config):
+        """Create the initial bart state and compile the mcmc loop."""
         print("initialize mcmc state...")
         self.state = init(
             X=data.X,
@@ -148,7 +142,16 @@ class Bartz(Benchmark):
         self.run_bart = run_bart.lower(key, self.state).compile()
 
     def run(self, key: Key[Array, ""]):
+        """Run a few iterations of the mcmc and update the state."""
         self.state = block_until_ready(self.run_bart(key, self.state))
+
+
+def clock(f: Callable, *args: Any) -> float:
+    """Time a function call."""
+    start = perf_counter()
+    f(*args)
+    end = perf_counter()
+    return end - start
 
 
 # random seed
@@ -185,12 +188,11 @@ for n in nvec:
         times = []
         for i in range(reps):
             print(f"run {i + 1}/{reps} ", end="", flush=True)
-            with Timer() as timer:
-                bench.run(keys.pop())
+            time = clock(bench.run, keys.pop())
             print(
-                f" {ndpost_per_rep} iterations in {format_time(timer.time)} ({format_time(timer.time / ndpost_per_rep)} per iteration)"
+                f" {ndpost_per_rep} iterations in {format_time(time)} ({format_time(time / ndpost_per_rep)} per iteration)"
             )
-            times.append(timer.time)
+            times.append(time)
         per_iter = min(times) / ndpost_per_rep
 
     except JaxRuntimeError as exc:
