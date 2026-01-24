@@ -1,23 +1,24 @@
 """Speed benchmark for bartz on GPU."""
 
-import os
-from dataclasses import replace
+from os import putenv
 
-from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
-from jax.errors import JaxRuntimeError
+from jaxtyping import Array, Float32, Key, UInt
 
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = ".99"
+putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
 
 import gc
 import math
 import time
 from functools import partial
 
-from bartz import mcmcloop, mcmcstep
-from bartz.mcmcstep import make_p_nonterminal
+from bartz import mcmcloop
+from bartz.mcmcstep import State, init, make_p_nonterminal
+from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
 from bartz.testing import gen_data
+from equinox import Module
 from jax import block_until_ready, debug, jit, random
 from jax import numpy as jnp
+from jax.errors import JaxRuntimeError
 
 # Config
 n_over_ntree = 8
@@ -31,8 +32,14 @@ ndpost_per_rep = 15
 cpu_max_memory = 16 * 2**30
 
 
-@partial(jit, static_argnums=(1, 2, 3))
-def init(key, p, n, ntree):
+class Data(Module):
+    X: UInt[Array, "p n"]
+    y: Float32[Array, "n"]
+    max_split: UInt[Array, "p"]
+
+
+@partial(jit, static_argnums=(1, 2))
+def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     # generate data
     data = gen_data(
         key,
@@ -49,21 +56,25 @@ def init(key, p, n, ntree):
     # quantize predictors
     splits, max_split = quantilized_splits_from_matrix(data.x, 255)
     X = bin_predictors(data.x, splits)
-    data = replace(data, x=X)
 
-    # initialize bart state
-    return mcmcstep.init(
-        X=data.x,
-        y=data.y.squeeze(0),
+    # squeeze away multivariate outcome
+    y = data.y.squeeze(0)
+
+    return Data(X=X, y=y, max_split=max_split)
+
+
+def init_bart(data: Data, ntree: int) -> State:
+    return init(
+        X=data.X,
+        y=data.y,
         offset=0.0,
-        max_split=max_split,
+        max_split=data.max_split,
         num_trees=ntree,
         p_nonterminal=make_p_nonterminal(maxdepth, 0.95, 2),
         leaf_prior_cov_inv=jnp.float32(ntree),
         error_cov_df=2.0,
         error_cov_scale=2.0,
         min_points_per_leaf=5,
-        target_platform="cpu",
     )
 
 
@@ -112,17 +123,21 @@ for n in nvec:
     p = max(1, n // n_over_p) if fixed_p is None else fixed_p
     expected_memory_usage = n * (ntree + p)
     if device_kind == "cpu" and expected_memory_usage > cpu_max_memory:
+        # on cpu, jax won't raise out of memory errors, and just hang forever
         break
     print(f"\nn = {n:_}, ntree = {ntree:_}, p = {p:_}")
-    print(f"expected memory usage: {expected_memory_usage * 1e-9:.1f} GB")
+    print(f"expected memory usage: {num2si(expected_memory_usage)}B")
 
     # split random seed
     keys = list(random.split(key, reps + 3))
     key = keys.pop()
 
     try:
-        print("initialize...")
-        bart = init(keys.pop(), p, n, ntree)
+        print("generate data...")
+        data = make_data(keys.pop(), n, p)
+
+        print("initialize state...")
+        bart = init_bart(data, ntree)
 
         print("compile...")
 
@@ -136,7 +151,7 @@ for n in nvec:
 
         run_bart = run_bart.lower(keys.pop(), bart).compile()
 
-        print("run bart...")
+        print("run...")
         times = []
         for i in range(reps):
             print(f"run {i + 1}/{reps} ", end="", flush=True)
@@ -165,7 +180,7 @@ for n in nvec:
     results.setdefault("time_per_iter", []).append(per_iter)
 
     # free memory
-    del bart
+    del bart, data
     gc.collect()
 
 # print machine-readable output

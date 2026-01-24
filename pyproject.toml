@@ -17,3 +17,6 @@ dependencies = [
 
 [tool.uv.sources]
 bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "main" }
+
+[tool.ruff.lint]
+ignore = ["F722"]
