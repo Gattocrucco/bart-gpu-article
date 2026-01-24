@@ -1,21 +1,24 @@
 """Speed benchmark for bartz on GPU."""
 
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from os import putenv
+from typing import Any
 
 from jaxtyping import Array, Float32, Key, UInt
 
 putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
 
-import gc
 import math
 import time
 from functools import partial
+from gc import collect
 
 from bartz import mcmcloop
 from bartz.mcmcstep import State, init, make_p_nonterminal
 from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
 from bartz.testing import gen_data
-from equinox import Module
+from equinox import Module, field
 from jax import block_until_ready, debug, jit, random
 from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
@@ -63,21 +66,6 @@ def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     return Data(X=X, y=y, max_split=max_split)
 
 
-def init_bart(data: Data, ntree: int) -> State:
-    return init(
-        X=data.X,
-        y=data.y,
-        offset=0.0,
-        max_split=data.max_split,
-        num_trees=ntree,
-        p_nonterminal=make_p_nonterminal(maxdepth, 0.95, 2),
-        leaf_prior_cov_inv=jnp.float32(ntree),
-        error_cov_df=2.0,
-        error_cov_scale=2.0,
-        min_points_per_leaf=5,
-    )
-
-
 class Timer:
     def __enter__(self):
         self.start = time.perf_counter()
@@ -109,6 +97,60 @@ def format_time(t):
     return f"{num2si(t)}s"
 
 
+class Benchmark(ABC):
+    """Base class for benchmark harnesses."""
+
+    @abstractmethod
+    def setup(self, key: Key[Array, ""], data: Data, config: Any):
+        """Set up the benchmark initial state."""
+        ...
+
+    @abstractmethod
+    def run(self, key: Key[Array, ""]):
+        """Run the thing being benchmarked, may update internal state."""
+        ...
+
+
+class BartzConfig(Module):
+    """Configuration for `Bartz`."""
+
+    ndpost: int = field(static=True)
+
+
+class Bartz(Benchmark):
+    """Benchmark harness for the bartz mcmc step."""
+
+    def setup(self, key: Key[Array, ""], data: Data, config):
+        print("initialize mcmc state...")
+        self.state = init(
+            X=data.X,
+            y=data.y,
+            offset=0.0,
+            max_split=data.max_split,
+            num_trees=ntree,
+            p_nonterminal=make_p_nonterminal(maxdepth, 0.95, 2),
+            leaf_prior_cov_inv=jnp.float32(ntree),
+            error_cov_df=2.0,
+            error_cov_scale=2.0,
+            min_points_per_leaf=5,
+        )
+
+        print("compile mcmc loop...")
+
+        @partial(jit, donate_argnums=(1,))
+        def run_bart(key: Key[Array, ""], bart: State) -> State:
+            def callback(**_):
+                return debug.callback(lambda: print(".", end="", flush=True))
+
+            bart, _, _ = mcmcloop.run_mcmc(key, bart, config.ndpost, callback=callback)
+            return bart
+
+        self.run_bart = run_bart.lower(key, self.state).compile()
+
+    def run(self, key: Key[Array, ""]):
+        self.state = block_until_ready(self.run_bart(key, self.state))
+
+
 # random seed
 key = random.key(202404151128)
 
@@ -136,27 +178,15 @@ for n in nvec:
         print("generate data...")
         data = make_data(keys.pop(), n, p)
 
-        print("initialize state...")
-        bart = init_bart(data, ntree)
-
-        print("compile...")
-
-        @partial(jit, donate_argnums=(1,))
-        def run_bart(key, bart):
-            def callback(**_):
-                return debug.callback(lambda: print(".", end="", flush=True))
-
-            bart, _, _ = mcmcloop.run_mcmc(key, bart, ndpost_per_rep, callback=callback)
-            return bart
-
-        run_bart = run_bart.lower(keys.pop(), bart).compile()
+        bench = Bartz()
+        bench.setup(keys.pop(), data, BartzConfig(ndpost=ndpost_per_rep))
 
         print("run...")
         times = []
         for i in range(reps):
             print(f"run {i + 1}/{reps} ", end="", flush=True)
             with Timer() as timer:
-                bart = block_until_ready(run_bart(keys.pop(), bart))
+                bench.run(keys.pop())
             print(
                 f" {ndpost_per_rep} iterations in {format_time(timer.time)} ({format_time(timer.time / ndpost_per_rep)} per iteration)"
             )
@@ -168,7 +198,7 @@ for n in nvec:
             "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
         ):
             try:
-                del bart
+                del data, bench
             except NameError:
                 pass
             break
@@ -180,8 +210,8 @@ for n in nvec:
     results.setdefault("time_per_iter", []).append(per_iter)
 
     # free memory
-    del bart, data
-    gc.collect()
+    del data, bench
+    collect()
 
 # print machine-readable output
 print(f"""
