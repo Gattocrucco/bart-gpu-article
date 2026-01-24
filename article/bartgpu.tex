@@ -95,8 +95,8 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
 
     \begin{abstract}
-        
-        Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian regression technique based on an ensemble of decision trees. It is part of the toolbox of many statisticians. The overall statistical quality of the regression is typically higher than other generic alternatives, and it requires less manual tuning, making it a good default choice. However, it is a niche method compared to its natural competitor \texttt{XGBoost}, due to the longer running time, making sample sizes above \num{10000}--\num{100000} a nuisance. I present a GPU-enabled implementation of BART, faster by up to 200x relative to a single CPU core, making BART competitive in running time with \texttt{XGBoost}. This implementation is available in the Python package \texttt{bartz}.
+
+        Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian regression technique based on an ensemble of decision trees. It is part of the toolbox of many statisticians. The overall statistical quality of the regression is typically higher than other generic alternatives, and it requires less manual tuning, making it a good default choice. However, it is a niche method compared to natural competitors such as \texttt{XGBoost}, due to the longer running time, making sample sizes above \num{10000}--\num{100000} a nuisance. We present a GPU-enabled implementation of BART, faster by up to 200x relative to a single CPU core, making BART competitive in running time with non-Bayesian algorithms. This implementation is available in the Python package \texttt{bartz}.
 
     \end{abstract}
 
@@ -108,7 +108,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
     Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian regression method, introduced by \citet{chipman2006,chipman2010}. It defines a prior distribution over the space of functions by representing them as a sum of binary decision trees, and then specifying a stochastic tree generation process. The posterior is then obtained with Metropolis-Gibbs sampling over the trees. See \citet{hill2020} for a review, and \citet[ch.~5]{daniels2023} for a textbook treatment.
 
     \paragraph{BART's success}
-    
+
     BART has proven empirically effective, and is gaining popularity \citep[consider, e.g.,][]{tan2019}. The Atlantic Causal Inference Conference (ACIC) Data Challenge has confirmed BART as one of the best regression methods for causal inference \citep{dorie2019,hahn2019,acic2019,thal2023}. Many BART variants have been developed throughout the years, adding features such as variable selection \citep{linero2018}.
 
     \paragraph{BART vs.\ XGBoost}
@@ -147,7 +147,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
     I summarize the description from the original BART paper \citep{chipman2010}.
 
     \paragraph{Decision trees}
-    
+
     A decision tree is a way to represent a stepwise function $\mathbb R^p \to \mathbb R$ using a binary tree. Each non-leaf node contains a \emph{decision rule}, consisting in a pair $(i, s)$ combining a splitting axis $i$ with a splitting point $s$ along such axis, partitioning the input space in two half-spaces along the plane $\{\mathbf x \in \mathbb R^p: x_i = s\}$, orthogonal to axis $i$. Each half is assigned to a children of the node. Children nodes in turn further divide their space amongst their own children. Leaf nodes contain the constant function value to be associated to their whole assigned rectangular subregion. A minimal tree consisting of a single root leaf node represents a flat function. See \autoref{fig:tree} for an illustration.
 
     \begin{figure}
@@ -156,19 +156,19 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
     \end{figure}
 
     \paragraph{Decision trees for regression}
-    
+
     A decision tree can be used to represent a parametrized family of functions for regression. The parameters are the structure of the tree $T$, including splitting decisions, and the leaf values $M$. I indicate the function represented by the tree with $g(\mathbf x;T,M)$. To use this model in Bayesian inference, it is necessary to specify a prior distribution over $(T,M)$. I factorize the prior as $p(T,M) = p(M\mid T) p(T)$ and specify the two parts separately.
 
     \paragraph{Prior over tree structure}
-    
+
     The distribution $p(T)$ is defined by the following recursive generative model \citep[see][]{chipman1998}. Fix an axes-aligned grid in the input space, not necessarily evenly spaced, by specifying a set of splitting points $S_i = \{s_{i1}, \ldots, s_{in_i}\}$ for each axis $i \in \{1,\ldots,p\}$. Start generating the tree from the root, descending as nodes are added. At each new node, consider the subset of splitting points which are available in its assigned subregion along each axis, and keep only the axes with at least one split available. If there are none, the node is a leaf. If there are any, decide with probability $P_d = \alpha/(1 + d)^\beta$ if the node is nonterminal, i.e., if it should have children, where $d$ is the depth of the node, $d=0$ at the root, and $\alpha \in [0, 1]$ and $\beta \in [0,\infty)$ are two fixed hyperparameters. If the node is nonterminal, its splitting axis is drawn uniformly at random from the allowed ones, and the splitting point along the chosen axis is drawn uniformly at random from the available ones.
 
     \paragraph{Prior over leaf values}
-    
+
     If a node terminates, its leaf function value is sampled from a Normal distribution with mean $\mu_\mu$ and standard deviation $\sigma_\mu$, independently of other leaves. This defines $p(M\mid T)$.
 
     \paragraph{Complete regression model}
-    
+
     The BART regression model uses a sum of $m$ independent trees, each with the prior above, plus the usual error term:
     %
     \begin{align}
@@ -194,21 +194,21 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
     \end{align}
 
     \paragraph{Hyperparameters}
-    
+
     The free hyperparameters in the model, to be chosen by the user, are:
     %
     \begin{itemize}
 
         \item The splitting grid. The two common defaults are 100 equally spaced splits along each $\mathbf x$ axis in the range of the data, or a split midway between each observed value along each $\mathbf x$ axis.
-        
+
         \item The number of trees $m$, default 200. Although ``$m$'' is the original notation, in the following I'll refer to this as ``$n_\text{tree}$'' for clarity.
-        
+
         \item $\alpha$ and $\beta$, regulating the depth distribution of the
         trees. Default 0.95 and 2.
-        
+
         \item $\mu_\mu$ and $\sigma_\mu$, which set the prior mean and variance
         $m\mu_\mu$ and $m\sigma_\mu^2$ of $f(\mathbf x)$. By default set based on some measure of the location and scale of the data.
-        
+
         \item $\nu$ and $\lambda$, which regulate the prior on the variance of the error term. By default $\nu=3$, while $\lambda$ is set to some measure of squared scale of the data.
 
     \end{itemize}
@@ -307,7 +307,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
                 \STATE split = $s_\text{index}$
                 \STATE leaf\_found = leaf\_found OR (split = 0)
                 \STATE child\_index = $2 \times \text{index} + (\text{1 \emph{if} $x_\text{axis} \ge \text{split}$ \emph{else} 0})$
-                \STATE index = index \emph{if} leaf\_found \emph{else} child\_index 
+                \STATE index = index \emph{if} leaf\_found \emph{else} child\_index
             \ENDFOR
             \STATE \textbf{return} index
         \end{algorithmic}
@@ -333,15 +333,15 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
     %
     \begin{enumerate}
         \item Propose the moves: since which move to use and the nodes to grow/prune are picked at random, there is no sequential dependence.
-        
+
         \item Update the traverse indices cache based on the largest tree considered in each move: proposed for GROW, initial for PRUNE. The indices for the smaller version of the tree can be computed from these; this is done later on if the move is rejected/accepted.
-        
+
         \item Count the number of points falling in each leaf. This is used to evaluate the acceptance probability and to sample the leaves. This only depends on the proposed moves.
-        
+
         \item Compute the variance of the conditional posterior of each leaf. Since the calculation is a linear regression with Normal distributions, the variance only depends on the number of points and not on the values of the leaves, so there is no sequential dependence.
-        
+
         \item Generate random samples. All random samples can be generated as standard uniform or Normal and transformed later to the target distribution. The leaves are  scaled immediately to their variance but left centered.
-        
+
         \item Compute most of the terms in the Metropolis acceptance probabilities; similarly to the variances, many depend only on the number of points and fixed parameters.
     \end{enumerate}
 
