@@ -1,7 +1,9 @@
 """Speed benchmark for bartz on GPU."""
 
 import os
+from dataclasses import replace
 
+from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
 from jax.errors import JaxRuntimeError
 
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = ".99"
@@ -12,7 +14,9 @@ import time
 from functools import partial
 
 from bartz import mcmcloop, mcmcstep
-from jax import block_until_ready, debug, jit, random, vmap
+from bartz.mcmcstep import make_p_nonterminal
+from bartz.testing import gen_data
+from jax import block_until_ready, debug, jit, random
 from jax import numpy as jnp
 
 # Config
@@ -27,36 +31,39 @@ ndpost_per_rep = 15
 cpu_max_memory = 16 * 2**30
 
 
-# Totally fake DGP
-def gen_data(p, n):
-    X = jnp.arange(p * n, dtype=jnp.uint8).reshape(p, n)
-    X = vmap(jnp.roll)(X, jnp.arange(p))
-    max_split = jnp.full(p, 255, jnp.uint8)
-    y = jnp.cos(jnp.linspace(0, 2 * jnp.pi / 32 * n, n))
-    return X, y, max_split
-
-
-def make_p_nonterminal():
-    depth = jnp.arange(maxdepth - 1)
-    base = 0.95
-    power = 2
-    return base / (1 + depth).astype(float) ** power
-
-
 @partial(jit, static_argnums=(1, 2, 3))
 def init(key, p, n, ntree):
-    X, y, max_split = gen_data(p, n)
+    # generate data
+    data = gen_data(
+        key,
+        n=n,
+        p=p,
+        k=1,
+        q=2,
+        sigma2_lin=1 / 3,
+        sigma2_quad=1 / 3,
+        sigma2_eps=1 / 3,
+        lam=0.0,
+    )
+
+    # quantize predictors
+    splits, max_split = quantilized_splits_from_matrix(data.x, 255)
+    X = bin_predictors(data.x, splits)
+    data = replace(data, x=X)
+
+    # initialize bart state
     return mcmcstep.init(
-        X=X,
-        y=y,
+        X=data.x,
+        y=data.y.squeeze(0),
         offset=0.0,
         max_split=max_split,
         num_trees=ntree,
-        p_nonterminal=mcmcstep.make_p_nonterminal(maxdepth, 0.95, 2),
-        leaf_prior_cov_inv=ntree,
+        p_nonterminal=make_p_nonterminal(maxdepth, 0.95, 2),
+        leaf_prior_cov_inv=jnp.float32(ntree),
         error_cov_df=2.0,
         error_cov_scale=2.0,
         min_points_per_leaf=5,
+        target_platform="cpu",
     )
 
 

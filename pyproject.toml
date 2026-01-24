@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "bartz",
+    "ipython>=9.9.0",
     "matplotlib>=3.10.8",
     "matplotlib-label-lines>=0.8.1",
     "polars[pandas]>=1.37.1",
