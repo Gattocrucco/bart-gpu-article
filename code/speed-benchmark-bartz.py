@@ -48,6 +48,7 @@ class Config(Module):
     reps: int = 2
     steps_per_rep: int = 15
     cpu_max_memory: int = 16 * 2**30
+    seed: int = 2026_01_24_16_54
 
     def unit_config(self, n: int) -> UnitConfig:
         """Return the specific config at sample size `n`."""
@@ -190,7 +191,7 @@ def clock(f: Callable, *args: Any) -> float:
 device_kind = jnp.empty(0).devices().pop().device_kind
 
 
-def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict):
+def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict[str, list]):
     # determine ntree and p for this n
     expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
     if device_kind == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
@@ -232,27 +233,32 @@ def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict):
 
     else:
         # save results
-        results.setdefault("n", []).append(n)
+        results.setdefault("n", []).append(cfg.n)
         results.setdefault("time_per_iter", []).append(per_iter)
 
 
-# random seed
-key = random.key(202404151128)
-
-results = {}
-
 config = Config()
 
-for n in config.nvec:
-    # split random key
-    keys = split(key)
-    key = keys.pop()
 
-    # run benchmark unit
-    loop_body(keys.pop(), config.unit_config(n), results)
+def benchmarking_loop(config: Config) -> dict[str, list]:
+    key = random.key(config.seed)
 
-    # free memory
-    collect()
+    results = {}
+    for n in config.nvec:
+        # split random key
+        keys = split(key)
+        key = keys.pop()
+
+        # run benchmark unit
+        loop_body(keys.pop(), config.unit_config(n), results)
+
+        # free memory
+        collect()
+
+    return results
+
+
+results = benchmarking_loop(config)
 
 # print machine-readable output
 print(f"""
