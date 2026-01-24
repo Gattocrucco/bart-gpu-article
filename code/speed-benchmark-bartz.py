@@ -44,7 +44,8 @@ class Config(Module):
     n_over_ntree: int | None = None
     n_over_p: int | None = None
     maxdepth: int = 6
-    nvec: tuple[int, ...] = tuple(2**p for p in range(1, 30))
+    # nvec: tuple[int, ...] = tuple(2**p for p in range(1, 30))
+    nvec: tuple[int, ...] = tuple(2**p for p in range(1, 5))
     reps: int = 2
     steps_per_rep: int = 15
     cpu_max_memory: int = 16 * 2**30
@@ -237,9 +238,6 @@ def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict[str, list]):
         results.setdefault("time_per_iter", []).append(per_iter)
 
 
-config = Config()
-
-
 def benchmarking_loop(config: Config) -> dict[str, list]:
     key = random.key(config.seed)
 
@@ -258,11 +256,10 @@ def benchmarking_loop(config: Config) -> dict[str, list]:
     return results
 
 
-results = benchmarking_loop(config)
-
-# print machine-readable output
-print(f"""
-    {{
+def save_results(config: Config, results: dict[str, list]):
+    """Save results in machine-readable format."""
+    print(f"""
+{{
     'package': 'bartz',
     'device_kind': '{device_kind}',
     {"'n/ntree': " + str(config.n_over_ntree) if config.fixed_ntree is None else "'ntree': " + str(config.fixed_ntree)},
@@ -270,3 +267,14 @@ print(f"""
     'maxdepth': {config.maxdepth},
     'results': {results},
 }},""")
+
+
+def main():
+    """Entry point of the script."""
+    config = Config()
+    results = benchmarking_loop(config)
+    save_results(config, results)
+
+
+if __name__ == "__main__":
+    main()
