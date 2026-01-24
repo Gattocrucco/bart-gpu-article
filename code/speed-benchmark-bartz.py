@@ -10,6 +10,7 @@ from time import perf_counter
 from typing import Any
 
 from bartz import mcmcloop
+from bartz.jaxext import split
 from bartz.mcmcstep import State, init, make_p_nonterminal
 from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
 from bartz.testing import gen_data
@@ -107,13 +108,14 @@ class Benchmark(ABC):
 class BartzConfig(Module):
     """Configuration for `Bartz`."""
 
-    ndpost: int = field(static=True)
+    n_save: int = field(static=True)
+    num_trees: int = field(static=True)
 
 
 class Bartz(Benchmark):
     """Benchmark harness for the bartz mcmc step."""
 
-    def setup(self, key: Key[Array, ""], data: Data, config):
+    def setup(self, key: Key[Array, ""], data: Data, config: BartzConfig):
         """Create the initial bart state and compile the mcmc loop."""
         print("initialize mcmc state...")
         self.state = init(
@@ -121,9 +123,9 @@ class Bartz(Benchmark):
             y=data.y,
             offset=0.0,
             max_split=data.max_split,
-            num_trees=ntree,
+            num_trees=config.num_trees,
             p_nonterminal=make_p_nonterminal(maxdepth, 0.95, 2),
-            leaf_prior_cov_inv=jnp.float32(ntree),
+            leaf_prior_cov_inv=jnp.float32(config.num_trees),
             error_cov_df=2.0,
             error_cov_scale=2.0,
             min_points_per_leaf=5,
@@ -136,7 +138,7 @@ class Bartz(Benchmark):
             def callback(**_):
                 return debug.callback(lambda: print(".", end="", flush=True))
 
-            bart, _, _ = mcmcloop.run_mcmc(key, bart, config.ndpost, callback=callback)
+            bart, _, _ = mcmcloop.run_mcmc(key, bart, config.n_save, callback=callback)
             return bart
 
         self.run_bart = run_bart.lower(key, self.state).compile()
@@ -154,22 +156,18 @@ def clock(f: Callable, *args: Any) -> float:
     return end - start
 
 
-# random seed
-key = random.key(202404151128)
-
 # detect gpu/cpu
 device_kind = jnp.empty(0).devices().pop().device_kind
 
-results = {}
 
-for n in nvec:
+def loop_body(key: Key[Array, ""], n: int, results: dict):
     # determine ntree and p for this n
     ntree = max(1, n // n_over_ntree) if fixed_ntree is None else fixed_ntree
     p = max(1, n // n_over_p) if fixed_p is None else fixed_p
     expected_memory_usage = n * (ntree + p)
     if device_kind == "cpu" and expected_memory_usage > cpu_max_memory:
         # on cpu, jax won't raise out of memory errors, and just hang forever
-        break
+        return
     print(f"\nn = {n:_}, ntree = {ntree:_}, p = {p:_}")
     print(f"expected memory usage: {num2si(expected_memory_usage)}B")
 
@@ -182,7 +180,7 @@ for n in nvec:
         data = make_data(keys.pop(), n, p)
 
         bench = Bartz()
-        bench.setup(keys.pop(), data, BartzConfig(ndpost=ndpost_per_rep))
+        bench.setup(keys.pop(), data, BartzConfig(ndpost_per_rep, ntree))
 
         print("run...")
         times = []
@@ -196,23 +194,32 @@ for n in nvec:
         per_iter = min(times) / ndpost_per_rep
 
     except JaxRuntimeError as exc:
-        if exc.args[0].startswith(
+        # suppress out-of-memory errors, without saving results
+        if not exc.args[0].startswith(
             "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
         ):
-            try:
-                del data, bench
-            except NameError:
-                pass
-            break
-        else:
             raise
 
-    # save results
-    results.setdefault("n", []).append(n)
-    results.setdefault("time_per_iter", []).append(per_iter)
+    else:
+        # save results
+        results.setdefault("n", []).append(n)
+        results.setdefault("time_per_iter", []).append(per_iter)
+
+
+# random seed
+key = random.key(202404151128)
+
+results = {}
+
+for n in nvec:
+    # split random key
+    keys = split(key)
+    key = keys.pop()
+
+    # run benchmark unit
+    loop_body(keys.pop(), n, results)
 
     # free memory
-    del data, bench
     collect()
 
 # print machine-readable output
