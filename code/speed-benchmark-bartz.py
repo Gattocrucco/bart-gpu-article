@@ -7,7 +7,7 @@ from functools import partial
 from gc import collect
 from os import putenv
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 from bartz import mcmcloop
 from bartz.jaxext import split
@@ -15,13 +15,20 @@ from bartz.mcmcstep import State, init, make_p_nonterminal
 from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
 from bartz.testing import gen_data
 from equinox import Module, field
-from jax import block_until_ready, debug, jit, random
+from jax import (
+    Device,
+    block_until_ready,
+    config,
+    debug,
+    default_device,
+    device_put,
+    devices,
+    jit,
+    random,
+)
 from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
 from jaxtyping import Array, Float32, Key, UInt
-
-# allocate all gpu memory
-putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
 
 
 class UnitConfig(Module):
@@ -34,6 +41,7 @@ class UnitConfig(Module):
     reps: int
     steps_per_rep: int
     cpu_max_memory: int
+    device: Device
 
 
 class Config(Module):
@@ -50,6 +58,11 @@ class Config(Module):
     steps_per_rep: int = 15
     cpu_max_memory: int = 16 * 2**30
     seed: int = 2026_01_24_16_54
+    platform: Literal["cpu", "gpu"] = "cpu"
+
+    def device(self) -> Device:
+        """Get the jax device to use."""
+        return devices(self.platform)[0]
 
     def unit_config(self, n: int) -> UnitConfig:
         """Return the specific config at sample size `n`."""
@@ -63,6 +76,7 @@ class Config(Module):
             reps=self.reps,
             steps_per_rep=self.steps_per_rep,
             cpu_max_memory=self.cpu_max_memory,
+            device=self.device(),
         )
 
 
@@ -72,8 +86,15 @@ class Data(Module):
     max_split: UInt[Array, "p"]
 
 
-@partial(jit, static_argnums=(1, 2))
 def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
+    """Generate data on cpu."""
+    cpu = devices("cpu")[0]
+    key = device_put(key, cpu)
+    return _make_data(key, n, p)
+
+
+@partial(jit, static_argnums=(1, 2))
+def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     # generate data
     data = gen_data(
         key,
@@ -126,7 +147,7 @@ class Benchmark(ABC):
     """Base class for benchmark harnesses."""
 
     @abstractmethod
-    def setup(self, key: Key[Array, ""], data: Data, config: Any):
+    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
         """Set up the benchmark initial state."""
         ...
 
@@ -136,32 +157,27 @@ class Benchmark(ABC):
         ...
 
 
-class BartzConfig(Module):
-    """Configuration for `Bartz`."""
-
-    n_save: int = field(static=True)
-    num_trees: int = field(static=True)
-    maxdepth: int = field(static=True)
-
-
 class Bartz(Benchmark):
     """Benchmark harness for the bartz mcmc step."""
 
-    def setup(self, key: Key[Array, ""], data: Data, config: BartzConfig):
+    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig):
         """Create the initial bart state and compile the mcmc loop."""
         print("initialize mcmc state...")
-        self.state = init(
-            X=data.X,
-            y=data.y,
-            offset=0.0,
-            max_split=data.max_split,
-            num_trees=config.num_trees,
-            p_nonterminal=make_p_nonterminal(config.maxdepth, 0.95, 2),
-            leaf_prior_cov_inv=jnp.float32(config.num_trees),
-            error_cov_df=2.0,
-            error_cov_scale=2.0,
-            min_points_per_leaf=5,
-        )
+        cpu = devices("cpu")[0]
+        with default_device(cpu):
+            self.state = init(
+                X=data.X,
+                y=data.y,
+                offset=0.0,
+                max_split=data.max_split,
+                num_trees=cfg.ntree,
+                p_nonterminal=make_p_nonterminal(cfg.maxdepth, 0.95, 2),
+                leaf_prior_cov_inv=jnp.float32(cfg.ntree),
+                error_cov_df=2.0,
+                error_cov_scale=2.0,
+                min_points_per_leaf=5,
+            )
+        self.state = device_put(self.state, cfg.device)
 
         print("compile mcmc loop...")
 
@@ -170,7 +186,9 @@ class Bartz(Benchmark):
             def callback(**_):
                 return debug.callback(lambda: print(".", end="", flush=True))
 
-            bart, _, _ = mcmcloop.run_mcmc(key, bart, config.n_save, callback=callback)
+            bart, _, _ = mcmcloop.run_mcmc(
+                key, bart, cfg.steps_per_rep, callback=callback
+            )
             return bart
 
         self.run_bart = run_bart.lower(key, self.state).compile()
@@ -188,14 +206,10 @@ def clock(f: Callable, *args: Any) -> float:
     return end - start
 
 
-# detect gpu/cpu
-device_kind = jnp.empty(0).devices().pop().device_kind
-
-
 def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict[str, list]):
     # determine ntree and p for this n
     expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
-    if device_kind == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
+    if cfg.device.platform == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
         # on cpu, jax won't raise out of memory errors, and just hang forever
         return
     print(f"\nn = {cfg.n:_}, ntree = {cfg.ntree:_}, p = {cfg.p:_}")
@@ -209,10 +223,9 @@ def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict[str, list]):
         print("generate data...")
         data = make_data(keys.pop(), cfg.n, cfg.p)
 
+        # the harness prints its own messages
         bench = Bartz()
-        bench.setup(
-            keys.pop(), data, BartzConfig(cfg.steps_per_rep, cfg.ntree, cfg.maxdepth)
-        )
+        bench.setup(keys.pop(), data, cfg)
 
         print("run...")
         times = []
@@ -256,24 +269,40 @@ def benchmarking_loop(config: Config) -> dict[str, list]:
     return results
 
 
-def save_results(config: Config, results: dict[str, list]):
+def save_results(cfg: Config, results: dict[str, list]):
     """Save results in machine-readable format."""
     print(f"""
 {{
     'package': 'bartz',
-    'device_kind': '{device_kind}',
-    {"'n/ntree': " + str(config.n_over_ntree) if config.fixed_ntree is None else "'ntree': " + str(config.fixed_ntree)},
-    {"'n/p': " + str(config.n_over_p) if config.fixed_p is None else "'p': " + str(config.fixed_p)},
-    'maxdepth': {config.maxdepth},
+    'device_kind': '{cfg.device().device_kind}',
+    {"'n/ntree': " + str(cfg.n_over_ntree) if cfg.fixed_ntree is None else "'ntree': " + str(cfg.fixed_ntree)},
+    {"'n/p': " + str(cfg.n_over_p) if cfg.fixed_p is None else "'p': " + str(cfg.fixed_p)},
+    'maxdepth': {cfg.maxdepth},
     'results': {results},
 }},""")
 
 
+def setup_device(cfg: Config):
+    """Configure the jax device."""
+    match cfg.platform:
+        case "cpu":
+            # disable gpu altogether
+            config.update("jax_platforms", "cpu")
+        case "gpu":
+            # allocate all gpu memory
+            putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
+            # force an error if gpu not found
+            config.update("jax_platforms", "cuda,gpu")
+        case _:
+            raise ValueError(cfg.platform)
+
+
 def main():
     """Entry point of the script."""
-    config = Config()
-    results = benchmarking_loop(config)
-    save_results(config, results)
+    cfg = Config()
+    setup_device(cfg)
+    results = benchmarking_loop(cfg)
+    save_results(cfg, results)
 
 
 if __name__ == "__main__":
