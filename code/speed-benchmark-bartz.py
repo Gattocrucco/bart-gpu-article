@@ -15,7 +15,7 @@ from bartz.jaxext import split
 from bartz.mcmcstep import State, init, make_p_nonterminal
 from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
 from bartz.testing import gen_data
-from equinox import Module, field
+from equinox import Module
 from jax import (
     Device,
     block_until_ready,
@@ -207,12 +207,18 @@ def clock(f: Callable, *args: Any) -> float:
     return end - start
 
 
-def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict[str, list]):
-    # determine ntree and p for this n
+class Skip(Exception):
+    """Exception raised by `benchmark_unit` to skip the current benchmark."""
+
+
+def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
+    # decide whether to skip benchmark to avoid using too much memory
     expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
     if cfg.device.platform == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
         # on cpu, jax won't raise out of memory errors, and just hang forever
-        return
+        raise Skip
+
+    # print information
     print(f"\nn = {cfg.n:_}, ntree = {cfg.ntree:_}, p = {cfg.p:_}")
     print(f"expected memory usage: {num2si(expected_memory_usage)}B")
 
@@ -220,39 +226,27 @@ def loop_body(key: Key[Array, ""], cfg: UnitConfig, results: dict[str, list]):
     keys = list(random.split(key, cfg.reps + 3))
     key = keys.pop()
 
-    try:
-        print("generate data...")
-        data = make_data(keys.pop(), cfg.n, cfg.p)
+    print("generate data...")
+    data = make_data(keys.pop(), cfg.n, cfg.p)
 
-        # the harness prints its own messages
-        bench = Bartz()
-        bench.setup(keys.pop(), data, cfg)
+    # the harness prints its own messages
+    bench = Bartz()
+    bench.setup(keys.pop(), data, cfg)
 
-        print("run...")
-        times = []
-        for i in range(cfg.reps):
-            print(f"run {i + 1}/{cfg.reps} ", end="", flush=True)
-            time = clock(bench.run, keys.pop())
-            print(
-                f" {cfg.steps_per_rep} iterations in {format_time(time)} ({format_time(time / cfg.steps_per_rep)} per iteration)"
-            )
-            times.append(time)
-        per_iter = min(times) / cfg.steps_per_rep
+    print("run...")
+    times = []
+    for i in range(cfg.reps):
+        print(f"run {i + 1}/{cfg.reps} ", end="", flush=True)
+        time = clock(bench.run, keys.pop())
+        print(
+            f" {cfg.steps_per_rep} iterations in {format_time(time)} ({format_time(time / cfg.steps_per_rep)} per iteration)"
+        )
+        times.append(time)
 
-    except JaxRuntimeError as exc:
-        # suppress out-of-memory errors, without saving results
-        if not exc.args[0].startswith(
-            "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
-        ):
-            raise
-
-    else:
-        # save results
-        results.setdefault("n", []).append(cfg.n)
-        results.setdefault("time_per_iter", []).append(per_iter)
+    return min(times) / cfg.steps_per_rep
 
 
-def benchmarking_loop(config: Config) -> dict[str, list]:
+def benchmark_loop(config: Config) -> dict[str, list]:
     key = random.key(config.seed)
 
     results = {}
@@ -261,8 +255,25 @@ def benchmarking_loop(config: Config) -> dict[str, list]:
         keys = split(key)
         key = keys.pop()
 
-        # run benchmark unit
-        loop_body(keys.pop(), config.unit_config(n), results)
+        try:
+            # run benchmark unit
+            time_per_iter = benchmark_unit(keys.pop(), config.unit_config(n))
+
+        except JaxRuntimeError as exc:
+            # suppress out-of-memory errors, without saving results
+            if not exc.args[0].startswith(
+                "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
+            ):
+                raise
+
+        except Skip:
+            # don't save results
+            pass
+
+        else:
+            # save results
+            results.setdefault("n", []).append(n)
+            results.setdefault("time_per_iter", []).append(time_per_iter)
 
         # free memory
         collect()
@@ -308,7 +319,7 @@ def main():
     """Entry point of the script."""
     cfg = Config()
     setup_device(cfg)
-    results = benchmarking_loop(cfg)
+    results = benchmark_loop(cfg)
     save_results(cfg, results)
 
 
