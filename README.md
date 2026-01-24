@@ -7,23 +7,21 @@ Code to reproduce the results in Petrillo (2024), "Very fast Bayesian Additive R
 ## Files setup
 
 * Copy/clone the files to your computer
-* Set the working directory to `bart-gpu-article/code`
+* Set the working directory to `bart-gpu-article`
 
 ## R setup
 
 Install:
 
-  * R 4.4.1 https://www.r-project.org
+  * R 4.5.1 https://www.r-project.org
   
-  * JDK 19.0.1 https://jdk.java.net (on macOS, put the directory into `/Library/Java/JavaVirtualMachines/`)
+  * JDK 25.0.2 https://jdk.java.net (on macOS, put the directory into `/Library/Java/JavaVirtualMachines/`)
 
-Then install the following R packages:
-
-```R
-library(remotes)
-install_version('bartMachine', version='1.3.4.1')
-install_version('BART', version='2.9.9')
-install_version('dbarts', version='0.9-28')
+The run these commands to install everything:
+  
+```sh
+R CMD javareconf
+Rscript -e "renv::restore()"
 ```
 
 Everything probably works with newer versions, but I've listed the ones I used to run the code myself for reproducibility.
