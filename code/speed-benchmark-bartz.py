@@ -6,6 +6,7 @@ from collections.abc import Callable
 from functools import partial
 from gc import collect
 from os import putenv
+from pprint import pprint
 from time import perf_counter
 from typing import Any, Literal
 
@@ -271,15 +272,21 @@ def benchmarking_loop(config: Config) -> dict[str, list]:
 
 def save_results(cfg: Config, results: dict[str, list]):
     """Save results in machine-readable format."""
-    print(f"""
-{{
-    'package': 'bartz',
-    'device_kind': '{cfg.device().device_kind}',
-    {"'n/ntree': " + str(cfg.n_over_ntree) if cfg.fixed_ntree is None else "'ntree': " + str(cfg.fixed_ntree)},
-    {"'n/p': " + str(cfg.n_over_p) if cfg.fixed_p is None else "'p': " + str(cfg.fixed_p)},
-    'maxdepth': {cfg.maxdepth},
-    'results': {results},
-}},""")
+    output = {
+        "package": "bartz",
+        "device_kind": cfg.device().device_kind,
+        "maxdepth": cfg.maxdepth,
+        "results": results,
+    }
+    if cfg.fixed_ntree is None:
+        output["n/ntree"] = cfg.n_over_ntree
+    else:
+        output["ntree"] = cfg.fixed_ntree
+    if cfg.fixed_p is None:
+        output["n/p"] = cfg.n_over_p
+    else:
+        output["p"] = cfg.fixed_p
+    pprint(output)
 
 
 def setup_device(cfg: Config):
