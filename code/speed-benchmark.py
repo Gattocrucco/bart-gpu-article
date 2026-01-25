@@ -43,7 +43,7 @@ class UnitConfig(Module):
     n: int
     ntree: int
     p: int
-    maxdepth: int
+    bartz_xgboost_maxdepth: int
     reps: int
     steps_per_rep: int
     cpu_max_memory: int
@@ -58,7 +58,7 @@ class Config(Module):
     fixed_p: int | None = 100
     n_over_ntree: int | None = None
     n_over_p: int | None = None
-    maxdepth: int = 6
+    bartz_xgboost_maxdepth: int = 6
     # nvec: tuple[int, ...] = tuple(2**p for p in range(1, 30))
     nvec: tuple[int, ...] = tuple(2**p for p in range(1, 5))
     reps: int = 2
@@ -80,7 +80,7 @@ class Config(Module):
             if self.fixed_ntree is None
             else self.fixed_ntree,
             p=max(1, n // self.n_over_p) if self.fixed_p is None else self.fixed_p,
-            maxdepth=self.maxdepth,
+            bartz_xgboost_maxdepth=self.bartz_xgboost_maxdepth,
             reps=self.reps,
             steps_per_rep=self.steps_per_rep,
             cpu_max_memory=self.cpu_max_memory,
@@ -211,7 +211,7 @@ class Bartz(Benchmark):
                 offset=0.0,
                 max_split=data.max_split,
                 num_trees=cfg.ntree,
-                p_nonterminal=make_p_nonterminal(cfg.maxdepth, 0.95, 2),
+                p_nonterminal=make_p_nonterminal(cfg.bartz_xgboost_maxdepth, 0.95, 2),
                 leaf_prior_cov_inv=jnp.float32(cfg.ntree),
                 error_cov_df=2.0,
                 error_cov_scale=2.0,
@@ -312,6 +312,7 @@ class Xgboost(Benchmark):
         print("define xgboost model...")
         self.model = XGBRegressor(
             n_estimators=cfg.ntree,
+            max_depth=cfg.bartz_xgboost_maxdepth - 1,
             n_jobs=1,
             random_state=seed,
             device=cfg.device.platform,
@@ -403,7 +404,7 @@ def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
     output = {
         "package": cfg.benchlabel,
         "device_kind": cfg.device().device_kind,
-        "maxdepth": cfg.maxdepth,
+        "maxdepth": cfg.bartz_xgboost_maxdepth,
         "results": results,
     }
     if cfg.fixed_ntree is None:
