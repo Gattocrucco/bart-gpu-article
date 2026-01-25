@@ -113,7 +113,7 @@ def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
         n=n,
         p=p,
         k=1,
-        q=2,
+        q=2 if p > 2 else 0,
         sigma2_lin=SIGMA2_EPS,
         sigma2_quad=SIGMA2_EPS,
         sigma2_eps=SIGMA2_EPS,
@@ -369,6 +369,8 @@ def benchmark_loop(config: Config) -> dict[str, list]:
     """Run all benchmark units."""
     key = random.key(config.seed)
 
+    print(f"\nbenchmark {config.benchlabel}...")
+
     results = {}
     for n in config.nvec:
         # split random key
@@ -403,6 +405,7 @@ def benchmark_loop(config: Config) -> dict[str, list]:
 
 def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
     """Save results in machine-readable format."""
+    # write all output in a dictionary
     output = {
         "package": cfg.benchlabel,
         "device_kind": cfg.device().device_kind,
@@ -418,11 +421,17 @@ def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
     else:
         output["p"] = cfg.fixed_p
 
+    # determine filename suffix
+    suffix = f"-{output['package']}-{output['device_kind']}"
+    if "n/ntree" in output:
+        suffix += "-highntree"
+    if "n/p" in output:
+        suffix += "-highp"
+
+    # save dictionary with output as json file
     results_dir = Path("./results")
     results_dir.mkdir(parents=True, exist_ok=True)
-    output_path = (
-        results_dir / f"benchmark-{output['package']}-{output['device_kind']}.json"
-    )
+    output_path = results_dir / f"benchmark{suffix}.json"
     print(f"write {output_path}...")
     with open(output_path, "w") as f:
         json.dump(output, f, indent=4)
