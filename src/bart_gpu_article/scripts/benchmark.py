@@ -55,19 +55,18 @@ class UnitConfig(Module):
 class Config(Module):
     """General configuration of the script."""
 
+    benchlabel: str
+    nvec: tuple[int, ...]
     fixed_ntree: int | None = 200
     fixed_p: int | None = 100
     n_over_ntree: int | None = None
     n_over_p: int | None = None
     bartz_xgboost_maxdepth: int = 6
-    # nvec: tuple[int, ...] = tuple(2**p for p in range(1, 30))
-    nvec: tuple[int, ...] = tuple(2**p for p in range(1, 5))
     reps: int = 2
     steps_per_rep: int = 15
     cpu_max_memory: int = 16 * 2**30
     seed: int = 2026_01_24_16_54
     platform: Literal["cpu", "gpu"] = "cpu"
-    benchlabel: str = "bartz"
 
     def device(self) -> Device:
         """Get the jax device to use."""
@@ -455,13 +454,45 @@ def parse_args() -> Namespace:
         default="bartz",
         help="which regression method to benchmark",
     )
+    parser.add_argument(
+        "-t",
+        "--high-ntree",
+        action="store_true",
+        help="set ntree such that n/ntree=8 (ntree scales with n)",
+    )
+    parser.add_argument(
+        "-p",
+        "--high-p",
+        action="store_true",
+        help="set p such that n/p=10 (p scales with n)",
+    )
+    parser.add_argument(
+        "-n",
+        "--max-log2-n",
+        type=int,
+        default=4,
+        help="upper end (included) of the n range as log2(n)",
+    )
     return parser.parse_args()
+
+
+def args_to_config(args: Namespace) -> Config:
+    """Convert command line arguments to a Config object."""
+    cfg_kwargs: dict[str, Any] = {"benchlabel": args.method}
+    if args.high_ntree:
+        cfg_kwargs["fixed_ntree"] = None
+        cfg_kwargs["n_over_ntree"] = 8
+    if args.high_p:
+        cfg_kwargs["fixed_p"] = None
+        cfg_kwargs["n_over_p"] = 10
+    cfg_kwargs["nvec"] = tuple(2**p for p in range(1, args.max_log2_n + 1))
+    return Config(**cfg_kwargs)
 
 
 def main() -> None:
     """Entry point of the script."""
     args = parse_args()
-    cfg = Config(benchlabel=args.method)
+    cfg = args_to_config(args)
     setup_device(cfg)
     results = benchmark_loop(cfg)
     save_results(cfg, results)
