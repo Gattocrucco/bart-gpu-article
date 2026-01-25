@@ -1,37 +1,56 @@
-import datetime
+"""Plot the results of `benchmark`."""
+
 import json
-import pathlib
-import subprocess
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from pathlib import Path
 
-import labellines
-import numpy as np
 import polars as pl
+from cycler import Cycler
+from labellines import labelLines
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 
-from bart_gpu_article import textbox
+from bart_gpu_article.textbox import textbox
 
 
 def load_results() -> list[dict]:
     """Load all benchmark result JSON files from ./results directory."""
-    results_dir = pathlib.Path("./results")
+    results_dir = Path("./results")
     results = []
     for filepath in sorted(results_dir.glob("benchmark*.json")):
+        print(f"read {filepath}...")
         with open(filepath) as f:
             results.append(json.load(f))
     return results
 
 
-def plot(results: list[dict]):
-    """Generate speed benchmark plots."""
-    # config
-    single_figure = True
+def results_to_df(results: list[dict]) -> pl.DataFrame:
+    """Merge results into a dataframe."""
+    tables = []
+    for things in results:
+        tables.append(
+            pl.DataFrame(things["results"]).with_columns(
+                [pl.lit(v).alias(k) for k, v in things.items() if k != "results"]
+            )
+        )
 
-    # reset matplotlib
-    plt.close("all")
-    plt.rcdefaults()
+    return (
+        pl.concat(tables, how="diagonal")
+        .with_columns(
+            pl.col("device_kind").replace(
+                {
+                    "NVIDIA L4": "L4",
+                    "NVIDIA A100-SXM4-40GB": "A100",
+                }
+            )
+        )
+        .with_columns(case=pl.concat_str("package", "device_kind", separator="-"))
+    )
 
-    # cycler for plots
-    cycler = plt.cycler(
+
+def get_cycler() -> Cycler:
+    """Return a cycler of properties for plotting lines."""
+    return plt.cycler(
         color=[
             "#006BA4",
             "#FF800E",
@@ -51,27 +70,12 @@ def plot(results: list[dict]):
         markerfacecolor=5 * ["none"],
     )
 
-    # merge data into one long-format dataframe
-    tables = []
-    for things in results:
-        tables.append(
-            pl.DataFrame(things["results"]).with_columns(
-                [pl.lit(v).alias(k) for k, v in things.items() if k != "results"]
-            )
-        )
 
-    df = (
-        pl.concat(tables, how="diagonal")
-        .with_columns(
-            pl.col("device_kind").replace(
-                {
-                    "NVIDIA L4": "L4",
-                    "NVIDIA A100-SXM4-40GB": "A100",
-                }
-            )
-        )
-        .with_columns(case=pl.concat_str("package", "device_kind", separator="-"))
-    )
+def plot(df: pl.DataFrame, single_figure: bool):
+    """Generate speed benchmark plots."""
+    # reset matplotlib
+    plt.close("all")
+    plt.rcdefaults()
 
     keynames = ["n/ntree", "ntree", "n/p", "p"]
     groups = list(df.group_by(keynames, maintain_order=True))
@@ -81,7 +85,7 @@ def plot(results: list[dict]):
             2,
             2,
             figsize=[8.5, 8.5],
-            num=f"speed-benchmark-plot",
+            num="benchmark-plot",
             clear=True,
             layout="constrained",
             sharex=True,
@@ -95,7 +99,7 @@ def plot(results: list[dict]):
         for i in range(len(groups)):
             fig, ax = plt.subplots(
                 figsize=[4.5, 4],
-                num=f"speed-benchmark-plot-{i}",
+                num=f"benchmark-plot-{i}",
                 clear=True,
                 layout="constrained",
             )
@@ -108,6 +112,8 @@ def plot(results: list[dict]):
         ax.set(xscale="log", yscale="log")
         ax.set_xlim(10, 2 * 10**8)
         ax.set_ylim(10**-5, 10**3.5)
+
+    cycler = get_cycler()
 
     for ax, (keys, group) in zip(axs, groups):
         ax.set_prop_cycle(cycler)
@@ -122,8 +128,7 @@ def plot(results: list[dict]):
             ax.set_ylabel("Time per iteration [s]")
 
         if not single_figure:
-            ax.set(xscale="log", yscale="log")
-            ax.set_xlim(10, ax.get_xlim()[1])
+            ax.set(xscale="log", yscale="log", xlim=(10, None))
             xvals = None
 
         match keys:
@@ -136,12 +141,12 @@ def plot(results: list[dict]):
             case (None, _, None, _):
                 xvals = [200, 100, 300, 40_000, 40_000]
 
-        labellines.labelLines(ax.get_lines(), xvals=xvals, outline_width=3)
+        labelLines(ax.get_lines(), xvals=xvals, outline_width=3)
 
         ax.grid(linestyle="--")
         ax.grid(which="minor", linestyle=":")
 
-        textbox.textbox(
+        textbox(
             ax,
             "\n".join(
                 f"{name}={value}"
@@ -151,25 +156,43 @@ def plot(results: list[dict]):
             loc="upper left",
         )
 
-    for fig in figs:
-        fig.show()
+    save_figures(figs)
 
-    # save figures
-    script = pathlib.Path(__file__)
-    outdir = script.with_suffix("")
+    # show figures interactively
+    plt.show()
+
+
+def save_figures(figs: list[Figure]) -> None:
+    """Save all figures in ./plots as PDF."""
+    outdir = Path("./plots")
     outdir.mkdir(exist_ok=True)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()[
-        :7
-    ]
     for fig in figs:
-        figname = f"{commit}_{timestamp}_{fig.get_label()}.pdf"
-        fig.savefig(outdir / figname)
+        file = outdir / f"{fig.get_label()}.pdf"
+        print(f"write {file}...")
+        fig.savefig(file)
+
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = ArgumentParser(
+        description=__doc__,
+        formatter_class=ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "-s",
+        "--single-figure",
+        action="store_true",
+        dest="single_figure",
+        help="combine all plots into a single figure",
+    )
+    return parser.parse_args()
 
 
 def main():
+    args = parse_args()
     results = load_results()
-    plot(results)
+    df = results_to_df(results)
+    plot(df, args.single_figure)
 
 
 if __name__ == "__main__":
