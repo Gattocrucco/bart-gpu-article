@@ -32,10 +32,6 @@ from jax import (
 from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
 from jaxtyping import Array, Float, Float32, Key, UInt
-from rpy2 import robjects
-from xgboost import XGBRegressor
-
-from bart_gpu_article.rbartpackages.dbarts import dbarts, dbartsControl
 
 
 class UnitConfig(Module):
@@ -243,6 +239,8 @@ class Dbarts(Benchmark):
 
     def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
         """Create the initial dbarts state."""
+        from bart_gpu_article.rbartpackages.dbarts import dbarts, dbartsControl
+
         # check device
         if cfg.device.platform != "cpu":
             raise RuntimeError("dbarts only works on cpu")
@@ -277,6 +275,8 @@ class Dbarts(Benchmark):
 
     def teardown(self) -> None:
         """Clean up R memory."""
+        from rpy2 import robjects
+
         del self.sampler
         collect()
         robjects.r("gc()")
@@ -287,6 +287,8 @@ class Xgboost(Benchmark):
 
     def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
         """Create the xgboost model."""
+        from xgboost import XGBRegressor
+
         # decide whether to skip based on memory/time limits
         if cfg.device.platform == "cpu":
             max_n_times_p = 2**30  # memory limit
