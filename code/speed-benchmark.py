@@ -1,7 +1,8 @@
-"""Speed benchmark for bartz on GPU."""
+"""Speed benchmark of bartz & competitors."""
 
 import math
 from abc import ABC, abstractmethod
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Callable
 from functools import partial
 from gc import collect
@@ -29,7 +30,10 @@ from jax import (
 )
 from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
-from jaxtyping import Array, Float32, Key, UInt
+from jaxtyping import Array, Float, Float32, Key, UInt
+from rpy2 import robjects
+
+from rbartpackages.dbarts import dbarts, dbartsControl
 
 
 class UnitConfig(Module):
@@ -43,6 +47,7 @@ class UnitConfig(Module):
     steps_per_rep: int
     cpu_max_memory: int
     device: Device
+    benchclass: type["Benchmark"]
 
 
 class Config(Module):
@@ -60,6 +65,7 @@ class Config(Module):
     cpu_max_memory: int = 16 * 2**30
     seed: int = 2026_01_24_16_54
     platform: Literal["cpu", "gpu"] = "cpu"
+    benchlabel: str = "bartz"
 
     def device(self) -> Device:
         """Get the jax device to use."""
@@ -78,13 +84,15 @@ class Config(Module):
             steps_per_rep=self.steps_per_rep,
             cpu_max_memory=self.cpu_max_memory,
             device=self.device(),
+            benchclass=Benchmark.subclasses[self.benchlabel],
         )
 
 
 class Data(Module):
-    X: UInt[Array, "p n"]
-    y: Float32[Array, "n"]
-    max_split: UInt[Array, "p"]
+    raw_X: Float[Array, "p n"]
+    quantized_X: UInt[Array, "p n"]
+    y: Float32[Array, " n"]
+    max_split: UInt[Array, " p"]
 
 
 def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
@@ -92,6 +100,9 @@ def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     cpu = devices("cpu")[0]
     key = device_put(key, cpu)
     return _make_data(key, n, p)
+
+
+SIGMA2_EPS = 1 / 3
 
 
 @partial(jit, static_argnums=(1, 2))
@@ -103,9 +114,9 @@ def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
         p=p,
         k=1,
         q=2,
-        sigma2_lin=1 / 3,
-        sigma2_quad=1 / 3,
-        sigma2_eps=1 / 3,
+        sigma2_lin=SIGMA2_EPS,
+        sigma2_quad=SIGMA2_EPS,
+        sigma2_eps=SIGMA2_EPS,
         lam=0.0,
     )
 
@@ -116,7 +127,7 @@ def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     # squeeze away multivariate outcome
     y = data.y.squeeze(0)
 
-    return Data(X=X, y=y, max_split=max_split)
+    return Data(raw_X=data.x, quantized_X=X, y=y, max_split=max_split)
 
 
 def num2si(
@@ -144,6 +155,10 @@ def format_time(t: float):
     return f"{num2si(t)}s"
 
 
+class Skip(Exception):
+    """Exception to be raised to skip a benchmark unit."""
+
+
 class Benchmark(ABC):
     """Base class for benchmark harnesses."""
 
@@ -153,9 +168,19 @@ class Benchmark(ABC):
         ...
 
     @abstractmethod
-    def run(self, key: Key[Array, ""]):
+    def run(self, key: Key[Array, ""]) -> None:
         """Run the thing being benchmarked, may update internal state."""
         ...
+
+    def teardown(self) -> None:
+        """Method run at the end of the benchmark unit, default does nothing."""
+        pass
+
+    subclasses: dict[str, type[Benchmark]] = {}
+
+    def __init_subclass__(cls):
+        """Add subclasses to `Benchmark.subclasses`."""
+        Benchmark.subclasses[cls.__name__.lower()] = cls
 
 
 class Bartz(Benchmark):
@@ -163,11 +188,18 @@ class Bartz(Benchmark):
 
     def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig):
         """Create the initial bart state and compile the mcmc loop."""
+        # decide whether to skip
+        expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
+        if cfg.device.platform == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
+            # on cpu, jax won't raise out of memory errors, and just hang forever
+            raise Skip
+        print(f"expected memory usage: {num2si(expected_memory_usage)}B")
+
         print("initialize mcmc state...")
         cpu = devices("cpu")[0]
         with default_device(cpu):
             self.state = init(
-                X=data.X,
+                X=data.quantized_X,
                 y=data.y,
                 offset=0.0,
                 max_split=data.max_split,
@@ -199,6 +231,47 @@ class Bartz(Benchmark):
         self.state = block_until_ready(self.run_bart(key, self.state))
 
 
+class Dbarts(Benchmark):
+    """Benchmark harness for the dbarts mcmc step."""
+
+    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig):
+        # check device
+        if cfg.device.platform != "cpu":
+            raise RuntimeError("dbarts only works on cpu")
+
+        # decide whether to skip
+        expected_memory_usage = 24 * cfg.n * (cfg.ntree + cfg.p)
+        if expected_memory_usage > cfg.cpu_max_memory:
+            raise Skip
+        print(f"expected memory usage: {num2si(expected_memory_usage)}B")
+
+        print("initialize dbarts state...")
+        seed = random.randint(key, (), 0, jnp.uint32(2**31)).item()
+        control = dbartsControl(
+            verbose=True,
+            keepTrainingFits=False,
+            keepTrees=False,
+            n_cuts=255,
+            n_trees=cfg.ntree,
+            n_chains=1,
+            n_threads=1,
+            printEvery=1,
+            rngSeed=seed,
+        )
+        self.sampler = dbarts(
+            data.raw_X.T, data.y, control=control, sigma=SIGMA2_EPS * 2
+        )
+        self.ndpost = cfg.steps_per_rep
+
+    def run(self, key: Key[Array, ""]) -> None:
+        self.sampler.run(0, self.ndpost)
+
+    def teardown(self) -> None:
+        del self.sampler
+        collect()
+        robjects.r("gc()")
+
+
 def clock(f: Callable, *args: Any) -> float:
     """Time a function call."""
     start = perf_counter()
@@ -207,20 +280,9 @@ def clock(f: Callable, *args: Any) -> float:
     return end - start
 
 
-class Skip(Exception):
-    """Exception raised by `benchmark_unit` to skip the current benchmark."""
-
-
 def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
-    # decide whether to skip benchmark to avoid using too much memory
-    expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
-    if cfg.device.platform == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
-        # on cpu, jax won't raise out of memory errors, and just hang forever
-        raise Skip
-
     # print information
     print(f"\nn = {cfg.n:_}, ntree = {cfg.ntree:_}, p = {cfg.p:_}")
-    print(f"expected memory usage: {num2si(expected_memory_usage)}B")
 
     # split random seed
     keys = list(random.split(key, cfg.reps + 3))
@@ -230,7 +292,7 @@ def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
     data = make_data(keys.pop(), cfg.n, cfg.p)
 
     # the harness prints its own messages
-    bench = Bartz()
+    bench = cfg.benchclass()
     bench.setup(keys.pop(), data, cfg)
 
     print("run...")
@@ -242,6 +304,8 @@ def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
             f" {cfg.steps_per_rep} iterations in {format_time(time)} ({format_time(time / cfg.steps_per_rep)} per iteration)"
         )
         times.append(time)
+
+    bench.teardown()
 
     return min(times) / cfg.steps_per_rep
 
@@ -284,7 +348,7 @@ def benchmark_loop(config: Config) -> dict[str, list]:
 def save_results(cfg: Config, results: dict[str, list]):
     """Save results in machine-readable format."""
     output = {
-        "package": "bartz",
+        "package": cfg.benchlabel,
         "device_kind": cfg.device().device_kind,
         "maxdepth": cfg.maxdepth,
         "results": results,
@@ -315,9 +379,26 @@ def setup_device(cfg: Config):
             raise ValueError(cfg.platform)
 
 
+def parse_args() -> Namespace:
+    """Parse command line arguments."""
+    parser = ArgumentParser(
+        description=__doc__,
+        formatter_class=ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
+        choices=Benchmark.subclasses.keys(),
+        default="bartz",
+        help="which regression method to benchmark",
+    )
+    return parser.parse_args()
+
+
 def main():
     """Entry point of the script."""
-    cfg = Config()
+    args = parse_args()
+    cfg = Config(benchlabel=args.method)
     setup_device(cfg)
     results = benchmark_loop(cfg)
     save_results(cfg, results)
