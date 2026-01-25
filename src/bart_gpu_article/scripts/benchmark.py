@@ -44,6 +44,7 @@ class UnitConfig(Module):
     reps: int
     steps_per_rep: int
     cpu_max_memory: int
+    xgboost_gpu_max_n_times_p: int
     device: Device
     benchclass: type["Benchmark"]
 
@@ -61,6 +62,7 @@ class Config(Module):
     reps: int = 2
     steps_per_rep: int = 15
     cpu_max_memory: int = 16 * 2**30
+    xgboost_gpu_max_n_times_p: int = 2**32
     seed: int = 2026_01_24_16_54
     platform: Literal["cpu", "gpu"] = "cpu"
 
@@ -80,6 +82,7 @@ class Config(Module):
             reps=self.reps,
             steps_per_rep=self.steps_per_rep,
             cpu_max_memory=self.cpu_max_memory,
+            xgboost_gpu_max_n_times_p=self.xgboost_gpu_max_n_times_p,
             device=self.device(),
             benchclass=Benchmark.subclasses[self.benchlabel],
         )
@@ -291,13 +294,15 @@ class Xgboost(Benchmark):
 
         # decide whether to skip based on memory/time limits
         if cfg.device.platform == "cpu":
-            max_n_times_p = 2**30  # memory limit
             max_n_times_ntree = 2**32  # time limit
-            if cfg.n * cfg.p > max_n_times_p or cfg.n * cfg.ntree > max_n_times_ntree:
+            if (
+                cfg.n * cfg.p > cfg.cpu_max_memory // 16
+                or cfg.n * cfg.ntree > max_n_times_ntree
+            ):
                 raise Skip
         else:  # gpu
-            max_n_times_p = 2**32  # to avoid out-of-memory session termination
-            if cfg.n * cfg.p > max_n_times_p:
+            # to avoid out-of-memory session termination
+            if cfg.n * cfg.p > cfg.xgboost_gpu_max_n_times_p:
                 raise Skip
 
         print(f"n * p = {cfg.n * cfg.p:_}, n * ntree = {cfg.n * cfg.ntree:_}")
