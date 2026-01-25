@@ -16,8 +16,8 @@ dependencies = [
 ]
 
 [project.scripts]
-speed-benchmark = "bart_gpu_article.scripts.speed_benchmark:main"
-speed-benchmark-plot = "bart_gpu_article.scripts.speed_benchmark_plot:main"
+benchmark = "bart_gpu_article.scripts.benchmark:main"
+benchmark-plot = "bart_gpu_article.scripts.benchmark_plot:main"
 test-rmse = "bart_gpu_article.scripts.test_rmse:main"
 test-rmse-plot = "bart_gpu_article.scripts.test_rmse_plot:main"
 
