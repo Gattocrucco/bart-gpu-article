@@ -34,7 +34,7 @@ from jaxtyping import Array, Float, Float32, Key, UInt
 from rpy2 import robjects
 from xgboost import XGBRegressor
 
-from rbartpackages.dbarts import dbarts, dbartsControl
+from bart_gpu_article.rbartpackages.dbarts import dbarts, dbartsControl
 
 
 class UnitConfig(Module):

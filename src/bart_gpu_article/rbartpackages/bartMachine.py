@@ -28,7 +28,7 @@
 
 from rpy2 import robjects
 
-from rbartpackages._base import RObjectBase, rmethod
+from bart_gpu_article.rbartpackages._base import RObjectBase, rmethod
 
 
 class bartMachine(RObjectBase):  # noqa: D101, because the doc is pulled from R

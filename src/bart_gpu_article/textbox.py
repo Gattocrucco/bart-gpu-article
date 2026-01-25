@@ -23,7 +23,7 @@ def textbox(ax, text, loc="lower left", **kw):
     """
 
     M = 8
-    locparams = {
+    locparams: dict[str, dict] = {
         "lower left": dict(xy=(0, 0), xytext=(M, M), va="bottom", ha="left"),
         "lower center": dict(xy=(0.5, 0), xytext=(0, M), va="bottom", ha="center"),
         "lower right": dict(xy=(1, 0), xytext=(-M, M), va="bottom", ha="right"),

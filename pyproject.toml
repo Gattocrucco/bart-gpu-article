@@ -15,8 +15,18 @@ dependencies = [
     "xgboost>=3.1.3",
 ]
 
+[project.scripts]
+speed-benchmark = "bart_gpu_article.scripts.speed_benchmark:main"
+speed-benchmark-plot = "bart_gpu_article.scripts.speed_benchmark_plot:main"
+test-rmse = "bart_gpu_article.scripts.test_rmse:main"
+test-rmse-plot = "bart_gpu_article.scripts.test_rmse_plot:main"
+
 [tool.uv.sources]
 bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "main" }
 
 [tool.ruff.lint]
 ignore = ["F722"]
+
+[build-system]
+requires = ["uv_build>=0.9.5,<0.10.0"]
+build-backend = "uv_build"

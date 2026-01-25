@@ -30,7 +30,7 @@ import numpy as np
 from jaxtyping import AbstractDtype, Float64, Int32
 from numpy import ndarray
 
-from rbartpackages._base import RObjectBase, rmethod
+from bart_gpu_article.rbartpackages._base import RObjectBase, rmethod
 
 
 class TreeDraws(TypedDict):

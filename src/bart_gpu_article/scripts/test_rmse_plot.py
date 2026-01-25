@@ -7,10 +7,6 @@ import labellines
 import polars as pl
 from matplotlib import pyplot as plt
 
-# reset matplotlib
-plt.close("all")
-plt.rcdefaults()
-
 # config
 single_figure = True
 cycler = plt.cycler(
@@ -768,105 +764,119 @@ results = [
     },
 ]
 
-# merge data into one long-format dataframe
-tables = []
-for things in results:
-    tables.append(
-        pl.DataFrame(things["results"]).with_columns(
-            [pl.lit(v).alias(k) for k, v in things.items() if k != "results"]
+
+def main():
+    # reset matplotlib
+    plt.close("all")
+    plt.rcdefaults()
+
+    # merge data into one long-format dataframe
+    tables = []
+    for things in results:
+        tables.append(
+            pl.DataFrame(things["results"]).with_columns(
+                [pl.lit(v).alias(k) for k, v in things.items() if k != "results"]
+            )
         )
-    )
 
-df = pl.concat(tables, how="diagonal").filter(pl.col("n") >= 32)
+    df = pl.concat(tables, how="diagonal").filter(pl.col("n") >= 32)
 
-keynames = ["n/ntree", "ntree", "n/p", "p"]
-groups = list(df.group_by(keynames, maintain_order=True))
+    keynames = ["n/ntree", "ntree", "n/p", "p"]
+    groups = list(df.group_by(keynames, maintain_order=True))
 
-if single_figure:
-    fig, axs = plt.subplots(
-        2,
-        2,
-        figsize=[8.5, 8.5],
-        num=f"test-rmse-plot",
-        clear=True,
-        layout="constrained",
-        sharex=True,
-        sharey=True,
-    )
-    axs = axs.flat
-    figs = [fig]
-else:
-    axs = []
-    figs = []
-    for i in range(len(groups)):
-        fig, ax = plt.subplots(
-            figsize=[4.5, 3.5],
-            num=f"test-rmse-plot-{i}",
+    if single_figure:
+        fig, axs = plt.subplots(
+            2,
+            2,
+            figsize=[8.5, 8.5],
+            num=f"test-rmse-plot",
             clear=True,
             layout="constrained",
+            sharex=True,
+            sharey=True,
         )
-        axs.append(ax)
-        figs.append(fig)
-axs[1], axs[3] = axs[3], axs[1]
-
-for ax, (keys, group) in zip(axs, groups):
-    ax.set_prop_cycle(cycler)
-    for (package,), data in group.group_by(["package"], maintain_order=True):
-        ax.plot(data["n"], data["rmse"], markerfacecolor="none", label=package)
-
-    (line_error,) = ax.plot(
-        [data["n"].min(), data["n"].max()], [1, 1], "--k", label="error std"
-    )
-    (line_total,) = ax.plot(
-        data["n"], data["total_var"].sqrt(), "--k", label="total std"
-    )
-
-    ax.set_xscale("log")
-    ref_n = df["n"] if single_figure else data["n"]
-    ax.set_xlim(
-        10 ** math.floor(math.log10(ref_n.min())),
-        10 ** math.ceil(math.log10(ref_n.max())),
-    )
-
-    labellines.labelLines(
-        [line_error, line_total], drop_label=True, outline_width=6, align=False
-    )
-
-    ss = ax.get_subplotspec()
-    legend_title = "\n".join(
-        f"{name}={value}" for name, value in zip(keynames, keys) if value is not None
-    )
-    legend_kw = dict(
-        title=legend_title,
-    )
-    if single_figure:
-        legend_kw.update(loc="upper left")
-        if ss.is_first_row() and ss.is_first_col():
-            ax.legend(**legend_kw)
-        else:
-            ax.legend([], [], **legend_kw)
+        axs = axs.flat
+        figs = [fig]
     else:
-        ax.legend(loc="best", **legend_kw)
+        axs = []
+        figs = []
+        for i in range(len(groups)):
+            fig, ax = plt.subplots(
+                figsize=[4.5, 3.5],
+                num=f"test-rmse-plot-{i}",
+                clear=True,
+                layout="constrained",
+            )
+            axs.append(ax)
+            figs.append(fig)
+    axs[1], axs[3] = axs[3], axs[1]
 
-    if ss.is_last_row():
-        ax.set_xlabel("n")
-    if ss.is_first_col():
-        ax.set_ylabel("RMSE")
-    ax.grid(linestyle="--")
-    ax.grid(which="minor", linestyle=":")
+    for ax, (keys, group) in zip(axs, groups):
+        ax.set_prop_cycle(cycler)
+        for (package,), data in group.group_by(["package"], maintain_order=True):
+            ax.plot(data["n"], data["rmse"], markerfacecolor="none", label=package)
 
-if single_figure:
-    axs[0].set_ylim(0.95, 1.95)
+        (line_error,) = ax.plot(
+            [data["n"].min(), data["n"].max()], [1, 1], "--k", label="error std"
+        )
+        (line_total,) = ax.plot(
+            data["n"], data["total_var"].sqrt(), "--k", label="total std"
+        )
 
-for fig in figs:
-    fig.show()
+        ax.set_xscale("log")
+        ref_n = df["n"] if single_figure else data["n"]
+        ax.set_xlim(
+            10 ** math.floor(math.log10(ref_n.min())),
+            10 ** math.ceil(math.log10(ref_n.max())),
+        )
 
-# save figures
-script = pathlib.Path(__file__)
-outdir = script.with_suffix("")
-outdir.mkdir(exist_ok=True)
-timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%Ss")
-commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()[:7]
-for fig in figs:
-    figname = f"{commit}_{timestamp}_{fig.get_label()}.pdf"
-    fig.savefig(outdir / figname)
+        labellines.labelLines(
+            [line_error, line_total], drop_label=True, outline_width=6, align=False
+        )
+
+        ss = ax.get_subplotspec()
+        legend_title = "\n".join(
+            f"{name}={value}"
+            for name, value in zip(keynames, keys)
+            if value is not None
+        )
+        legend_kw = dict(
+            title=legend_title,
+        )
+        if single_figure:
+            legend_kw.update(loc="upper left")
+            if ss.is_first_row() and ss.is_first_col():
+                ax.legend(**legend_kw)
+            else:
+                ax.legend([], [], **legend_kw)
+        else:
+            ax.legend(loc="best", **legend_kw)
+
+        if ss.is_last_row():
+            ax.set_xlabel("n")
+        if ss.is_first_col():
+            ax.set_ylabel("RMSE")
+        ax.grid(linestyle="--")
+        ax.grid(which="minor", linestyle=":")
+
+    if single_figure:
+        axs[0].set_ylim(0.95, 1.95)
+
+    for fig in figs:
+        fig.show()
+
+    # save figures
+    script = pathlib.Path(__file__)
+    outdir = script.with_suffix("")
+    outdir.mkdir(exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%Ss")
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()[
+        :7
+    ]
+    for fig in figs:
+        figname = f"{commit}_{timestamp}_{fig.get_label()}.pdf"
+        fig.savefig(outdir / figname)
+
+
+if __name__ == "__main__":
+    main()
