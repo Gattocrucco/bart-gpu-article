@@ -33,7 +33,7 @@ from rpy2.robjects.help import Package
 from rpy2.robjects.methods import RS4
 
 # converter for pandas
-pandas_converter = conversion.Converter('pandas')
+pandas_converter = conversion.Converter("pandas")
 try:
     from rpy2.robjects import pandas2ri
 except ImportError:
@@ -42,7 +42,7 @@ else:
     pandas_converter = pandas2ri.converter
 
 # converter for polars
-polars_converter = conversion.Converter('polars')
+polars_converter = conversion.Converter("polars")
 try:
     import polars
     from rpy2.robjects import pandas2ri
@@ -58,7 +58,7 @@ else:
     polars_converter.py2rpy.register(polars.Series, polars_to_r)
 
 # converter for jax
-jax_converter = conversion.Converter('jax')
+jax_converter = conversion.Converter("jax")
 try:
     import jax
 except ImportError:
@@ -82,12 +82,12 @@ def bool_vector_to_python(x):
     return np.array(x, bool)
 
 
-bool_vector_converter = conversion.Converter('bool_vector')
+bool_vector_converter = conversion.Converter("bool_vector")
 bool_vector_converter.rpy2py.register(BoolVector, bool_vector_to_python)
 
 
 # converter for python dictionaries
-dict_converter = conversion.Converter('dict')
+dict_converter = conversion.Converter("dict")
 
 
 def dict_to_r(x):
@@ -96,7 +96,7 @@ def dict_to_r(x):
 
 dict_converter.py2rpy.register(dict, dict_to_r)
 
-R_IDENTIFIER = r'(?:[a-zA-Z]|\.(?![0-9]))[a-zA-Z0-9._]*'
+R_IDENTIFIER = r"(?:[a-zA-Z]|\.(?![0-9]))[a-zA-Z0-9._]*"
 
 
 class RObjectBase:
@@ -146,10 +146,10 @@ class RObjectBase:
     @property
     def _library(self) -> str:
         """Parse `_rfuncname` to get the library. Also checks `_rfuncname` is valid."""
-        pattern = rf'^({R_IDENTIFIER})::({R_IDENTIFIER})$'
+        pattern = rf"^({R_IDENTIFIER})::({R_IDENTIFIER})$"
         m = match(pattern, self._rfuncname)
         if m is None:
-            msg = f'Invalid _rfuncname: {self._rfuncname}.'
+            msg = f"Invalid _rfuncname: {self._rfuncname}."
             raise ValueError(msg)
         return m.group(1)
 
@@ -158,17 +158,17 @@ class RObjectBase:
         func = robjects.r(self._rfuncname)
         obj = func(*self._args2r(args), **self._kw2r(kw))
         self._robject = obj
-        if hasattr(obj, 'items'):
+        if hasattr(obj, "items"):
             for s, v in obj.items():
-                setattr(self, s.replace('.', '_'), self._r2py(v))
+                setattr(self, s.replace(".", "_"), self._r2py(v))
 
     def __init_subclass__(cls, **kw):
         """Automatically add R documentation to subclasses."""
-        library, name = cls._rfuncname.split('::')
+        library, name = cls._rfuncname.split("::")
         page = Package(library).fetch(name)
         if cls.__doc__ is None:
-            cls.__doc__ = ''
-        cls.__doc__ += 'R documentation:\n' + page.to_docstring()
+            cls.__doc__ = ""
+        cls.__doc__ += "R documentation:\n" + page.to_docstring()
 
 
 def rmethod(meth: Callable, *, rname: str | None = None) -> Callable:
@@ -204,12 +204,12 @@ def rmethod(meth: Callable, *, rname: str | None = None) -> Callable:
     @wraps(meth)
     def impl(self, *args, **kw):
         if isinstance(self._robject, RS4):
-            func = robjects.r['$'](self._robject, rname)
+            func = robjects.r["$"](self._robject, rname)
             out = func(*self._args2r(args), **self._kw2r(kw))
 
         else:
             if not fullmatch(R_IDENTIFIER, rname):
-                msg = f'Invalid R method name: {rname}'
+                msg = f"Invalid R method name: {rname}"
                 raise ValueError(msg)
             rclass = self._robject.rclass[0]
             func = robjects.r(
