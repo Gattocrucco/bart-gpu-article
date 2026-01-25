@@ -1,5 +1,6 @@
 """Speed benchmark of bartz & competitors."""
 
+import json
 import math
 from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
@@ -7,7 +8,7 @@ from collections.abc import Callable
 from functools import partial
 from gc import collect
 from os import putenv
-from pprint import pprint
+from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
 
@@ -415,7 +416,15 @@ def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
         output["n/p"] = cfg.n_over_p
     else:
         output["p"] = cfg.fixed_p
-    pprint(output)
+
+    results_dir = Path("./results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = (
+        results_dir / f"benchmark-{output['package']}-{output['device_kind']}.json"
+    )
+    print(f"write {output_path}...")
+    with open(output_path, "w") as f:
+        json.dump(output, f, indent=4)
 
 
 def setup_device(cfg: Config) -> None:
