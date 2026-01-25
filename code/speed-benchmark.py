@@ -32,6 +32,7 @@ from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
 from jaxtyping import Array, Float, Float32, Key, UInt
 from rpy2 import robjects
+from xgboost import XGBRegressor
 
 from rbartpackages.dbarts import dbarts, dbartsControl
 
@@ -89,6 +90,8 @@ class Config(Module):
 
 
 class Data(Module):
+    """Simulated data."""
+
     raw_X: Float[Array, "p n"]
     quantized_X: UInt[Array, "p n"]
     y: Float32[Array, " n"]
@@ -107,6 +110,7 @@ SIGMA2_EPS = 1 / 3
 
 @partial(jit, static_argnums=(1, 2))
 def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
+    """Compiled implementation of `make_data`."""
     # generate data
     data = gen_data(
         key,
@@ -131,8 +135,11 @@ def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
 
 
 def num2si(
-    x: float, fmt=lambda x: f"{x:#.3g}".rstrip("."), si: bool = True, space: str = " "
-):
+    x: float,
+    fmt: Callable[[float], str] = lambda x: f"{x:#.3g}".rstrip("."),
+    si: bool = True,
+    space: str = " ",
+) -> str:
     """Format a number using SI prefixes."""
     if x == 0:
         return fmt(x) + space
@@ -150,7 +157,7 @@ def num2si(
     return f"{fmt(x3)}{exp3_text}"
 
 
-def format_time(t: float):
+def format_time(t: float) -> str:
     """Format a time as multiple of seconds."""
     return f"{num2si(t)}s"
 
@@ -186,7 +193,7 @@ class Benchmark(ABC):
 class Bartz(Benchmark):
     """Benchmark harness for the bartz mcmc step."""
 
-    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig):
+    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
         """Create the initial bart state and compile the mcmc loop."""
         # decide whether to skip
         expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
@@ -226,7 +233,7 @@ class Bartz(Benchmark):
 
         self.run_bart = run_bart.lower(key, self.state).compile()
 
-    def run(self, key: Key[Array, ""]):
+    def run(self, key: Key[Array, ""]) -> None:
         """Run a few iterations of the mcmc and update the state."""
         self.state = block_until_ready(self.run_bart(key, self.state))
 
@@ -234,7 +241,8 @@ class Bartz(Benchmark):
 class Dbarts(Benchmark):
     """Benchmark harness for the dbarts mcmc step."""
 
-    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig):
+    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
+        """Create the initial dbarts state."""
         # check device
         if cfg.device.platform != "cpu":
             raise RuntimeError("dbarts only works on cpu")
@@ -264,12 +272,55 @@ class Dbarts(Benchmark):
         self.ndpost = cfg.steps_per_rep
 
     def run(self, key: Key[Array, ""]) -> None:
+        """Run the dbarts mcmc."""
         self.sampler.run(0, self.ndpost)
 
     def teardown(self) -> None:
+        """Clean up R memory."""
         del self.sampler
         collect()
         robjects.r("gc()")
+
+
+class Xgboost(Benchmark):
+    """Benchmark harness for xgboost."""
+
+    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
+        """Create the xgboost model."""
+        # decide whether to skip based on memory/time limits
+        if cfg.device.platform == "cpu":
+            max_n_times_p = 2**30  # memory limit
+            max_n_times_ntree = 2**32  # time limit
+            if cfg.n * cfg.p > max_n_times_p or cfg.n * cfg.ntree > max_n_times_ntree:
+                raise Skip
+        else:  # gpu
+            max_n_times_p = 2**32  # to avoid out-of-memory session termination
+            if cfg.n * cfg.p > max_n_times_p:
+                raise Skip
+
+        print(f"n * p = {cfg.n * cfg.p:_}, n * ntree = {cfg.n * cfg.ntree:_}")
+
+        # store data for fitting (xgboost expects (n, p) shape)
+        self.X = data.raw_X.T
+        self.y = data.y
+
+        # get random seed
+        cpu = devices("cpu")[0]
+        with default_device(cpu):
+            seed = random.randint(key, (), 0, jnp.uint32(2**31)).item()
+
+        print("define xgboost model...")
+        self.model = XGBRegressor(
+            n_estimators=cfg.ntree,
+            n_jobs=1,
+            random_state=seed,
+            device=cfg.device.platform,
+            verbosity=2,
+        )
+
+    def run(self, key: Key[Array, ""]) -> None:
+        """Fit the xgboost model."""
+        self.model.fit(self.X, self.y, verbose=True)
 
 
 def clock(f: Callable, *args: Any) -> float:
@@ -281,6 +332,7 @@ def clock(f: Callable, *args: Any) -> float:
 
 
 def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
+    """Run a single benchmark unit."""
     # print information
     print(f"\nn = {cfg.n:_}, ntree = {cfg.ntree:_}, p = {cfg.p:_}")
 
@@ -311,6 +363,7 @@ def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
 
 
 def benchmark_loop(config: Config) -> dict[str, list]:
+    """Run all benchmark units."""
     key = random.key(config.seed)
 
     results = {}
@@ -345,7 +398,7 @@ def benchmark_loop(config: Config) -> dict[str, list]:
     return results
 
 
-def save_results(cfg: Config, results: dict[str, list]):
+def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
     """Save results in machine-readable format."""
     output = {
         "package": cfg.benchlabel,
@@ -364,7 +417,7 @@ def save_results(cfg: Config, results: dict[str, list]):
     pprint(output)
 
 
-def setup_device(cfg: Config):
+def setup_device(cfg: Config) -> None:
     """Configure the jax device."""
     match cfg.platform:
         case "cpu":
@@ -395,7 +448,7 @@ def parse_args() -> Namespace:
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     """Entry point of the script."""
     args = parse_args()
     cfg = Config(benchlabel=args.method)
