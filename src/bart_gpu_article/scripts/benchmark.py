@@ -162,6 +162,11 @@ def format_time(t: float) -> str:
     return f"{num2si(t)}s"
 
 
+def format_mem(m: float) -> str:
+    """Format an amount of memory in bytes."""
+    return f"{num2si(m)}B"
+
+
 class Skip(Exception):
     """Exception to be raised to skip a benchmark unit."""
 
@@ -199,8 +204,10 @@ class Bartz(Benchmark):
         expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
         if cfg.device.platform == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
             # on cpu, jax won't raise out of memory errors, and just hang forever
-            raise Skip
-        print(f"expected memory usage: {num2si(expected_memory_usage)}B")
+            raise Skip(
+                f"cpu memory limit exceeded: {format_mem(expected_memory_usage)} > {format_mem(cfg.cpu_max_memory)}"
+            )
+        print(f"expected memory usage: {format_mem(expected_memory_usage)}")
 
         print("initialize mcmc state...")
         # we first put all arguments on the device and only afterwards call init
@@ -264,8 +271,10 @@ class Dbarts(Benchmark):
         # decide whether to skip
         expected_memory_usage = 24 * cfg.n * (cfg.ntree + cfg.p)
         if expected_memory_usage > cfg.cpu_max_memory:
-            raise Skip
-        print(f"expected memory usage: {num2si(expected_memory_usage)}B")
+            raise Skip(
+                f"cpu memory limit exceeded: {format_mem(expected_memory_usage)} > {format_mem(cfg.cpu_max_memory)}"
+            )
+        print(f"expected memory usage: {format_mem(expected_memory_usage)}")
 
         print("initialize dbarts state...")
         control = dbartsControl(
@@ -311,11 +320,11 @@ class Xgboost(Benchmark):
                 cfg.n * cfg.p > cfg.cpu_max_memory // 16
                 or cfg.n * cfg.ntree > max_n_times_ntree
             ):
-                raise Skip
+                raise Skip("cpu memory or time limit exceeded")
         else:  # gpu
             # to avoid out-of-memory session termination
             if cfg.n * cfg.p > cfg.xgboost_gpu_max_n_times_p:
-                raise Skip
+                raise Skip("gpu memory limit exceeded")
 
         print(f"n * p = {cfg.n * cfg.p:_}, n * ntree = {cfg.n * cfg.ntree:_}")
 
@@ -399,10 +408,12 @@ def benchmark_loop(config: Config) -> dict[str, list]:
                 "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
             ):
                 raise
+            else:
+                print(f"Skip benchmark unit with out-of-memory error:\n{exc}")
 
-        except Skip:
+        except Skip as exc:
             # don't save results
-            pass
+            print(f"Skip benchmark unit with exception:\n{exc}")
 
         else:
             # save results
