@@ -60,6 +60,7 @@ class Config(Module):
     nvec: tuple[int, ...]
     slave: bool
     seed: int
+    timeout: float
     fixed_ntree: int | None = 200
     fixed_p: int | None = 100
     n_over_ntree: int | None = None
@@ -67,7 +68,6 @@ class Config(Module):
     bartz_xgboost_maxdepth: int = 6
     reps: int = 2
     steps_per_rep: int = 15
-    timeout: float = 60  # seconds
 
     def device(self) -> Device:
         """Get the jax device to use for running the algorithm."""
@@ -652,6 +652,13 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         default=2026_01_24_16_54,
         help="random seed for data generation",
     )
+    parser.add_argument(
+        "-T",
+        "--timeout",
+        type=float,
+        default=120,
+        help="timeout in seconds",
+    )
     return parser.parse_args(argv)
 
 
@@ -673,6 +680,7 @@ def args_to_config(args: Namespace) -> Config:
         )
     cfg_kwargs["platform"] = args.device
     cfg_kwargs["seed"] = args.seed
+    cfg_kwargs["timeout"] = args.timeout
     return Config(**cfg_kwargs)
 
 
