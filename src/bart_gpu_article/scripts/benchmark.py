@@ -501,7 +501,14 @@ def parse_args() -> Namespace:
         help="set p such that n/p=10 (p scales with n)",
     )
     parser.add_argument(
-        "-n",
+        "-l",
+        "--min-log2-n",
+        type=int,
+        default=1,
+        help="lower end (included) of the n range as log2(n)",
+    )
+    parser.add_argument(
+        "-u",
         "--max-log2-n",
         type=int,
         default=30,
@@ -526,7 +533,9 @@ def args_to_config(args: Namespace) -> Config:
     if args.high_p:
         cfg_kwargs["fixed_p"] = None
         cfg_kwargs["n_over_p"] = 10
-    cfg_kwargs["nvec"] = tuple(2**p for p in range(1, args.max_log2_n + 1))
+    cfg_kwargs["nvec"] = tuple(
+        2**p for p in range(args.min_log2_n, args.max_log2_n + 1)
+    )
     cfg_kwargs["platform"] = args.device
     return Config(**cfg_kwargs)
 
