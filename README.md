@@ -4,12 +4,23 @@
 
 Code to reproduce the results in Petrillo (2024), "Very fast Bayesian Additive Regression Trees on GPU", [arXiv:2410.23244](https://arxiv.org/abs/2410.23244).
 
+
+## Hardware setup
+
+Running the GPU benchmarks requires a NVIDIA GPU. Virtual machines with GPUs can be conveniently rented in places like https://cloud.vast.ai starting from about 0.10 $/hour.
+
+Other things can be run on any computer with at least 16 GB or RAM.
+
+
 ## Files setup
 
 * Copy/clone the files to your computer
 * Set the working directory to `bart-gpu-article`
 
+
 ## R setup
+
+R is needed only to run benchmarks involving R packages, and in particular java is needed only for `bartMachine`, which is used only in the `test-rmse` command.
 
 Install:
 
@@ -17,13 +28,13 @@ Install:
   
   * JDK 25.0.2 https://jdk.java.net (on macOS, put the directory into `/Library/Java/JavaVirtualMachines/`)
 
-The run these commands to install everything; in a shell:
+Then run this command in a shell:
   
 ```sh
 R CMD javareconf
 ```
 
-In R:
+And these in R:
 
 ```R
 install.packages('remotes')
@@ -35,51 +46,20 @@ install_github('rsparapa/bnptools', ref='1b3e608fc5a0345115e147cc18cd6e31d0b986b
 
 Everything probably works with newer versions, but I've listed the ones I used to run the code myself for reproducibility.
 
+
 ## Python setup
 
-### Brief version
-
-Install Conda or equivalent and make the environment out of `condaenv.yml`.
-
-### Long version
-
-If you don't have Python experience, here is a possible detailed path to install everything without messing up other Python installations. On Mac; I don't know about Windows or Linux.
-
-* Install [homebrew](https://brew.sh)
-* `$ brew install micromamba`
-* `$ micromamba shell init`
-* `$ micromamba env create -f condaenv.yml`
-* `$ micromamba activate bart-gpu-article`
-
-## How to run scripts
-
-From the `code` directory, do
+Install `uv` (https://docs.astral.sh/uv/getting-started/installation/), check if it's already available on your system first. Then do
 
 ```sh
-(bart-gpu-article) $ python script.py
+make setup
 ```
 
-Or, if you prefer to use IPython:
 
-```sh:
-(bart-gpu-article) $ pip install ipython
-(bart-gpu-article) $ ipython
-In [1]: run script.py
-```
+## How to run things
 
-Each figure-producing script saves figures in a directory with the same name of the script.
+Issue `make` without arguments in a shell to get a list of the available commands.
 
-## How to run notebooks
-
-Google Colab allows to open notebooks from arbitrary github repositories. You'll have to fork out 10$ for the GPUs I use in the paper.
-
-## Scripts & notebooks
-
-* `speed-benchmark-*.py`: scripts to produce the CPU timings for figures 3, 5.
-* `speed-benchmark-*.ipynb`: notebooks to produce the GPU timings for figures 3, 5.
-* `speed-benchmark-plot.py`: makes figures 3, 5; the results of the previous scripts have to be copy-pasted in this script.
-* `test-rmse.py`: produce the data for figures 4, 6.
-* `test-rmse-plot.py`: make figures 4, 6; the output of `test-rmse.py` has to be copy-pasted
 
 ## Troubleshooting
 
