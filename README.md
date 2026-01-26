@@ -17,11 +17,20 @@ Install:
   
   * JDK 25.0.2 https://jdk.java.net (on macOS, put the directory into `/Library/Java/JavaVirtualMachines/`)
 
-The run these commands to install everything:
+The run these commands to install everything; in a shell:
   
 ```sh
 R CMD javareconf
-Rscript -e "renv::restore()"
+```
+
+In R:
+
+```R
+install.packages('remotes')
+library(remotes)
+install_version('bartMachine', version='1.4.1.1')
+install_version('dbarts', version='0.9-32')
+install_github('rsparapa/bnptools', ref='1b3e608fc5a0345115e147cc18cd6e31d0b986b1', subdir='BART3')
 ```
 
 Everything probably works with newer versions, but I've listed the ones I used to run the code myself for reproducibility.
