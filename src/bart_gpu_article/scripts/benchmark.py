@@ -495,7 +495,7 @@ def parse_args() -> Namespace:
         "-n",
         "--max-log2-n",
         type=int,
-        default=4,
+        default=30,
         help="upper end (included) of the n range as log2(n)",
     )
     parser.add_argument(
