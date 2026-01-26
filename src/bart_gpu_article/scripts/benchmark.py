@@ -95,6 +95,8 @@ class Data(Module):
     quantized_X: UInt[Array, "p n"]
     y: Float32[Array, " n"]
     max_split: UInt[Array, " p"]
+    prior_var: Float32[Array, ""]
+    pop_var: Float32[Array, ""]
 
 
 def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
@@ -130,7 +132,14 @@ def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     # squeeze away multivariate outcome
     y = data.y.squeeze(0)
 
-    return Data(raw_X=data.x, quantized_X=X, y=y, max_split=max_split)
+    return Data(
+        raw_X=data.x,
+        quantized_X=X,
+        y=y,
+        max_split=max_split,
+        prior_var=data.sigma2_pri,
+        pop_var=data.sigma2_pop,
+    )
 
 
 def num2si(
@@ -237,6 +246,14 @@ class Bartz(Benchmark):
         self.state = block_until_ready(self.run_bart(key, self.state))
 
 
+def make_int_seed(key: Key[Array, ""]) -> int:
+    """Convert a jax random key to a positive integer that fits into int32."""
+    cpu = devices("cpu")[0]
+    key = device_put(key, cpu)
+    with default_device(cpu):
+        return int(random.randint(key, (), 0, jnp.uint32(2**31), jnp.uint32))
+
+
 class Dbarts(Benchmark):
     """Benchmark harness for the dbarts mcmc step."""
 
@@ -255,7 +272,6 @@ class Dbarts(Benchmark):
         print(f"expected memory usage: {num2si(expected_memory_usage)}B")
 
         print("initialize dbarts state...")
-        seed = random.randint(key, (), 0, jnp.uint32(2**31)).item()
         control = dbartsControl(
             verbose=True,
             keepTrainingFits=False,
@@ -265,7 +281,7 @@ class Dbarts(Benchmark):
             n_chains=1,
             n_threads=1,
             printEvery=1,
-            rngSeed=seed,
+            rngSeed=make_int_seed(key),
         )
         self.sampler = dbarts(
             data.raw_X.T, data.y, control=control, sigma=SIGMA2_EPS * 2
@@ -311,17 +327,12 @@ class Xgboost(Benchmark):
         self.X = data.raw_X.T
         self.y = data.y
 
-        # get random seed
-        cpu = devices("cpu")[0]
-        with default_device(cpu):
-            seed = random.randint(key, (), 0, jnp.uint32(2**31)).item()
-
         print("define xgboost model...")
         self.model = XGBRegressor(
             n_estimators=cfg.ntree,
             max_depth=cfg.bartz_xgboost_maxdepth - 1,
             n_jobs=1,
-            random_state=seed,
+            random_state=make_int_seed(key),
             device=cfg.device.platform,
             verbosity=2,
         )
