@@ -264,13 +264,7 @@ class Bartz(Benchmark):
 
     def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
         """Create the initial bart state and compile the mcmc loop."""
-        # decide whether to skip
         expected_memory_usage = cfg.n * (cfg.ntree + cfg.p)
-        if cfg.device.platform == "cpu" and expected_memory_usage > cfg.cpu_max_memory:
-            # on cpu, jax won't raise out of memory errors, and just hang forever
-            raise Stop(
-                f"cpu memory limit exceeded: {format_mem(expected_memory_usage)} > {format_mem(cfg.cpu_max_memory)}"
-            )
         print(f"expected memory usage: {format_mem(expected_memory_usage)}")
 
         print("initialize mcmc state...")
@@ -304,6 +298,9 @@ class Bartz(Benchmark):
             return bart
 
         self.run_bart = run_bart.lower(key, self.state).compile()
+
+        # make sure the state is ready before timing
+        self.state = block_until_ready(self.state)
 
     def run(self, key: Key[Array, ""]) -> None:
         """Run a few iterations of the mcmc and update the state."""
