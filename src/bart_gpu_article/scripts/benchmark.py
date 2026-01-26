@@ -14,7 +14,10 @@ from typing import Any, Literal
 from bartz import mcmcloop
 from bartz.jaxext import split
 from bartz.mcmcstep import State, init, make_p_nonterminal
-from bartz.prepcovars import bin_predictors, quantilized_splits_from_matrix
+from bartz.prepcovars import (
+    bin_predictors,
+    uniform_splits_from_matrix,
+)
 from bartz.testing import gen_data
 from equinox import Module
 from jax import (
@@ -117,7 +120,7 @@ def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     )
 
     # quantize predictors
-    splits, max_split = quantilized_splits_from_matrix(data.x, 255)
+    splits, max_split = uniform_splits_from_matrix(data.x, 256)
     X = bin_predictors(data.x, splits)
 
     # squeeze away multivariate outcome
