@@ -18,7 +18,6 @@ from bartz.prepcovars import (
     bin_predictors,
     uniform_splits_from_matrix,
 )
-from bartz.testing import gen_data
 from equinox import Module
 from jax import (
     Device,
@@ -34,6 +33,8 @@ from jax import (
 from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
 from jaxtyping import Array, Float, Float32, Key, UInt
+
+from bart_gpu_article.dgp import gen_data
 
 
 class UnitConfig(Module):
