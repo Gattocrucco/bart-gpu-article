@@ -50,6 +50,8 @@ class UnitConfig(Module):
     steps_per_rep: int
     cpu_max_memory: int
     xgboost_gpu_max_n_times_p: int
+    xgboost_gpu_max_n_times_ntree: int
+    xgboost_cpu_max_n_times_ntree: int
     device: Device
     data_device: Device
     benchclass: type["Benchmark"]
@@ -70,7 +72,9 @@ class Config(Module):
     reps: int = 2
     steps_per_rep: int = 15
     cpu_max_memory: int = 16 * 2**30
-    xgboost_gpu_max_n_times_p: int = 2**32
+    xgboost_gpu_max_n_times_p: int = 2**30
+    xgboost_gpu_max_n_times_ntree: int = 2**34
+    xgboost_cpu_max_n_times_ntree: int = 2**30
     seed: int = 2026_01_24_16_54
 
     def device(self) -> Device:
@@ -99,6 +103,8 @@ class Config(Module):
             steps_per_rep=self.steps_per_rep,
             cpu_max_memory=self.cpu_max_memory,
             xgboost_gpu_max_n_times_p=self.xgboost_gpu_max_n_times_p,
+            xgboost_gpu_max_n_times_ntree=self.xgboost_gpu_max_n_times_ntree,
+            xgboost_cpu_max_n_times_ntree=self.xgboost_cpu_max_n_times_ntree,
             device=self.device(),
             data_device=self.data_device(),
             benchclass=Benchmark.subclasses[self.benchlabel],
@@ -382,16 +388,18 @@ class Xgboost(Benchmark):
 
         # decide whether to skip based on memory/time limits
         if cfg.device.platform == "cpu":
-            max_n_times_ntree = 2**32  # time limit
             if (
                 cfg.n * cfg.p > cfg.cpu_max_memory // 16
-                or cfg.n * cfg.ntree > max_n_times_ntree
+                or cfg.n * cfg.ntree > cfg.xgboost_cpu_max_n_times_ntree
             ):
                 raise Stop("cpu memory or time limit exceeded")
         else:  # gpu
             # to avoid out-of-memory session termination
-            if cfg.n * cfg.p > cfg.xgboost_gpu_max_n_times_p:
-                raise Stop("gpu memory limit exceeded")
+            if (
+                cfg.n * cfg.p > cfg.xgboost_gpu_max_n_times_p
+                or cfg.n * cfg.ntree > cfg.xgboost_gpu_max_n_times_ntree
+            ):
+                raise Stop("gpu memory or time limit exceeded")
 
         print(f"n * p = {cfg.n * cfg.p:_}, n * ntree = {cfg.n * cfg.ntree:_}")
 
