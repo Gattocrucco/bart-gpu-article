@@ -2,6 +2,7 @@
 
 import json
 import math
+import subprocess
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
@@ -61,6 +62,7 @@ class Config(Module):
     benchlabel: str
     nvec: tuple[int, ...]
     slave: bool
+    seed: int
     fixed_ntree: int | None = 200
     fixed_p: int | None = 100
     n_over_ntree: int | None = None
@@ -72,7 +74,6 @@ class Config(Module):
     xgboost_gpu_max_n_times_p: int = 2**30
     xgboost_gpu_max_n_times_ntree: int = 2**34
     xgboost_cpu_max_n_times_ntree: int = 2**30
-    seed: int = 2026_01_24_16_54
 
     def device(self) -> Device:
         """Get the jax device to use for running the algorithm."""
@@ -461,51 +462,111 @@ def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
     return min(times) / cfg.steps_per_rep
 
 
-def benchmark_loop(config: Config) -> dict[str, list]:
+def benchmark_loop(config: Config) -> Any:
     """Run all benchmark units."""
+    if config.slave:
+        return benchmark_loop_slave(config)
+    else:
+        return benchmark_loop_master(config)
+
+
+EXIT_OUT_OF_MEMORY = 17
+EXIT_STOP_REQUESTED = 31
+
+
+def benchmark_loop_slave(config: Config) -> float:
+    """Run a single benchmark unit and return the time per iteration."""
+
+    (n,) = config.nvec
     key = random.key(config.seed)
+
+    try:
+        # run benchmark unit
+        time_per_iter = benchmark_unit(key, config.unit_config(n))
+
+    except JaxRuntimeError as exc:
+        if not exc.args[0].startswith(
+            "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
+        ):
+            # unknown error, don't catch
+            raise
+        else:
+            # out of memory, stop the loop
+            print(f"\nStop benchmark loop with out-of-memory error:\n{exc}")
+            sys.exit(EXIT_OUT_OF_MEMORY)
+
+    except Stop as exc:
+        # stop the loop
+        print(f"\nStop benchmark loop with exception:\n{exc}")
+        sys.exit(EXIT_STOP_REQUESTED)
+
+    else:
+        # all normal, return result
+        return time_per_iter
+
+
+def benchmark_loop_master(config: Config) -> dict[str, list]:
+    """Run all benchmark units."""
 
     print(f"\nbenchmark {config.benchlabel}...")
 
-    results = {}
+    results: dict[str, list] = {"n": [], "time_per_iter": []}
+    key = random.key(config.seed)
+
     for n in config.nvec:
         # split random key
         keys = split(key)
         key = keys.pop()
 
-        try:
-            # run benchmark unit
-            time_per_iter = benchmark_unit(keys.pop(), config.unit_config(n))
+        # build command line arguments for slave subprocess
+        cmd = [
+            sys.executable,
+            __file__,
+            "-n",
+            str(n),
+            "-m",
+            config.benchlabel,
+            "-d",
+            config.platform,
+            "-s",
+            str(make_int_seed(keys.pop())),
+        ]
+        if config.fixed_ntree is None:
+            cmd.append("-t")
+        if config.fixed_p is None:
+            cmd.append("-p")
 
-        except JaxRuntimeError as exc:
-            if not exc.args[0].startswith(
-                "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
-            ):
-                # unknown error, don't catch
-                raise
-            else:
-                # out of memory, stop the loop
-                print(f"\nStop benchmark loop with out-of-memory error:\n{exc}")
-                break
+        # run subprocess and capture output
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
 
-        except Stop as exc:
-            # stop the loop
-            print(f"\nStop benchmark loop with exception:\n{exc}")
+        # check exit status and handle accordingly
+        if proc.returncode == 0:
+            # parse output and collect results
+            time_per_iter = float(proc.stdout.strip())
+            results["n"].append(n)
+            results["time_per_iter"].append(time_per_iter)
+
+        elif proc.returncode in (EXIT_OUT_OF_MEMORY, EXIT_STOP_REQUESTED):
+            # out of memory or stop requested, break the loop
             break
 
         else:
-            # all normal, save results
-            results.setdefault("n", []).append(n)
-            results.setdefault("time_per_iter", []).append(time_per_iter)
-
-        # free memory
-        collect()
+            # unrecognized error, raise exception
+            raise RuntimeError(
+                f"Subprocess exited with code {proc.returncode}, stdout: {proc.stdout}"
+            )
 
     return results
 
 
-def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
+def save_results(cfg: Config, results: Any) -> None:
     """Save results in machine-readable format."""
+    # in slave mode, print to stdout and return
+    if cfg.slave:
+        assert isinstance(results, float)
+        print(results)
+        return
+
     # write all output in a dictionary
     output = {
         "package": cfg.benchlabel,
@@ -521,11 +582,6 @@ def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
         output["n/p"] = cfg.n_over_p
     else:
         output["p"] = cfg.fixed_p
-
-    # in slave mode, print to stdout and return
-    if cfg.slave:
-        print(json.dumps(results))
-        return
 
     # determine filename suffix
     suffix = f"-{output['package']}-{output['device_kind'].replace(' ', '_')}"
@@ -606,9 +662,19 @@ def parse_args(argv: Sequence[str]) -> Namespace:
     )
     parser.add_argument(
         "-n",
+        "--sample-size",
         type=int,
         default=None,
+        metavar="N",
+        dest="n",
         help="single n value to benchmark (overrides -l and -u)",
+    )
+    parser.add_argument(
+        "-s",
+        "--seed",
+        type=int,
+        default=2026_01_24_16_54,
+        help="random seed for data generation",
     )
     return parser.parse_args(argv)
 
@@ -630,6 +696,7 @@ def args_to_config(args: Namespace) -> Config:
             2**p for p in range(args.min_log2_n, args.max_log2_n + 1)
         )
     cfg_kwargs["platform"] = args.device
+    cfg_kwargs["seed"] = args.seed
     return Config(**cfg_kwargs)
 
 
