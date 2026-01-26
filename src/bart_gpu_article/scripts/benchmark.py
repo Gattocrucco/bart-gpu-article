@@ -23,7 +23,6 @@ from jax import (
     block_until_ready,
     config,
     debug,
-    default_device,
     device_put,
     devices,
     jit,
@@ -52,6 +51,7 @@ class UnitConfig(Module):
 class Config(Module):
     """General configuration of the script."""
 
+    platform: Literal["cpu", "gpu"]
     benchlabel: str
     nvec: tuple[int, ...]
     fixed_ntree: int | None = 200
@@ -64,7 +64,6 @@ class Config(Module):
     cpu_max_memory: int = 16 * 2**30
     xgboost_gpu_max_n_times_p: int = 2**32
     seed: int = 2026_01_24_16_54
-    platform: Literal["cpu", "gpu"] = "cpu"
 
     def device(self) -> Device:
         """Get the jax device to use."""
@@ -100,16 +99,9 @@ class Data(Module):
     eps_var: Float32[Array, ""]
 
 
-def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
-    """Generate data on cpu."""
-    cpu = devices("cpu")[0]
-    key = device_put(key, cpu)
-    return _make_data(key, n, p)
-
-
 @partial(jit, static_argnums=(1, 2))
-def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
-    """Compiled implementation of `make_data`."""
+def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
+    """Generate data."""
     # generate data
     sigma2 = 1 / 3
     data = gen_data(
@@ -211,21 +203,24 @@ class Bartz(Benchmark):
         print(f"expected memory usage: {num2si(expected_memory_usage)}B")
 
         print("initialize mcmc state...")
-        cpu = devices("cpu")[0]
-        with default_device(cpu):
-            self.state = init(
-                X=data.quantized_X,
-                y=data.y,
-                offset=0.0,
-                max_split=data.max_split,
-                num_trees=cfg.ntree,
-                p_nonterminal=make_p_nonterminal(cfg.bartz_xgboost_maxdepth, 0.95, 2),
-                leaf_prior_cov_inv=jnp.float32(cfg.ntree),
-                error_cov_df=2.0,
-                error_cov_scale=2.0,
-                min_points_per_leaf=5,
-            )
-        self.state = device_put(self.state, cfg.device)
+        # we first put all arguments on the device and only afterwards call init
+        # because init uses the arguments to determine the device we are working
+        # on and automatically configure settings related to performance.
+        kwargs = dict(
+            X=data.quantized_X,
+            y=data.y,
+            offset=0.0,
+            max_split=data.max_split,
+            num_trees=cfg.ntree,
+            p_nonterminal=make_p_nonterminal(cfg.bartz_xgboost_maxdepth, 0.95, 2),
+            leaf_prior_cov_inv=jnp.float32(cfg.ntree),
+            error_cov_df=2.0,
+            error_cov_scale=2.0,
+            min_points_per_decision_node=10 if cfg.n > 10 else None,
+        )
+        key, kwargs = device_put((key, kwargs), cfg.device, donate=True)
+        self.state = init(**kwargs)
+        self.device = cfg.device
 
         print("compile mcmc loop...")
 
@@ -243,15 +238,13 @@ class Bartz(Benchmark):
 
     def run(self, key: Key[Array, ""]) -> None:
         """Run a few iterations of the mcmc and update the state."""
+        key = device_put(key, self.device)
         self.state = block_until_ready(self.run_bart(key, self.state))
 
 
 def make_int_seed(key: Key[Array, ""]) -> int:
     """Convert a jax random key to a positive integer that fits into int32."""
-    cpu = devices("cpu")[0]
-    key = device_put(key, cpu)
-    with default_device(cpu):
-        return int(random.randint(key, (), 0, jnp.uint32(2**31), jnp.uint32))
+    return random.randint(key, (), 0, jnp.uint32(2**31), jnp.uint32).item()
 
 
 class Dbarts(Benchmark):
@@ -460,10 +453,15 @@ def setup_device(cfg: Config) -> None:
             # disable gpu altogether
             config.update("jax_platforms", "cpu")
         case "gpu":
-            # allocate all gpu memory
-            putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
+            if cfg.benchlabel == "bartz":
+                # allocate all gpu memory
+                putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
+            else:
+                # do not let jax actually use the gpu
+                putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".00")
+
             # force an error if gpu not found
-            config.update("jax_platforms", "cuda,gpu")
+            config.update("jax_platforms", "cuda,cpu")
         case _:
             raise ValueError(cfg.platform)
 
@@ -500,6 +498,13 @@ def parse_args() -> Namespace:
         default=4,
         help="upper end (included) of the n range as log2(n)",
     )
+    parser.add_argument(
+        "-d",
+        "--device",
+        choices=["cpu", "gpu"],
+        default="cpu",
+        help="device to run the benchmark on",
+    )
     return parser.parse_args()
 
 
@@ -513,6 +518,7 @@ def args_to_config(args: Namespace) -> Config:
         cfg_kwargs["fixed_p"] = None
         cfg_kwargs["n_over_p"] = 10
     cfg_kwargs["nvec"] = tuple(2**p for p in range(1, args.max_log2_n + 1))
+    cfg_kwargs["platform"] = args.device
     return Config(**cfg_kwargs)
 
 
