@@ -2,7 +2,6 @@
 
 import json
 import math
-import subprocess
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
@@ -11,6 +10,7 @@ from contextlib import redirect_stdout
 from functools import partial
 from gc import collect
 from pathlib import Path
+from subprocess import PIPE, TimeoutExpired, run
 from time import perf_counter
 from typing import Any, Literal
 
@@ -71,6 +71,7 @@ class Config(Module):
     reps: int = 2
     steps_per_rep: int = 15
     cpu_max_memory: int = 16 * 2**30
+    timeout: float = 60  # seconds
     xgboost_gpu_max_n_times_p: int = 2**30
     xgboost_gpu_max_n_times_ntree: int = 2**34
     xgboost_cpu_max_n_times_ntree: int = 2**30
@@ -537,7 +538,13 @@ def benchmark_loop_master(config: Config) -> dict[str, list]:
             cmd.append("-p")
 
         # run subprocess and capture output
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+        try:
+            proc = run(cmd, stdout=PIPE, text=True, timeout=config.timeout)
+        except TimeoutExpired:
+            print(
+                f"\nStop benchmark loop due to timeout after {config.timeout} seconds"
+            )
+            break
 
         # check exit status and handle accordingly
         if proc.returncode == 0:
