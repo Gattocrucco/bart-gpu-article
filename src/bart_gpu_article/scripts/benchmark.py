@@ -452,8 +452,10 @@ def setup_device(cfg: Config) -> None:
             # disable gpu altogether
             config.update("jax_platforms", "cpu")
         case "gpu":
-            # force an error if gpu not found
-            config.update("jax_platforms", "cuda,cpu")
+            # force an error if gpu not found, and set cpu as default such that
+            # data is generated on cpu and when using xgboost jax won't squat
+            # the gpu memory
+            config.update("jax_platforms", "cpu,cuda")
         case _:
             raise ValueError(cfg.platform)
 
