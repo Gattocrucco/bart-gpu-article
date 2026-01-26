@@ -41,6 +41,7 @@ def results_to_df(results: list[dict]) -> pl.DataFrame:
                 {
                     "NVIDIA L4": "L4",
                     "NVIDIA A100-SXM4-40GB": "A100",
+                    "NVIDIA RTX A4000": "A4000",
                 }
             )
         )
