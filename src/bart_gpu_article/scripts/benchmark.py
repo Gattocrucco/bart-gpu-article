@@ -6,7 +6,7 @@ import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Callable, Sequence
-from dataclasses import replace
+from contextlib import redirect_stdout
 from functools import partial
 from gc import collect
 from pathlib import Path
@@ -16,10 +16,6 @@ from typing import Any, Literal
 from bartz import mcmcloop
 from bartz.jaxext import autobatch, split
 from bartz.mcmcstep import State, init, make_p_nonterminal
-from bartz.prepcovars import (
-    bin_predictors,
-    uniform_splits_from_matrix,
-)
 from equinox import Module
 from jax import (
     Device,
@@ -64,6 +60,7 @@ class Config(Module):
     platform: Literal["cpu", "gpu"]
     benchlabel: str
     nvec: tuple[int, ...]
+    slave: bool
     fixed_ntree: int | None = 200
     fixed_p: int | None = 100
     n_over_ntree: int | None = None
@@ -525,6 +522,11 @@ def save_results(cfg: Config, results: dict[str, list[Any]]) -> None:
     else:
         output["p"] = cfg.fixed_p
 
+    # in slave mode, print to stdout and return
+    if cfg.slave:
+        print(json.dumps(results))
+        return
+
     # determine filename suffix
     suffix = f"-{output['package']}-{output['device_kind'].replace(' ', '_')}"
     if "n/ntree" in output:
@@ -602,6 +604,12 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         default="cpu",
         help="device to run the benchmark on",
     )
+    parser.add_argument(
+        "-n",
+        type=int,
+        default=None,
+        help="single n value to benchmark (overrides -l and -u)",
+    )
     return parser.parse_args(argv)
 
 
@@ -614,19 +622,26 @@ def args_to_config(args: Namespace) -> Config:
     if args.high_p:
         cfg_kwargs["fixed_p"] = None
         cfg_kwargs["n_over_p"] = 10
-    cfg_kwargs["nvec"] = tuple(
-        2**p for p in range(args.min_log2_n, args.max_log2_n + 1)
-    )
+    cfg_kwargs["slave"] = args.n is not None
+    if args.n is not None:
+        cfg_kwargs["nvec"] = (args.n,)
+    else:
+        cfg_kwargs["nvec"] = tuple(
+            2**p for p in range(args.min_log2_n, args.max_log2_n + 1)
+        )
     cfg_kwargs["platform"] = args.device
     return Config(**cfg_kwargs)
 
 
 def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     """Entry point of the script."""
-    args = parse_args(argv)
-    cfg = args_to_config(args)
-    setup_device(cfg)
-    results = benchmark_loop(cfg)
+    with redirect_stdout(sys.stderr):
+        args = parse_args(argv)
+        cfg = args_to_config(args)
+        setup_device(cfg)
+        results = benchmark_loop(cfg)
+
+    # save results may write to stdout
     save_results(cfg, results)
 
 
