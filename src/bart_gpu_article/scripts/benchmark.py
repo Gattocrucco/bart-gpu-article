@@ -7,7 +7,6 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Callable
 from functools import partial
 from gc import collect
-from os import putenv
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
@@ -453,13 +452,6 @@ def setup_device(cfg: Config) -> None:
             # disable gpu altogether
             config.update("jax_platforms", "cpu")
         case "gpu":
-            if cfg.benchlabel == "bartz":
-                # allocate all gpu memory
-                putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".99")
-            else:
-                # do not let jax actually use the gpu
-                putenv("XLA_PYTHON_CLIENT_MEM_FRACTION", ".00")
-
             # force an error if gpu not found
             config.update("jax_platforms", "cuda,cpu")
         case _:
