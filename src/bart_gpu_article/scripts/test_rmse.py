@@ -2,10 +2,12 @@
 
 import json
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from gc import collect
 from pathlib import Path
 from time import perf_counter
+from types import MappingProxyType
 from typing import Any
 
 import bartz
@@ -15,7 +17,7 @@ from bartz.jaxext import split
 from equinox import Module
 from jax import block_until_ready, random
 from jax import numpy as jnp
-from jaxtyping import Array, Key
+from jaxtyping import Array, Float32, Float64, Key
 from rpy2 import robjects
 
 from bart_gpu_article.rbartpackages import BART3, bartMachine, dbarts
@@ -59,20 +61,96 @@ def make_split_data(
     key: Key[Array, ""], n_train: int, n_test: int, p: int
 ) -> tuple[Data, Data]:
     """Generate training and test data."""
-    data = make_data(key, n_train + n_test, p)
+    data = make_data(key, n_train + n_test, p, quantized_x=False)
     train = replace(
         data,
         raw_X=data.raw_X[:, :n_train],
-        quantized_X=data.quantized_X[:, :n_train],
+        quantized_X=None,
         y=data.y[:n_train],
     )
     test = replace(
         data,
         raw_X=data.raw_X[:, n_train:],
-        quantized_X=data.quantized_X[:, n_train:],
+        quantized_X=None,
         y=data.y[n_train:],
     )
     return train, test
+
+
+def get_bartz_kwargs(ntree: int, test: Data) -> Mapping[str, Any]:
+    """Get the keyword arguments for bartz."""
+    return MappingProxyType(
+        dict(
+            x_test=test.raw_X,
+            sigest=1,
+            usequants=False,
+            numcut=100,
+            nskip=1000,
+            ndpost=1000,
+            ntree=ntree,
+        )
+    )
+
+
+def run_bartz(
+    key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
+) -> Float32[Array, "n_test"]:
+    bart = bartz.BART.gbart(train.raw_X, train.y, **kwargs, seed=key)
+    pred = bart.yhat_test_mean
+    return pred.block_until_ready()
+
+
+def run_BART3(
+    key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
+) -> Float64[np.ndarray, "n_test"]:
+    kw_BART = dict(kwargs)
+    kw_BART.update(
+        x_test=kwargs["x_test"].T,
+        rm_const=False,
+        mc_cores=1,
+        seed=make_int_seed(key),
+    )
+    bart = BART3.mc_gbart(train.raw_X.T, train.y, **kw_BART)
+    return bart.yhat_test_mean
+
+
+def run_dbarts(
+    key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
+) -> Float64[np.ndarray, "n_test"]:
+    kw_dbarts = dict(kwargs)
+    kw_dbarts.update(
+        x_test=kwargs["x_test"].T,
+        seed=make_int_seed(key),
+        keeptrainfits=False,
+        keeptrees=False,
+    )
+    bart = dbarts.bart(train.raw_X.T, train.y, **kw_dbarts)
+    return bart.yhat_test_mean
+
+
+def run_bartMachine(
+    key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
+) -> Float64[np.ndarray, "n_test"]:
+    # I can't configure the splitting grid with bartMachine
+    kw_bartMachine = dict(kwargs)
+    kw_bartMachine.pop("x_test")
+    kw_bartMachine.pop("usequants")
+    kw_bartMachine.pop("numcut")
+    kw_bartMachine.update(
+        num_trees=kw_bartMachine.pop("ntree"),
+        num_burn_in=kw_bartMachine.pop("nskip"),
+        num_iterations_after_burn_in=kw_bartMachine.pop("ndpost"),
+        run_in_sample=False,
+        sig_sq_est=kw_bartMachine.pop("sigest"),
+        mem_cache_for_speed=False,  # set to False to use less memory
+        seed=make_int_seed(key),
+    )
+    bart = bartMachine.bartMachine(
+        pl.DataFrame(np.array(train.raw_X.T)),
+        pl.Series(np.array(train.y)),
+        **kw_bartMachine,
+    )
+    return bart.predict(pl.DataFrame(np.array(kwargs["x_test"].T)))
 
 
 def run_barts(cfg: Config) -> dict[str, dict[str, list]]:
@@ -81,6 +159,13 @@ def run_barts(cfg: Config) -> dict[str, dict[str, list]]:
     key = random.key(cfg.seed)
 
     results = {}
+
+    runners: Mapping[str, Callable] = dict(
+        bartz=run_bartz,
+        BART=run_BART3,
+        dbarts=run_dbarts,
+        bartMachine=run_bartMachine,
+    )
 
     for n in cfg.nvec:
         # determine ntree and p for this n
@@ -103,7 +188,7 @@ def run_barts(cfg: Config) -> dict[str, dict[str, list]]:
         block_until_ready((train, test))
 
         if cfg.only_data:
-            for name in "bartz", "BART", "dbarts", "bartMachine":
+            for name in runners:
                 result = results.setdefault(name, {})
                 result.setdefault("n", []).append(n)
                 result.setdefault("prior_var", []).append(train.prior_var.item())
@@ -113,81 +198,33 @@ def run_barts(cfg: Config) -> dict[str, dict[str, list]]:
             collect()
             continue
 
-        barts = {}
+        rmses: dict[str, float] = {}
+        times: dict[str, float] = {}
+        bartz_kwargs = get_bartz_kwargs(ntree, test)
 
-        print("run bartz...")
-        kw_bartz = dict(
-            x_test=test.raw_X,
-            sigest=1,
-            usequants=False,
-            numcut=100,
-            nskip=1000,
-            ndpost=1000,
-            ntree=ntree,
-            seed=keys.pop(),
-        )
-        with Timer() as timer:
-            barts["bartz"] = bartz.BART.gbart(train.raw_X, train.y, **kw_bartz)
-            block_until_ready(barts["bartz"])
-        print(format_time(timer.time))
+        for name, runner in runners.items():
+            print(f"run {name}...")
+            with Timer() as timer:
+                yhat_test_mean = runner(keys.pop(), train, bartz_kwargs)
+            times[name] = timer.time
 
-        print("run BART...")
-        kw_BART = kw_bartz.copy()
-        kw_BART.update(
-            x_test=test.raw_X.T,
-            rm_const=False,
-            mc_cores=1,
-            seed=make_int_seed(keys.pop()),
-        )
-        with Timer() as timer:
-            barts["BART"] = BART3.mc_gbart(train.raw_X.T, train.y, **kw_BART)
-        print(format_time(timer.time))
+            # compute rmse
+            rmses[name] = np.sqrt(np.mean(np.square(yhat_test_mean - test.y))).item()
+            print(f"{name} time: {format_time(timer.time)}, rmse: {rmses[name]:.2f}")
 
-        print("run dbarts...")
-        kw_dbarts = kw_bartz.copy()
-        kw_dbarts.update(
-            x_test=test.raw_X.T,
-            seed=make_int_seed(keys.pop()),
-            keeptrainfits=False,
-            keeptrees=False,
-        )
-        with Timer() as timer:
-            barts["dbarts"] = dbarts.bart(train.raw_X.T, train.y, **kw_dbarts)
-        print(format_time(timer.time))
+            # free memory
+            collect()
+            robjects.r("gc()")
 
-        print("run bartMachine...")
-        # I can't configure the splitting grid with bartMachine
-        kw_bartMachine = kw_bartz.copy()
-        kw_bartMachine.pop("x_test")
-        kw_bartMachine.pop("usequants")
-        kw_bartMachine.pop("numcut")
-        kw_bartMachine.update(
-            num_trees=kw_bartMachine.pop("ntree"),
-            num_burn_in=kw_bartMachine.pop("nskip"),
-            num_iterations_after_burn_in=kw_bartMachine.pop("ndpost"),
-            run_in_sample=False,
-            sig_sq_est=kw_bartMachine.pop("sigest"),
-            mem_cache_for_speed=False,  # set to False to use less memory
-            seed=make_int_seed(keys.pop()),
-        )
-        with Timer() as timer:
-            barts["bartMachine"] = bartMachine.bartMachine(
-                pl.DataFrame(np.array(train.raw_X.T)),
-                pl.Series(np.array(train.y)),
-                **kw_bartMachine,
+        # print result summary
+        print()
+        print()
+        for name in runners:
+            print(
+                f"{name:12s}: time = {format_time(times[name]):>10s}, "
+                f"rmse = {rmses[name]:.2f}"
             )
-            barts["bartMachine"].yhat_test_mean = barts["bartMachine"].predict(
-                pl.DataFrame(np.array(test.raw_X.T))
-            )
-        print(format_time(timer.time))
-
-        print("test...")
-        rmses = {}
-        for name, bart in barts.items():
-            rmse = jnp.sqrt(jnp.mean(jnp.square(bart.yhat_test_mean - test.y)))
-            rmse = float(rmse)
-            print(f"{name} rmse={rmse:#.3g}")
-            rmses[name] = rmse
+        print()
 
         # save results
         for name, rmse in rmses.items():
@@ -199,7 +236,7 @@ def run_barts(cfg: Config) -> dict[str, dict[str, list]]:
             result.setdefault("rmse", []).append(rmse)
 
         # free memory
-        del train, test, barts
+        del train, test
         collect()
         robjects.r("gc()")
 
