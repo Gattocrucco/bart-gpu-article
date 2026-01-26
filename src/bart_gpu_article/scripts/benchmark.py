@@ -112,25 +112,20 @@ def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
         key,
         n=n,
         p=p,
-        k=1,
         q=2 if p > 2 else 0,
         sigma2_lin=sigma2,
         sigma2_quad=sigma2,
         sigma2_eps=sigma2,
-        lam=0.0,
     )
 
     # quantize predictors
     splits, max_split = uniform_splits_from_matrix(data.x, 256)
     X = bin_predictors(data.x, splits)
 
-    # squeeze away multivariate outcome
-    y = data.y.squeeze(0)
-
     return Data(
         raw_X=data.x,
         quantized_X=X,
-        y=y,
+        y=data.y,
         max_split=max_split,
         prior_var=data.sigma2_pri,
         pop_var=data.sigma2_pop,

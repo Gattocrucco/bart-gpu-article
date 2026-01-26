@@ -32,74 +32,52 @@ import pytest
 from bartz.jaxext import split
 from jax import jit, vmap
 from jax import numpy as jnp
-from jaxtyping import Array, Bool, Float, Key
-from numpy.testing import assert_allclose, assert_array_equal, assert_array_less
+from jaxtyping import Array, Bool, Key
+from numpy.testing import assert_array_equal, assert_array_less
 from scipy.stats import norm
 
 from bart_gpu_article.dgp import (
     DGP,
     gen_data,
-    generate_partition,
     interaction_pattern,
-    partitioned_interaction_pattern,
 )
 
 # Test parameters
 ALPHA = 5e-7  # probability of false positive (aaaaapprox)
 SIGMA_THRESHOLD = norm.isf(ALPHA / 2)  # threshold for z tests
 KWARGS: Mapping = MappingProxyType(
-    dict(n=100, p=20, k=3, q=4, sigma2_eps=0.1, sigma2_lin=0.4, sigma2_quad=0.5)
+    dict(n=100, p=20, q=4, sigma2_eps=0.1, sigma2_lin=0.4, sigma2_quad=0.5)
 )
 REPS: int = 10_000  # number of datasets
 
 
 @jit
-@partial(vmap, in_axes=(0, None))
-def generate_dgps(key: Key[Array, "REPS"], lam: Float[Array, ""]) -> DGP:
+@partial(vmap, in_axes=(0,))
+def generate_dgps(key: Key[Array, "REPS"]) -> DGP:
     """Generate one dataset per random key."""
-    return gen_data(key, lam=lam, **KWARGS)
+    return gen_data(key, **KWARGS)
 
 
 @pytest.fixture
 def dgps(keys: split) -> DGP:
     """Generate DGP instances using vmap and jit."""
-    return generate_dgps(keys.pop(REPS), 0.5)
-
-
-@pytest.fixture
-def dgps_lambda_zero(keys: split) -> DGP:
-    """Generate DGP instances with lambda=0."""
-    return generate_dgps(keys.pop(REPS), 0.0)
-
-
-@pytest.fixture
-def dgps_lambda_one(keys: split) -> DGP:
-    """Generate DGP instances with lambda=1."""
-    return generate_dgps(keys.pop(REPS), 1.0)
+    return generate_dgps(keys.pop(REPS))
 
 
 def test_shapes_and_dtypes(keys: split):
     """Test that all DGP attributes have correct shapes and dtypes."""
-    dgp = gen_data(keys.pop(), lam=0.5, **KWARGS)
-    n, p, k = KWARGS["n"], KWARGS["p"], KWARGS["k"]
+    dgp = gen_data(keys.pop(), **KWARGS)
+    n, p = KWARGS["n"], KWARGS["p"]
 
     # Test shapes
     assert dgp.x.shape == (p, n)
-    assert dgp.y.shape == (k, n)
-    assert dgp.partition.shape == (k, p)
-    assert dgp.beta_shared.shape == (p,)
-    assert dgp.beta_separate.shape == (k, p)
-    assert dgp.mulin_shared.shape == (n,)
-    assert dgp.mulin_separate.shape == (k, n)
-    assert dgp.mulin.shape == (k, n)
-    assert dgp.A_shared.shape == (p, p)
-    assert dgp.A_separate.shape == (k, p, p)
-    assert dgp.muquad_shared.shape == (n,)
-    assert dgp.muquad_separate.shape == (k, n)
-    assert dgp.muquad.shape == (k, n)
-    assert dgp.mu.shape == (k, n)
+    assert dgp.y.shape == (n,)
+    assert dgp.beta.shape == (p,)
+    assert dgp.mulin.shape == (n,)
+    assert dgp.A.shape == (p, p)
+    assert dgp.muquad.shape == (n,)
+    assert dgp.mu.shape == (n,)
     assert dgp.q.shape == ()
-    assert dgp.lam.shape == ()
     assert dgp.sigma2_lin.shape == ()
     assert dgp.sigma2_quad.shape == ()
     assert dgp.sigma2_eps.shape == ()
@@ -107,20 +85,12 @@ def test_shapes_and_dtypes(keys: split):
     # Test dtypes
     assert jnp.issubdtype(dgp.x.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.y.dtype, jnp.floating)
-    assert dgp.partition.dtype == jnp.bool_
-    assert jnp.issubdtype(dgp.beta_shared.dtype, jnp.floating)
-    assert jnp.issubdtype(dgp.beta_separate.dtype, jnp.floating)
-    assert jnp.issubdtype(dgp.mulin_shared.dtype, jnp.floating)
-    assert jnp.issubdtype(dgp.mulin_separate.dtype, jnp.floating)
+    assert jnp.issubdtype(dgp.beta.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.mulin.dtype, jnp.floating)
-    assert jnp.issubdtype(dgp.A_shared.dtype, jnp.floating)
-    assert jnp.issubdtype(dgp.A_separate.dtype, jnp.floating)
-    assert jnp.issubdtype(dgp.muquad_shared.dtype, jnp.floating)
-    assert jnp.issubdtype(dgp.muquad_separate.dtype, jnp.floating)
+    assert jnp.issubdtype(dgp.A.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.muquad.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.mu.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.q.dtype, jnp.integer)
-    assert jnp.issubdtype(dgp.lam.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.sigma2_lin.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.sigma2_quad.dtype, jnp.floating)
     assert jnp.issubdtype(dgp.sigma2_eps.dtype, jnp.floating)
@@ -159,51 +129,12 @@ class TestGenerateX:
         assert_array_less(z_scores, SIGMA_THRESHOLD)
 
 
-class TestGeneratePartition:
-    """Test the _generate_partition method."""
+class TestGenerateBeta:
+    """Test the _generate_beta method."""
 
-    def test_partition_coverage(self, dgps: DGP):
-        """Test that each predictor is assigned to exactly one component."""
-        partitions = dgps.partition  # Shape: (REPS, K, P)
-
-        # Each column should sum to 1
-        col_sums = jnp.sum(partitions, axis=1)  # Shape: (N_REPS, P)
-        assert_array_equal(col_sums, 1)
-
-    def test_partition_counts(self, dgps: DGP):
-        """Test that counts are either p//c or p//c + 1."""
-        partitions = dgps.partition  # Shape: (REPS, K, P)
-        p, k = partitions.shape[2], partitions.shape[1]
-
-        counts = jnp.sum(partitions, axis=2)  # Shape: (REPS, K)
-
-        # Each count should be either P//K or P//K + 1
-        floor_count = p // k
-        valid = (counts == floor_count) | (counts == floor_count + 1)
-        assert_array_equal(valid, True)
-
-    def test_partition_balance(self, dgps: DGP):
-        """Test that predictors are roughly balanced across components."""
-        partitions = dgps.partition  # Shape: (REPS, K, P)
-        n_reps, k, p = partitions.shape
-
-        counts = jnp.sum(partitions, axis=2)  # Shape: (REPS, K)
-
-        # Mean count per component should be P/K
-        expected_mean = p / k
-        means = jnp.mean(counts, axis=0)  # Shape: (K,)
-        stds_of_mean = jnp.std(counts, axis=0) / jnp.sqrt(n_reps)  # Shape: (K,)
-
-        z_scores = jnp.abs((means - expected_mean) / stds_of_mean)
-        assert_array_less(z_scores, SIGMA_THRESHOLD)
-
-
-class TestGenerateBetaShared:
-    """Test the _generate_beta_shared method."""
-
-    def test_beta_shared_mean(self, dgps: DGP):
-        """Test that beta_shared has mean close to 0."""
-        beta_samples = dgps.beta_shared  # Shape: (REPS, P)
+    def test_beta_mean(self, dgps: DGP):
+        """Test that beta has mean close to 0."""
+        beta_samples = dgps.beta  # Shape: (REPS, P)
         n_reps = beta_samples.shape[0]
 
         means = jnp.mean(beta_samples, axis=0)  # Shape: (P,)
@@ -213,50 +144,10 @@ class TestGenerateBetaShared:
         assert_array_less(z_scores, SIGMA_THRESHOLD)
 
 
-class TestGenerateBetaSeparate:
-    """Test the _generate_beta_separate method."""
-
-    def test_beta_separate_mean(self, dgps: DGP):
-        """Test that beta_separate has mean close to 0."""
-        beta_samples = dgps.beta_separate  # Shape: (REPS, K, P)
-        n_reps = beta_samples.shape[0]
-
-        means = jnp.mean(beta_samples, axis=0)  # Shape: (K, P)
-        stds_of_mean = jnp.std(beta_samples, axis=0) / jnp.sqrt(n_reps)  # Shape: (K, P)
-
-        z_scores = jnp.abs(means / stds_of_mean)
-        assert_array_less(z_scores, SIGMA_THRESHOLD)
-
-    def test_beta_separate_independence(self, dgps: DGP):
-        """Test that rows of beta_separate are independent."""
-        beta_samples = dgps.beta_separate  # Shape: (REPS, K, P)
-        n_reps = beta_samples.shape[0]
-
-        beta0 = beta_samples[:, 0, :]  # Shape: (REPS, P)
-        beta1 = beta_samples[:, 1, :]  # Shape: (REPS, P)
-
-        # Compute covariance for each predictor position
-        mean0 = jnp.mean(beta0, axis=0)  # Shape: (P,)
-        mean1 = jnp.mean(beta1, axis=0)  # Shape: (P,)
-        cov = jnp.mean((beta0 - mean0) * (beta1 - mean1), axis=0)  # Shape: (P,)
-
-        # Standard deviation of covariance estimate
-        std0 = jnp.std(beta0, axis=0)
-        std1 = jnp.std(beta1, axis=0)
-        std_of_cov = (std0 * std1) / jnp.sqrt(n_reps)
-
-        z_scores = jnp.abs(cov / std_of_cov)
-        assert_array_less(z_scores, SIGMA_THRESHOLD)
-
-
 @pytest.mark.parametrize(
     "which",
     [
-        "mulin_shared",
-        "mulin_separate",
         "mulin",
-        "muquad_shared",
-        "muquad_separate",
         "muquad",
         "mu",
         "y",
@@ -264,14 +155,14 @@ class TestGenerateBetaSeparate:
 )
 def test_outcome_prior_variance(dgps: DGP, which: str):
     """Test that latent mean and outcome have the expected elementwise variance."""
-    samples = getattr(dgps, which)  # Shape: (REPS, K?, N)
+    samples = getattr(dgps, which)  # Shape: (REPS, N)
     n_reps = samples.shape[0]
 
-    var = jnp.var(samples, axis=0)  # Shape: (K?, N)
+    var = jnp.var(samples, axis=0)  # Shape: (N,)
 
-    if which.startswith("mulin"):
+    if which == "mulin":
         expected_var = dgps.sigma2_lin
-    elif which.startswith("muquad"):
+    elif which == "muquad":
         expected_var = dgps.sigma2_quad + dgps.sigma2_mean
     elif which == "mu":
         expected_var = dgps.sigma2_pri - dgps.sigma2_eps
@@ -290,11 +181,7 @@ def test_outcome_prior_variance(dgps: DGP, which: str):
 @pytest.mark.parametrize(
     "which",
     [
-        "mulin_shared",
-        "mulin_separate",
         "mulin",
-        "muquad_shared",
-        "muquad_separate",
         "muquad",
         "mu",
         "y",
@@ -302,15 +189,15 @@ def test_outcome_prior_variance(dgps: DGP, which: str):
 )
 def test_outcome_pop_variance(dgps: DGP, which: str):
     """Test that latent mean and outcome have the expected elementwise variance."""
-    samples = getattr(dgps, which)  # Shape: (REPS, K?, N)
+    samples = getattr(dgps, which)  # Shape: (REPS, N)
     n_reps = samples.shape[0]
 
-    var = jnp.var(samples, axis=-1, ddof=1)  # Shape: (REPS, K?)
-    var = jnp.mean(var, axis=0)  # Shape: (K?,)
+    var = jnp.var(samples, axis=-1, ddof=1)  # Shape: (REPS,)
+    var = jnp.mean(var, axis=0)  # Shape: ()
 
-    if which.startswith("mulin"):
+    if which == "mulin":
         expected_var = dgps.sigma2_lin
-    elif which.startswith("muquad"):
+    elif which == "muquad":
         expected_var = dgps.sigma2_quad
     elif which == "mu":
         expected_var = dgps.sigma2_pop - dgps.sigma2_eps
@@ -335,51 +222,6 @@ def test_variance_relationships(dgps: DGP):
     assert jnp.all(dgps.sigma2_pop >= dgps.sigma2_eps)
 
 
-@pytest.mark.parametrize(
-    "which",
-    [
-        "beta_separate",
-        "mulin_separate",
-        "mulin",
-        "muquad_separate",
-        "muquad",
-        "mu",
-        "y",
-    ],
-)
-def test_rows_independent(dgps_lambda_zero: DGP, which: str):
-    """Test that rows are independent when lambda=0."""
-    samples = getattr(dgps_lambda_zero, which)  # Shape: (REPS, K, N or P)
-    n_reps = samples.shape[0]
-
-    samples0 = samples[:, 0, :]  # Shape: (REPS, N or P)
-    samples1 = samples[:, 1, :]  # Shape: (REPS, N or P)
-
-    # Compute covariance for each observation position
-    mean0 = jnp.mean(samples0, axis=0)
-    mean1 = jnp.mean(samples1, axis=0)
-    cov = jnp.mean((samples0 - mean0) * (samples1 - mean1), axis=0)
-
-    std0 = jnp.std(samples0, axis=0)
-    std1 = jnp.std(samples1, axis=0)
-    std_of_cov = (std0 * std1) / jnp.sqrt(n_reps)
-
-    z_scores = jnp.abs(cov / std_of_cov)
-    assert_array_less(z_scores, SIGMA_THRESHOLD)
-
-
-@pytest.mark.parametrize("which", ["mulin", "muquad", "mu"])
-def test_rows_identical(dgps_lambda_one: DGP, which: str):
-    """Test that rows are identical when lambda=1."""
-    samples = getattr(dgps_lambda_one, which)  # Shape: (REPS, K, N)
-
-    # Check that all rows are identical within each sample
-    diffs = jnp.max(
-        jnp.abs(samples[:, 0:1, :] - samples), axis=(1, 2)
-    )  # Shape: (REPS,)
-    assert_allclose(diffs, 0.0, atol=1e-5)
-
-
 class TestInteractionPattern:
     """Test the interaction_pattern function."""
 
@@ -400,53 +242,3 @@ class TestInteractionPattern:
         """Test that each row sums to q+1."""
         row_sums = jnp.sum(pattern, axis=1)
         assert_array_equal(row_sums, 4 + 1)
-
-
-class TestPartitionedInteractionPattern:
-    """Test the partitioned_interaction_pattern function."""
-
-    @pytest.fixture
-    def partition(self, keys: split) -> Bool[Array, "k p"]:
-        """Generate a partition of predictors."""
-        p, k = 20, 3
-        return generate_partition(keys.pop(), p=p, k=k)
-
-    @pytest.fixture
-    def q(self) -> int:
-        """Fix a value of the `q` parameter."""
-        return 2
-
-    @pytest.fixture
-    def pattern(self, partition: Bool[Array, "k p"], q: int) -> Bool[Array, "k p p"]:
-        """Generate a multivariate interaction pattern that respects `partition`."""
-        return partitioned_interaction_pattern(partition, q=q)
-
-    def test_respects_partition(
-        self, partition: Bool[Array, "k p"], pattern: Bool[Array, "k p p"]
-    ):
-        """Test that pattern only has True values within partition blocks."""
-        # For each component, check that True values only occur where partition is True
-        # pattern[i, r, s] can only be True if partition[i, r] and partition[i, s] are True
-        mask = partition[:, :, None] & partition[:, None, :]  # Shape: (k, p, p)
-        assert_array_equal(pattern & ~mask, False)
-
-    def test_diagonal_within_partition(
-        self, partition: Bool[Array, "k p"], pattern: Bool[Array, "k p p"]
-    ):
-        """Test that diagonal elements within partition are True."""
-        k, _, _ = pattern.shape
-        for i in range(k):
-            diagonal = pattern[i, partition[i], partition[i]]
-            assert_array_equal(diagonal, True)
-
-    def test_row_sums(
-        self, pattern: Bool[Array, "k p p"], partition: Bool[Array, "k p"], q: int
-    ):
-        """Test that each row sums to q+1."""
-        row_sums = jnp.sum(pattern, axis=2)
-        target = jnp.where(partition, q + 1, 0)
-        assert_array_equal(row_sums, target)
-
-    def test_symmetry(self, pattern: Bool[Array, "k p p"]):
-        """Test that interaction pattern is symmetric."""
-        assert_array_equal(pattern, jnp.swapaxes(pattern, 1, 2))
