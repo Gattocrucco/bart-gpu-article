@@ -14,8 +14,9 @@ from subprocess import PIPE, TimeoutExpired, run
 from time import perf_counter
 from typing import Any, Literal
 
-from bartz import mcmcloop
+import numpy
 from bartz.jaxext import autobatch, split
+from bartz.mcmcloop import run_mcmc
 from bartz.mcmcstep import State, init, make_p_nonterminal
 from equinox import Module
 from jax import (
@@ -45,10 +46,6 @@ class UnitConfig(Module):
     bartz_xgboost_maxdepth: int
     reps: int
     steps_per_rep: int
-    cpu_max_memory: int
-    xgboost_gpu_max_n_times_p: int
-    xgboost_gpu_max_n_times_ntree: int
-    xgboost_cpu_max_n_times_ntree: int
     device: Device
     data_device: Device
     benchclass: type["Benchmark"]
@@ -70,11 +67,7 @@ class Config(Module):
     bartz_xgboost_maxdepth: int = 6
     reps: int = 2
     steps_per_rep: int = 15
-    cpu_max_memory: int = 16 * 2**30
     timeout: float = 60  # seconds
-    xgboost_gpu_max_n_times_p: int = 2**30
-    xgboost_gpu_max_n_times_ntree: int = 2**34
-    xgboost_cpu_max_n_times_ntree: int = 2**30
 
     def device(self) -> Device:
         """Get the jax device to use for running the algorithm."""
@@ -100,10 +93,6 @@ class Config(Module):
             bartz_xgboost_maxdepth=self.bartz_xgboost_maxdepth,
             reps=self.reps,
             steps_per_rep=self.steps_per_rep,
-            cpu_max_memory=self.cpu_max_memory,
-            xgboost_gpu_max_n_times_p=self.xgboost_gpu_max_n_times_p,
-            xgboost_gpu_max_n_times_ntree=self.xgboost_gpu_max_n_times_ntree,
-            xgboost_cpu_max_n_times_ntree=self.xgboost_cpu_max_n_times_ntree,
             device=self.device(),
             data_device=self.data_device(),
             benchclass=Benchmark.subclasses[self.benchlabel],
@@ -311,9 +300,7 @@ class Bartz(Benchmark):
             def callback(**_):
                 return debug.callback(lambda: print(".", end="", flush=True))
 
-            bart, _, _ = mcmcloop.run_mcmc(
-                key, bart, cfg.steps_per_rep, callback=callback
-            )
+            bart, _, _ = run_mcmc(key, bart, cfg.steps_per_rep, callback=callback)
             return bart
 
         self.run_bart = run_bart.lower(key, self.state).compile()
@@ -340,12 +327,7 @@ class Dbarts(Benchmark):
         if cfg.device.platform != "cpu":
             raise RuntimeError("dbarts only works on cpu")
 
-        # decide whether to skip
         expected_memory_usage = 24 * cfg.n * (cfg.ntree + cfg.p)
-        if expected_memory_usage > cfg.cpu_max_memory:
-            raise Stop(
-                f"cpu memory limit exceeded: {format_mem(expected_memory_usage)} > {format_mem(cfg.cpu_max_memory)}"
-            )
         print(f"expected memory usage: {format_mem(expected_memory_usage)}")
 
         print("initialize dbarts state...")
@@ -385,26 +367,13 @@ class Xgboost(Benchmark):
         """Create the xgboost model."""
         from xgboost import XGBRegressor
 
-        # decide whether to skip based on memory/time limits
-        if cfg.device.platform == "cpu":
-            if (
-                cfg.n * cfg.p > cfg.cpu_max_memory // 16
-                or cfg.n * cfg.ntree > cfg.xgboost_cpu_max_n_times_ntree
-            ):
-                raise Stop("cpu memory or time limit exceeded")
-        else:  # gpu
-            # to avoid out-of-memory session termination
-            if (
-                cfg.n * cfg.p > cfg.xgboost_gpu_max_n_times_p
-                or cfg.n * cfg.ntree > cfg.xgboost_gpu_max_n_times_ntree
-            ):
-                raise Stop("gpu memory or time limit exceeded")
-
         print(f"n * p = {cfg.n * cfg.p:_}, n * ntree = {cfg.n * cfg.ntree:_}")
 
         # store data for fitting (xgboost expects (n, p) shape)
-        self.X = data.raw_X.T
-        self.y = data.y
+        # convert to numpy arrays in case xgboost had some overhead with jax
+        # arrays for whatever reason
+        self.X = numpy.array(data.raw_X.T)
+        self.y = numpy.array(data.y)
 
         print("define xgboost model...")
         self.model = XGBRegressor(
