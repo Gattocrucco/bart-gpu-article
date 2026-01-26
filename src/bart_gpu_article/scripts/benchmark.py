@@ -22,6 +22,7 @@ from jax import (
     block_until_ready,
     config,
     debug,
+    default_device,
     device_put,
     devices,
     jit,
@@ -218,7 +219,10 @@ class Bartz(Benchmark):
             min_points_per_decision_node=10 if cfg.n > 10 else None,
         )
         key, kwargs = device_put((key, kwargs), cfg.device, donate=True)
-        self.state = init(**kwargs)
+        with default_device(cfg.device):
+            # init creates new arrays on the default device, even if it
+            # recognizes the device of inputs and it is different
+            self.state = init(**kwargs)
         self.device = cfg.device
 
         print("compile mcmc loop...")
