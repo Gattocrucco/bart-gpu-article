@@ -106,8 +106,9 @@ def run_barts(cfg: Config) -> dict[str, dict[str, list]]:
             for name in "bartz", "BART", "dbarts", "bartMachine":
                 result = results.setdefault(name, {})
                 result.setdefault("n", []).append(n)
-                result.setdefault("prior_var", []).append(train.prior_var)
-                result.setdefault("pop_var", []).append(train.pop_var)
+                result.setdefault("prior_var", []).append(train.prior_var.item())
+                result.setdefault("pop_var", []).append(train.pop_var.item())
+                result.setdefault("eps_var", []).append(train.eps_var.item())
             del train, test
             collect()
             continue
@@ -194,6 +195,7 @@ def run_barts(cfg: Config) -> dict[str, dict[str, list]]:
             result.setdefault("n", []).append(n)
             result.setdefault("prior_var", []).append(train.prior_var.item())
             result.setdefault("pop_var", []).append(train.pop_var.item())
+            result.setdefault("eps_var", []).append(train.eps_var.item())
             result.setdefault("rmse", []).append(rmse)
 
         # free memory

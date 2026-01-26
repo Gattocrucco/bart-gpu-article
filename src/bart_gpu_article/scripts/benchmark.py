@@ -97,6 +97,7 @@ class Data(Module):
     max_split: UInt[Array, " p"]
     prior_var: Float32[Array, ""]
     pop_var: Float32[Array, ""]
+    eps_var: Float32[Array, ""]
 
 
 def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
@@ -106,22 +107,20 @@ def make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     return _make_data(key, n, p)
 
 
-SIGMA2_EPS = 1 / 3
-
-
 @partial(jit, static_argnums=(1, 2))
 def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
     """Compiled implementation of `make_data`."""
     # generate data
+    sigma2 = 1 / 3
     data = gen_data(
         key,
         n=n,
         p=p,
         k=1,
         q=2 if p > 2 else 0,
-        sigma2_lin=SIGMA2_EPS,
-        sigma2_quad=SIGMA2_EPS,
-        sigma2_eps=SIGMA2_EPS,
+        sigma2_lin=sigma2,
+        sigma2_quad=sigma2,
+        sigma2_eps=sigma2,
         lam=0.0,
     )
 
@@ -139,6 +138,7 @@ def _make_data(key: Key[Array, ""], n: int, p: int) -> Data:
         max_split=max_split,
         prior_var=data.sigma2_pri,
         pop_var=data.sigma2_pop,
+        eps_var=data.sigma2_eps,
     )
 
 
@@ -284,7 +284,7 @@ class Dbarts(Benchmark):
             rngSeed=make_int_seed(key),
         )
         self.sampler = dbarts(
-            data.raw_X.T, data.y, control=control, sigma=SIGMA2_EPS * 2
+            data.raw_X.T, data.y, control=control, sigma=2 * data.eps_var.item() ** 0.5
         )
         self.ndpost = cfg.steps_per_rep
 
