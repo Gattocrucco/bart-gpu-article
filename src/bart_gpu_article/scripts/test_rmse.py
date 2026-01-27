@@ -4,6 +4,8 @@ import json
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
+from gc import collect
+from math import ceil
 from pathlib import Path
 from subprocess import PIPE, TimeoutExpired, run
 from sys import argv, executable, stderr
@@ -18,6 +20,7 @@ from bartz.jaxext import split
 from equinox import Module
 from jax import block_until_ready, random
 from jaxtyping import Array, Float32, Float64, Key
+from rpy2 import robjects
 from wurlitzer import pipes
 
 from bart_gpu_article.rbartpackages import BART3, bartMachine, dbarts
@@ -169,23 +172,41 @@ def run_slave(cfg: Config) -> None:
         p = cfg.fixed_p
         ntree = cfg.fixed_ntree
 
+        # compute number of runs to do to make sure the "effective sample size"
+        # is at least 1000 to reduce the error on the RMSE, but no more than 10
+        # runs to avoid overhead
+        num = min(10, ceil(1000 / n))
+
         key = random.key(cfg.seed)
-        keys = split(key)
+        keys = split(key, 2 * num)
 
-        print("generate data...")
-        train, test = make_split_data(keys.pop(), n, cfg.n_test, p)
-        block_until_ready((train, test))
-
-        bartz_kwargs = get_bartz_kwargs(ntree, test)
         runner = RUNNERS[cfg.method]
+        print(f"run {cfg.method} {num} times...")
 
-        print(f"run {cfg.method}...")
-        with Timer() as timer:
-            yhat_test_mean = runner(keys.pop(), train, bartz_kwargs)
+        times = []
+        mses = []
+        for i in range(num):
+            print("generate data...")
+            train, test = make_split_data(keys.pop(), n, cfg.n_test, p)
+            block_until_ready((train, test))
+            bartz_kwargs = get_bartz_kwargs(ntree, test)
 
-        # compute rmse
-        rmse = np.sqrt(np.mean(np.square(yhat_test_mean - test.y))).item()
-        print(f"{cfg.method} time: {format_time(timer.time)}, rmse: {rmse:.2f}")
+            print(f"run {cfg.method} ({i + 1}/{num})...")
+            with Timer() as timer:
+                yhat_test_mean = runner(keys.pop(), train, bartz_kwargs)
+
+            # compute mse and store results
+            mse = np.mean(np.square(yhat_test_mean - test.y)).item()
+            times.append(timer.time)
+            mses.append(mse)
+
+            # free memory
+            collect()
+            robjects.r("gc()")
+
+        time = np.mean(times).item()
+        rmse = np.sqrt(np.mean(mses)).item()
+        print(f"{cfg.method} time: {format_time(time)}, rmse: {rmse:.2f}")
 
         output = dict(
             n=n,
