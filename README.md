@@ -58,7 +58,24 @@ make setup
 
 ## How to run things
 
-Issue `make` without arguments in a shell to get a list of the available commands.
+The commands are available through `uv run`, all commands have command line options that can be shown with `uv run <command> -h`. The results are saved in `./results` and the plots in `./plots`.
+
+```sh
+uv run benchmark       # clock a few iterations of bartz/dbarts/xgboost
+uv run benchmark-plot  # plot the results of the above
+uv run test-rmse       # compare the RMSE of BART packages
+uv run test-rmse-plot  # plot the results of the above
+```
+
+The plotting commands require results to be present for various combinations of options of the results-producing commands. For convenience, these `make` targets will run the commands for all configurations:
+
+```sh
+make benchmark-cpu  # repeat cpu benchmark for all configurations
+make benchmark-gpu  # repeat gpu benchmark for all configurations
+make test-rmse      # repeat bart packages comparison for all configurations
+```
+
+Of these, only `make benchmark-gpu` requires a GPU.
 
 
 ## Troubleshooting
