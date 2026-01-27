@@ -2,8 +2,10 @@
 
 import json
 import math
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from collections.abc import Sequence
 from pathlib import Path
+from sys import argv
 
 import labellines
 import polars as pl
@@ -41,12 +43,14 @@ def results_to_df(results: list[dict]) -> pl.DataFrame:
     tables = []
     for things in results:
         tables.append(
-            pl.DataFrame(things["results"]).with_columns(
+            pl.DataFrame(things["results"])
+            .drop("p", "ntree")
+            .with_columns(
                 [pl.lit(v).alias(k) for k, v in things.items() if k != "results"]
             )
         )
 
-    df = pl.concat(tables, how="diagonal")
+    df = pl.concat(tables, how="diagonal_relaxed")
     # df = df.filter(pl.col("n") >= 32)
     return df
 
@@ -123,7 +127,7 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
             title=legend_title,
         )
         if single_figure:
-            legend_kw.update(loc="upper left")
+            legend_kw.update(loc="upper right")
             if ss.is_first_row() and ss.is_first_col():
                 ax.legend(**legend_kw)
             else:
@@ -153,7 +157,7 @@ def save_figures(figs: list[plt.Figure]) -> None:
         fig.savefig(file)
 
 
-def parse_args():
+def parse_args(argv: Sequence[str]) -> Namespace:
     """Parse command line arguments."""
     parser = ArgumentParser(
         description=__doc__,
@@ -166,12 +170,12 @@ def parse_args():
         dest="single_figure",
         help="combine all plots into a single figure",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> None:
+def main(argv: Sequence[str] = argv[1:]) -> None:
     """Entry point of the script."""
-    args = parse_args()
+    args = parse_args(argv)
     results = load_results()
     df = results_to_df(results)
     figs = plot(df, args.single_figure)
