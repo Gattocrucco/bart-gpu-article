@@ -7,9 +7,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from sys import argv
 
-import labellines
 import polars as pl
 from cycler import Cycler
+from labellines import labelLines
 from matplotlib import pyplot as plt
 
 
@@ -93,30 +93,51 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
     cycler = get_cycler()
 
     for ax, (keys, group) in zip(axs, groups):
+        # plot rmse curves
         ax.set_prop_cycle(cycler)
         for (package,), data in group.group_by(["package"], maintain_order=True):
             ax.plot(data["n"], data["rmse"], markerfacecolor="none", label=package)
 
+        # prepare data to plot standard deviation references
+        sdev_labels = {
+            "eps_var": "error sdev",
+            "pop_var": "population sdev",
+            "prior_var": "prior sdev",
+        }
+        vd_check = group.group_by("n").agg(pl.col(*sdev_labels).n_unique())
+        assert vd_check.drop("n").select(pl.all_horizontal(pl.all() == 1).all()).item()
+        vd = (
+            group.group_by("n")
+            .agg(
+                pl.col(*sdev_labels).first(),
+            )
+            .sort("n")
+        )
+
+        # plot standard deviation references
         error_lines = []
-        for key, label in (
-            ("eps_var", "error sdev"),
-            ("pop_var", "population sdev"),
-            ("prior_var", "prior sdev"),
-        ):
-            (line,) = ax.plot(data["n"], data[key], "--k", label=label)
+        for key, label in sdev_labels.items():
+            (line,) = ax.plot(vd["n"], vd[key], "--k", label=label)
             error_lines.append(line)
 
+        # set plot properties that better be set before plotting labels
         ax.set_xscale("log")
-        ref_n = df["n"] if single_figure else data["n"]
+        ref_n = df["n"] if single_figure else vd["n"]
         ax.set_xlim(
             10 ** math.floor(math.log10(ref_n.min())),
             10 ** math.ceil(math.log10(ref_n.max())),
         )
 
-        labellines.labelLines(
-            error_lines, drop_label=True, outline_width=6, align=False
+        # add labels on top of standard deviation lines
+        labelLines(
+            error_lines,
+            xvals=[20, 2000, 300],
+            drop_label=True,
+            outline_width=6,
+            align=False,
         )
 
+        # add legend; possibly abuse the legend as generic box with text
         ss = ax.get_subplotspec()
         legend_title = "\n".join(
             f"{name}={value}"
@@ -135,6 +156,7 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
         else:
             ax.legend(loc="best", **legend_kw)
 
+        # add plot decorations
         if ss.is_last_row():
             ax.set_xlabel("n")
         if ss.is_first_col():
