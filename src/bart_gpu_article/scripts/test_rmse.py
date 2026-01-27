@@ -231,6 +231,9 @@ def run_master(cfg: Config) -> dict[str, dict[str, list[int | float]]]:
     # method -> (field -> list of values along n)
     results: dict[str, dict[str, list[int | float]]] = {}
 
+    # list to keep track of which methods timed out
+    timed_out: list[str] = []
+
     for n in cfg.nvec:
         # determine ntree and p for this n
         ntree = (
@@ -245,10 +248,11 @@ def run_master(cfg: Config) -> dict[str, dict[str, list[int | float]]]:
         keys = split(key, 5)
         key = keys.pop()
 
-        # counter to check whether all methods timed out
-        n_timeouts = 0
-
         for method in RUNNERS:
+            # skip if already timed out previously
+            if method in timed_out:
+                continue
+
             # command line to invoke script in slave mode
             cmd = [
                 executable,
@@ -272,7 +276,7 @@ def run_master(cfg: Config) -> dict[str, dict[str, list[int | float]]]:
             # if timed out, continue to next method
             except TimeoutExpired:
                 print(f"{method} timed out after {cfg.timeout} seconds")
-                n_timeouts += 1
+                timed_out.append(method)
                 continue
 
             # if subprocess failed, crash
@@ -295,14 +299,16 @@ def run_master(cfg: Config) -> dict[str, dict[str, list[int | float]]]:
                 result.setdefault(k, []).append(v)
 
         # if all methods timed out, stop benchmarking
-        if n_timeouts == len(RUNNERS):
-            print("all methods timed out, stopping benchmark")
+        if len(timed_out) == len(RUNNERS):
+            print("all methods timed out, stop benchmark")
             break
 
         # print summary of the results added in this iteration of the loop
         print()
         print()
         for method, result in results.items():
+            if method in timed_out:
+                continue
             print(
                 f"{method:12s}: time = {format_time(result['time'][-1]):>7s}, "
                 f"rmse = {result['rmse'][-1]:.2f}"
