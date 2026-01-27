@@ -34,7 +34,7 @@ def results_to_df(results: list[dict]) -> pl.DataFrame:
             )
         )
 
-    return (
+    df = (
         pl.concat(tables, how="diagonal")
         .with_columns(
             pl.col("device_kind").replace(
@@ -42,11 +42,16 @@ def results_to_df(results: list[dict]) -> pl.DataFrame:
                     "NVIDIA L4": "L4",
                     "NVIDIA A100-SXM4-40GB": "A100",
                     "NVIDIA RTX A4000": "A4000",
+                    "NVIDIA RTX PRO 6000 Blackwell Workstation Edition": "P6000",
                 }
             )
         )
         .with_columns(case=pl.concat_str("package", "device_kind", separator="-"))
     )
+
+    df = df.filter(pl.col("device_kind") != "A4000")
+
+    return df
 
 
 def get_cycler() -> Cycler:
@@ -108,13 +113,12 @@ def plot(df: pl.DataFrame, single_figure: bool):
             figs.append(fig)
     axs[1], axs[3] = axs[3], axs[1]
 
+    cycler = get_cycler()
+
     if single_figure:
         ax = axs[0]
+        # set log scale before plotting to allow labelLines correct auto positioning
         ax.set(xscale="log", yscale="log")
-        ax.set_xlim(10, 2 * 10**8)
-        ax.set_ylim(10**-5, 10**3.5)
-
-    cycler = get_cycler()
 
     for ax, (keys, group) in zip(axs, groups):
         ax.set_prop_cycle(cycler)
@@ -129,18 +133,21 @@ def plot(df: pl.DataFrame, single_figure: bool):
             ax.set_ylabel("Time per iteration [s]")
 
         if not single_figure:
-            ax.set(xscale="log", yscale="log", xlim=(10, None))
+            ax.set(xscale="log", yscale="log")
+            ax.set(xlim=(10, None))
             xvals = None
 
         match keys:
+            # bartz-p6000, bartz-cpu, dbarts-cpu, xgboost-p6000, xgboost-cpu
             case (_, None, _, None):
-                xvals = [200, 3500, 300, 19_000, 5000]
-            case (None, _, _, None):
-                xvals = [200, 100, 300, 40_000, 10_000]
-            case (_, None, None, _):
-                xvals = [200, 3500, 300, 19_000, 5000]
+                xvals = [100_000, 3500, 300, 300, 2000]
             case (None, _, None, _):
-                xvals = [200, 100, 300, 40_000, 40_000]
+                xvals = [100, 100, 300, 1000, 1000]
+            case (None, _, _, None):
+                xvals = [100, 100, 300, 10_000, 2000]
+            case (_, None, None, _):
+                xvals = [200, 3500, 300, 400, 5000]
+        # xvals = None
 
         labelLines(ax.get_lines(), xvals=xvals, outline_width=3)
 
@@ -156,6 +163,11 @@ def plot(df: pl.DataFrame, single_figure: bool):
             ),
             loc="upper left",
         )
+
+    if single_figure:
+        ax = axs[0]
+        # set xlim after plotting to use "None" for auto limit
+        ax.set_xlim(10, None)
 
     save_figures(figs)
 
