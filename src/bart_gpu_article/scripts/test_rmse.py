@@ -39,9 +39,9 @@ class Config(Module):
     nvec: tuple[int, ...]
     method: str | None
     fixed_ntree: int | None = 200
-    fixed_p: int | None = 100
-    n_over_ntree: int | None = None
-    n_over_p: int | None = None
+    fixed_p: int | None = 50
+    n_over_ntree: int | None = 8
+    n_over_p: int | None = 20
     n_test: int = 1000
     timeout: float = 120.0  # seconds
 
@@ -447,10 +447,12 @@ def args_to_config(args: Namespace) -> Config:
     cfg_kwargs: dict[str, Any] = {}
     if args.high_ntree:
         cfg_kwargs["fixed_ntree"] = None
-        cfg_kwargs["n_over_ntree"] = 8
+    else:
+        cfg_kwargs["n_over_ntree"] = None
     if args.high_p:
         cfg_kwargs["fixed_p"] = None
-        cfg_kwargs["n_over_p"] = 10
+    else:
+        cfg_kwargs["n_over_p"] = None
     if args.n is None:
         cfg_kwargs["nvec"] = tuple(
             2**p for p in range(args.min_log2_n, args.max_log2_n + 1)
