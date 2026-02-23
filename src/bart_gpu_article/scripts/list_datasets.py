@@ -33,7 +33,7 @@ def filter_data(df: pd.DataFrame) -> pl.DataFrame:
             pl.all().max_by("version")
         )
         .filter(
-            # possibly low-quality synthetic datasets
+            # synthetic datasets of which I can not infer curation
             pl.col("name")
             .is_in(
                 [
@@ -46,6 +46,10 @@ def filter_data(df: pd.DataFrame) -> pl.DataFrame:
                     "chen_10_null",
                     "colon",
                     "prostate",
+                    "Avocado-Prices-(Augmented)",
+                    "Chaos_detection_in_Duffing_system",
+                    "Credit_Card_Fraud_",
+                    "flycraft-demonstrations",
                 ]
             )
             .not_(),
@@ -56,12 +60,39 @@ def filter_data(df: pd.DataFrame) -> pl.DataFrame:
             pl.col("name").str.starts_with("Stagger").not_(),
             pl.col("name").str.starts_with("bates_").not_(),
             # end synthetic datasets
+            # datasets with a format which is not convenient for this kind of modeling
+            pl.col("name")
+            .is_in(
+                [
+                    "1M-python-questions-on-stackoverflow",
+                    "Amazon---Ratings-(Beauty-Products)",
+                    "Chess-Position--Chess-Moves",
+                    "DBpedia(YAGO).arff",
+                    "Edge_Embedding",
+                    "Node_Embedding",
+                    "Wikidata",
+                ]
+            )
+            .not_(),
+            # end wrong format
+            # other ignored datasets
             pl.col("name").ne("click"),  # don't know what this is
+            pl.col("name").ne("Dominick"),  # too big
+            pl.col("name").ne("M4-competition-monthly"),  # too big
+            pl.col("name").ne("M4-competition-quarterly"),  # too big
+            pl.col("name").ne("NSE-Future-and-Options-Dataset-3M"),  # dunno
+            # end other ignored
+            # redundant stuff, there's already a better version in the bunch
             pl.col("name").ne("subset_higgs"),  # dunno and seems redundant with Higgs
             pl.col("name").str.starts_with("BAF_variant").not_(),  # a bit redundant
             pl.col("name").ne("Airlines_DepDelay_1M"),  # redundant with 10M version
-            pl.col("k").eq(0) | pl.col("k").eq(2),  # continuous or binary outcome
-            pl.col("n") >= 1_000_000,  # large sample size
+            pl.col("name").ne("bot-iot-all-features"),  # redundant with BOT-IoT
+            pl.col("name").ne("MTPL_SHAP_Tutorial"),  # the OG is freMTPL2freq
+            # end redundant stuff
+            pl.col("k").eq(0) | pl.col("k").eq(2) | pl.col("k").is_null(),
+            # continuous or binary outcome
+            (pl.col("n") >= 1_000_000) | (pl.col("did") == 41214),
+            # large sample size, but for a single dataset we want (freMTPL2freq)
             NumberOfMissingValues=0,  # no missing values
         )
         .with_columns((pl.col("pcont") / pl.col("p")).alias("pcont_over_p"))
