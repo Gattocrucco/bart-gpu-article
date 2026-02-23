@@ -1,6 +1,5 @@
 """Get a list of OPENML datasets to use."""
 
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -107,14 +106,13 @@ def print_data_info(df: pl.DataFrame) -> None:
         print(f"{did:5}  {name}")
 
 
-def save_ids(df: pl.DataFrame) -> None:
-    """Save list of dataset ids."""
-    ids = df["did"].to_list()
-    out = json.dumps(ids)
-    file = Path("./data") / "list-datasets.json"
+def save_dataset_metadata(df: pl.DataFrame) -> None:
+    """Save list of dataset ids & info."""
+    df = df.select("did", "name")
+    file = Path("./data") / "list-datasets.csv"
     file.parent.mkdir(parents=True, exist_ok=True)
     print(f"write {file}...")
-    file.write_text(out)
+    df.write_csv(file)
 
 
 def plot_datasets_metadata(df: pl.DataFrame) -> plt.Figure:
@@ -136,7 +134,8 @@ def plot_datasets_metadata(df: pl.DataFrame) -> plt.Figure:
 
     for ax, col in zip(axes, hist_vars):
         data = df[col]
-        assert data.null_count() == 0, col
+        assert data.null_count() == 0 or col == "k", col
+        data = data.drop_nulls()
         ax.hist(data, bins="auto", histtype="stepfilled")
         ax.set(xlabel=col, ylabel="Count per bin")
 
@@ -156,7 +155,7 @@ def main() -> None:
     df = get_data()
     df = filter_data(df)
     print_data_info(df)
-    save_ids(df)
+    save_dataset_metadata(df)
     fig = plot_datasets_metadata(df)
     save_fig(fig)
     plt.show()
