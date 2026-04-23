@@ -1,15 +1,14 @@
-"""Simulated data generation helpers built on top of :mod:`bart_gpu_article.dgp`."""
+"""Simulated data generation helpers built on top of :mod:`bartz.testing`."""
 
 from functools import partial
 from typing import Any
 
 from bartz.jaxext import autobatch
+from bartz.testing import gen_data
 from equinox import Module
 from jax import jit, random
 from jax import numpy as jnp
 from jaxtyping import Array, Float, Float32, Key, UInt, UInt8
-
-from bart_gpu_article.dgp import gen_data
 
 
 class Data(Module):
@@ -57,6 +56,7 @@ def _gen_data_kwargs(n: int, p: int) -> dict[str, Any]:
         n=n,
         p=p,
         q=2 if p > 2 else 0,
+        lam=1.0,
         sigma2_lin=sigma2,
         sigma2_quad=sigma2,
         sigma2_eps=sigma2,
@@ -73,9 +73,9 @@ def _make_data_unbatchable(key: Key[Array, ""], p: int) -> Data:
         quantized_X=None,
         y=None,
         max_split=max_split,
-        prior_var=empty_data.sigma2_pri,
-        pop_var=empty_data.sigma2_pop,
-        eps_var=empty_data.sigma2_eps,
+        prior_var=empty_data.params.sigma2_pri,
+        pop_var=empty_data.params.sigma2_pop,
+        eps_var=empty_data.params.sigma2_eps,
     )
 
 
@@ -105,6 +105,6 @@ def _make_data_batchable(
 def _quantize_uniform(x: Float[Array, "p n"]) -> UInt8[Array, "p n"]:
     l = -(3**0.5)
     u = 3**0.5
-    # see dgp.py for the bounds
+    # see bartz.testing for the bounds
     qx = jnp.floor((x - l) / (u - l) * 256.0)
     return qx.astype(jnp.uint8)
