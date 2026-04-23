@@ -30,14 +30,14 @@ test-rmse = "bart_gpu_article.scripts.test_rmse:main"
 test-rmse-plot = "bart_gpu_article.scripts.test_rmse_plot:main"
 list-datasets = "bart_gpu_article.scripts.list_datasets:main"
 
-[tool.uv.sources]
-bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "main" }
-
 [tool.ruff.lint]
 ignore = ["F722"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "neurips" }
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
