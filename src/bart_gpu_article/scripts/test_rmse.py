@@ -24,12 +24,8 @@ from rpy2 import robjects
 from wurlitzer import pipes
 
 from bart_gpu_article.rbartpackages import BART3, bartMachine, dbarts
-from bart_gpu_article.scripts.benchmark import (
-    Data,
-    format_time,
-    make_data,
-    make_int_seed,
-)
+from bart_gpu_article.datasim import Data, make_data
+from bart_gpu_article.scripts.benchmark import format_time, make_int_seed
 
 
 class Config(Module):
