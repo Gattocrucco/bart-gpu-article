@@ -1,4 +1,5 @@
 import argparse
+from numbers import Number
 from pathlib import Path
 from pprint import pprint
 
@@ -82,6 +83,12 @@ dataset_targets = {
     "freMTPL2freq": "ClaimNb",
 }
 
+
+def to_sin_cos(expr: pl.Expr, period: Number | pl.Expr) -> tuple[pl.Expr, pl.Expr]:
+    t = (2 * np.pi / period) * expr
+    return t.sin().name.suffix("_sin"), t.cos().name.suffix("_cos")
+
+
 for meta in datasets.iter_rows(named=True):
     did = meta["did"]
     print(f"####### DATASET {meta['name']} (id {did}) #######")
@@ -137,9 +144,14 @@ for meta in datasets.iter_rows(named=True):
 
     # custom pre-processing
     if dataset.name == "2018-Airplane-Flights":
-        X = X.drop(
+        X = X.with_columns(
+            *to_sin_cos(pl.col("Quarter"), 4),
+        ).drop(
             "Unnamed:_0",  # this is just an index
+            "InitID",  # this is a coarser version of MktID, redundant
+            "Quarter",  # already converted to periodic form
         )
+
     elif dataset.name == "Covid19-us":
         X = X.drop(
             "value_1",  # deaths
