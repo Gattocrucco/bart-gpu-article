@@ -1,9 +1,12 @@
 """Tests for :mod:`bart_gpu_article.datasim`."""
 
+from pathlib import Path
+
 import pytest
 from jax import numpy as jnp
+from numpy.testing import assert_array_equal
 
-from bart_gpu_article.datasim import _MAX_IO_NBYTES, make_data
+from bart_gpu_article.datasim import _MAX_IO_NBYTES, load_data, make_data, save_data
 
 
 def test_shapes_raw(keys):
@@ -52,3 +55,63 @@ def test_batching_exercised(keys, quantized_x):
     x = data.quantized_X if quantized_x else data.raw_X
     assert x.shape == (p, n)
     assert data.y.shape == (n,)
+
+
+def test_make_data_both_matches_separate(keys):
+    key = keys.pop()
+    a = make_data(key, n=300, p=6, quantized_x=False)
+    b = make_data(key, n=300, p=6, quantized_x=True)
+    c = make_data(key, n=300, p=6, quantized_x="both")
+    assert_array_equal(c.raw_X, a.raw_X, strict=True)
+    assert_array_equal(c.quantized_X, b.quantized_X, strict=True)
+    assert_array_equal(c.y, a.y, strict=True)
+
+
+def _assert_data_equal(actual, expected):
+    for field in ("raw_X", "quantized_X"):
+        a = getattr(actual, field)
+        e = getattr(expected, field)
+        if e is None:
+            assert a is None
+        else:
+            assert_array_equal(a, e, strict=True)
+    for field in ("y", "max_split", "prior_var", "pop_var", "eps_var"):
+        assert_array_equal(
+            getattr(actual, field), getattr(expected, field), strict=True
+        )
+
+
+def test_save_load_round_trip_both(keys, tmp_path: Path):
+    data = make_data(keys.pop(), n=200, p=5, quantized_x="both")
+    save_data(data, tmp_path / "ds")
+    loaded = load_data(tmp_path / "ds")
+    _assert_data_equal(loaded, data)
+
+
+def test_save_load_round_trip_raw_only(keys, tmp_path: Path):
+    data = make_data(keys.pop(), n=150, p=4, quantized_x=False)
+    assert data.quantized_X is None
+    save_data(data, tmp_path / "ds")
+    loaded = load_data(tmp_path / "ds")
+    assert loaded.quantized_X is None
+    _assert_data_equal(loaded, data)
+
+
+def test_save_load_round_trip_quantized_only(keys, tmp_path: Path):
+    data = make_data(keys.pop(), n=150, p=4, quantized_x=True)
+    assert data.raw_X is None
+    save_data(data, tmp_path / "ds")
+    loaded = load_data(tmp_path / "ds")
+    assert loaded.raw_X is None
+    _assert_data_equal(loaded, data)
+
+
+def test_save_overwrite(keys, tmp_path: Path):
+    data = make_data(keys.pop(), n=50, p=3, quantized_x="both")
+    target = tmp_path / "ds"
+    save_data(data, target)
+    with pytest.raises(Exception):
+        save_data(data, target, overwrite=False)
+    save_data(data, target, overwrite=True)
+    loaded = load_data(target)
+    _assert_data_equal(loaded, data)
