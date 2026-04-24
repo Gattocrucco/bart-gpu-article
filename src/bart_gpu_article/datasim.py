@@ -33,9 +33,8 @@ def make_data(key: Key[Array, ""], n: int, p: int, quantized_x: bool) -> Data:
     params = gen_params(
         keys.pop(),
         p=p,
-        k=1,
+        k=None,
         q=2 if p > 2 else 0,
-        lam=1.0,
         sigma2_lin=sigma2,
         sigma2_quad=sigma2,
         sigma2_eps=sigma2,
@@ -55,7 +54,7 @@ def make_data(key: Key[Array, ""], n: int, p: int, quantized_x: bool) -> Data:
         x = dgp.x
         if quantized_x:
             x = _quantize_uniform(x)
-        return None, (x, dgp.y.squeeze(0))
+        return None, (x, dgp.y)
 
     _, (x_batches, y_batches) = lax.scan(body, None, keys.pop(num_batches))
     x = jnp.moveaxis(x_batches, 0, 1).reshape(p, total)[:, :n]
