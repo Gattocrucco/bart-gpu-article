@@ -3,13 +3,14 @@
 from dataclasses import fields
 from functools import partial
 from os import PathLike
-from typing import Literal
+from typing import Any, Literal
 
 import jax
+import numpy as np
 from bartz.jaxext import split
 from bartz.testing import gen_data_from_params, gen_params
 from equinox import Module
-from jax import jit, lax, random
+from jax import jit, lax, tree
 from jax import numpy as jnp
 from jax.experimental.array_serialization import pytree_serialization
 from jaxtyping import Array, Float, Float32, Key, UInt, UInt8
@@ -58,9 +59,7 @@ def make_data(
     # sizing for the scan: worst case is both forms materialised
     raw_bytes = jnp.dtype(jnp.float32).itemsize if want_raw else 0
     quant_bytes = jnp.dtype(jnp.uint8).itemsize if want_quant else 0
-    bytes_per_sample = (
-        jnp.dtype(jnp.float32).itemsize + (raw_bytes + quant_bytes) * p
-    )
+    bytes_per_sample = jnp.dtype(jnp.float32).itemsize + (raw_bytes + quant_bytes) * p
 
     # round n up to a multiple of batch_size so scan has a single body path
     batch_size = max(1, min(n, _MAX_IO_NBYTES // bytes_per_sample))
@@ -112,14 +111,22 @@ def save_data(
     pytree_serialization.save(payload, path, overwrite=overwrite)
 
 
-def load_data(
-    path: str | PathLike[str], *, device: jax.Device | None = None
-) -> Data:
+def load_data(path: str | PathLike[str]) -> Data:
     """Load a `Data` pytree previously written by :func:`save_data`."""
-    if device is None:
-        device = jax.devices()[0]
+    device = jax.devices("cpu")[0]
     sharding = jax.sharding.SingleDeviceSharding(device)
     payload = pytree_serialization.load(path, sharding)
+
+    def alias_as_numpy_array(x: Array | Any) -> np.ndarray | Any:
+        if isinstance(x, Array):
+            y = np.asarray(x)
+            assert x.unsafe_buffer_pointer() == y.ctypes.data
+            assert not y.flags.writeable
+            return y
+        else:
+            return x
+
+    payload = tree.map(alias_as_numpy_array, payload)
     return Data(**payload)
 
 

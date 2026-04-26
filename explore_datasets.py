@@ -1,7 +1,6 @@
 import argparse
 from numbers import Number
 from pathlib import Path
-from pprint import pprint
 
 import matplotlib.pyplot as plt
 import numpy as np

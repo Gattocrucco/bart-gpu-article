@@ -163,7 +163,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     assert cfg.round_seed is not None
 
     print(f"load dataset {cfg.dataset}...")
-    data = load_data(cfg.dataset, device=devices("cpu")[0])
+    data = load_data(cfg.dataset)
     data = block_until_ready(data)
 
     if data.raw_X is None:
@@ -452,7 +452,7 @@ def main(argv: Sequence[str] = sys.argv[1:]) -> None:
                 return
 
         if cfg.slave:
-            results: Any = slave_loop(cfg)
+            results = slave_loop(cfg)
         else:
             results = run_master(cfg)
 
