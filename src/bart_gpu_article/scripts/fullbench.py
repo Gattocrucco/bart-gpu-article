@@ -150,6 +150,7 @@ EMPTY_ROW_KEYS = (
     "dataset_path",
     "n_train",
     "n_test",
+    "p",
     "time_train",
     "time_test",
     "rmse",
@@ -174,12 +175,12 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     y = numpy.asarray(data.y)
     del data
 
-    n_total = int(y.size)
+    p, n_total = raw_X.shape
     n_test = cfg.test_size
     n_train = n_total - n_test
     if n_train <= 0:
         raise RuntimeError(f"n_total={n_total} <= test_size={n_test}")
-    print(f"n_train={n_train:_}, n_test={n_test:_}")
+    print(f"n_train={n_train:_}, n_test={n_test:_}, p={p:_}")
 
     keys = split(random.key(cfg.round_seed))
 
@@ -219,6 +220,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         dataset_path=cfg.dataset,
         n_train=n_train,
         n_test=n_test,
+        p=p,
         time_train=t_train.time,
         time_test=t_test.time,
         rmse=rmse,
@@ -246,6 +248,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         dataset_path=dataset,
         n_train=None,
         n_test=None,
+        p=None,
         time_train=None,
         time_test=None,
         rmse=None,
