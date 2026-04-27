@@ -1,4 +1,5 @@
 """Realistic benchmark: fit method, predict on held-out set, compute RMSE."""
+from types import MappingProxyType
 
 import json
 import sys
@@ -9,7 +10,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from subprocess import PIPE, TimeoutExpired, run
 from time import perf_counter
-from typing import Any
+from typing import Any, Mapping
 
 import numpy
 from bartz import Bart
@@ -24,6 +25,11 @@ from bart_gpu_article.scripts.benchmark import (
     EXIT_OUT_OF_MEMORY,
     format_time,
     make_int_seed,
+)
+
+# ideally this list should be empty
+NONDEFAULT_BART_ARGS: Mapping = MappingProxyType(dict(
+    num_chains=None,
 )
 
 
@@ -107,6 +113,7 @@ class Bartz(Benchmark):
             y_train=self._y_train,
             seed=self._key,
             devices=self._platform,
+            **NONDEFAULT_BART_ARGS,
         )
         block_until_ready(self._bart)
 
@@ -439,18 +446,20 @@ def args_to_config(args: Namespace) -> Config:
 
 def setup_device(cfg: Config) -> None:
     """Configure the jax device."""
-    match cfg.platform:
-        case "cpu":
-            # disable gpu altogether, and create multiple cpu devices
-            config.update("jax_platforms", "cpu")
-            config.update("jax_num_cpu_devices", 4)
-            # 4 cpu devices because bartz uses 4 chains by default
-        case "gpu":
-            # jax would do the same, but by setting it explicitly, we are
-            # forcing an error if there's no gpu
-            config.update("jax_platforms", "cuda,cpu")
-        case _:
-            raise ValueError(cfg.platform)
+    if cfg.method != "bartz":
+        # make sure jax does not hog the gpu if we don't use it
+        config.update("jax_platforms", "cpu")
+    elif cfg.platform == "cpu":
+        # disable gpu altogether, and create multiple cpu devices
+        config.update("jax_platforms", "cpu")
+        config.update("jax_num_cpu_devices", 4)
+        # 4 cpu devices because bartz uses 4 chains by default
+    elif cfg.platform == "gpu":
+        # jax would do the same, but by setting it explicitly, we are
+        # forcing an error if there's no gpu
+        config.update("jax_platforms", "cuda,cpu")
+    else:
+        raise ValueError(cfg.platform)
 
 
 def main(argv: Sequence[str] = sys.argv[1:]) -> None:
