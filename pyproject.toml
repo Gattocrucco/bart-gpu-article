@@ -33,6 +33,7 @@ test-rmse-plot = "bart_gpu_article.scripts.test_rmse_plot:main"
 list-datasets = "bart_gpu_article.scripts.list_datasets:main"
 savedata = "bart_gpu_article.scripts.savedata:main"
 fullbench = "bart_gpu_article.scripts.fullbench:main"
+fullbench-plot = "bart_gpu_article.scripts.fullbench_plot:main"
 
 [tool.ruff.lint]
 ignore = ["F722"]
