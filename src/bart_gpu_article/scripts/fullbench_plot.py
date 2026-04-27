@@ -1,6 +1,7 @@
 """Plot results saved by `fullbench` script."""
 
 import json
+import re
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
 from pathlib import Path
@@ -69,38 +70,59 @@ def plot(agg: pl.DataFrame, device: str, n_rounds: int) -> Figure:
         np.linspace(-0.2, 0.2, len(methods)) if len(methods) > 1 else np.array([0.0])
     )
 
-    fig, ax = plt.subplots(
-        figsize=[6.5, 0.7 * len(datasets) + 2.0],
+    panels = (
+        ("RMSE", "rmse"),
+        ("train time [s]", "time_train"),
+        ("predict time [s]", "time_test"),
+    )
+
+    fig, axes = plt.subplots(
+        1,
+        len(panels),
+        sharey=True,
+        figsize=[8, 0.7 * len(datasets) + 2.0],
         num="fullbench-plot",
         clear=True,
         layout="constrained",
     )
 
-    for method, dy, style in zip(methods, offsets, _METHOD_STYLES):
-        sub = agg.filter(pl.col("method") == method)
-        ys = [y_pos[d] + dy for d in sub["dataset_path"]]
-        ax.errorbar(
-            sub["mean_rmse"].to_numpy(),
-            ys,
-            xerr=sub["rmse_sdev"].to_numpy(),
-            fmt="o",
-            markersize=10,
-            capsize=4,
-            color="black",
-            label=method,
-            **style,
-        )
+    for ax, (xlabel, col) in zip(axes, panels):
+        for method, dy, style in zip(methods, offsets, _METHOD_STYLES):
+            sub = agg.filter(pl.col("method") == method)
+            ys = [y_pos[d] + dy for d in sub["dataset_path"]]
+            ax.errorbar(
+                sub[f"mean_{col}"].to_numpy(),
+                ys,
+                xerr=sub[f"{col}_sdev"].to_numpy(),
+                fmt="o",
+                markersize=10,
+                capsize=4,
+                color="black",
+                label=method,
+                **style,
+            )
+        ax.set_xlabel(xlabel)
+        ax.grid(linestyle="--", axis="x")
 
-    ax.set_yticks(range(len(datasets)))
-    ax.set_yticklabels(
-        [f"{Path(d).name}\n(n={info[d][0]}, p={info[d][1]})" for d in datasets]
-    )
-    ax.set_ylim(-0.6, len(datasets) - 0.4)
-    ax.invert_yaxis()
-    ax.set_xlabel(f"RMSE +/- sdev over {n_rounds} rounds")
-    ax.set_title(f"device: {device}")
-    ax.legend(title="method", loc="best")
-    ax.grid(linestyle="--", axis="x")
+    def _label(path: str) -> str:
+        name = Path(path).name
+        if re.fullmatch(r"savedata(-[^-]+){3}", name):
+            name = "<simulated>"
+        return f"{name}\n(n={info[path][0]}, p={info[path][1]})"
+
+    axes[0].set_yticks(range(len(datasets)))
+    axes[0].set_yticklabels([_label(d) for d in datasets])
+    axes[0].set_ylim(-1, len(datasets) - 0.4)
+    axes[0].invert_yaxis()
+
+    for ax in axes[1:]:
+        ax.set(xscale="log")
+        ax.minorticks_on()
+        ax.grid(which="minor", linestyle=":")
+
+    axes[-1].legend(title="method", loc="upper right")
+    fig.suptitle(f"device: {device}")
+    fig.supxlabel(f"+/– sdev over {n_rounds} rounds", fontsize="medium")
 
     return fig
 
