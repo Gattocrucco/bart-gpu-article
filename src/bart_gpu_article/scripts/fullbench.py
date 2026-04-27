@@ -13,9 +13,9 @@ from typing import Any
 
 import numpy
 from bartz import Bart
-from bartz.jaxext import split
+from bartz.jaxext import get_default_device, split
 from equinox import Module
-from jax import Device, block_until_ready, default_device, devices, random
+from jax import block_until_ready, config, random
 from jax.errors import JaxRuntimeError
 from jaxtyping import Array, Float, Key
 
@@ -24,7 +24,6 @@ from bart_gpu_article.scripts.benchmark import (
     EXIT_OUT_OF_MEMORY,
     format_time,
     make_int_seed,
-    setup_device,
 )
 
 
@@ -42,9 +41,9 @@ class Config(Module):
     dataset: str | None
     round_seed: int | None
 
-    def device(self) -> Device:
-        """Device on which the regression method runs."""
-        return devices(self.platform)[0]
+    @property
+    def device_kind(self) -> str:
+        return get_default_device().device_kind
 
 
 class Timer:
@@ -100,15 +99,15 @@ class Bartz(Benchmark):
         self._x_train = x_train
         self._y_train = y_train
         self._x_test = x_test
-        self._device = cfg.device()
+        self._platform = cfg.platform
 
     def train(self) -> None:
-        with default_device(self._device):
-            self._bart = Bart(
-                x_train=self._x_train,
-                y_train=self._y_train,
-                seed=self._key,
-            )
+        self._bart = Bart(
+            x_train=self._x_train,
+            y_train=self._y_train,
+            seed=self._key,
+            devices=self._platform,
+        )
         block_until_ready(self._bart)
 
     def predict(self) -> Float[numpy.ndarray, " n_test"]:
@@ -215,7 +214,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
 
     return dict(
         seed=cfg.round_seed,
-        device=cfg.device().device_kind,
+        device=cfg.device_kind,
         method=cfg.method,
         dataset_path=cfg.dataset,
         n_train=n_train,
@@ -259,8 +258,6 @@ def run_master(cfg: Config) -> dict[str, list]:
         f"\nfullbench {cfg.method} on {len(cfg.datasets)} dataset(s)"
         f" x {cfg.rounds} round(s)..."
     )
-    device_kind = cfg.device().device_kind
-
     columns: dict[str, list] = {k: [] for k in EMPTY_ROW_KEYS}
     master_key = random.key(cfg.seed)
 
@@ -296,13 +293,13 @@ def run_master(cfg: Config) -> dict[str, list]:
                 proc = run(cmd, stdout=PIPE, text=True, timeout=cfg.timeout)
             except TimeoutExpired:
                 print(f"timeout after {cfg.timeout}s")
-                row = _null_row(cfg.method, ds_path, round_seed, device_kind)
+                row = _null_row(cfg.method, ds_path, round_seed, cfg.device_kind)
             else:
                 if proc.returncode == 0:
                     row = json.loads(proc.stdout.strip())
                 elif proc.returncode == EXIT_OUT_OF_MEMORY:
                     print("out of memory")
-                    row = _null_row(cfg.method, ds_path, round_seed, device_kind)
+                    row = _null_row(cfg.method, ds_path, round_seed, cfg.device_kind)
                 else:
                     raise RuntimeError(
                         f"slave exited with code {proc.returncode};"
@@ -317,7 +314,7 @@ def run_master(cfg: Config) -> dict[str, list]:
 
 def output_path(cfg: Config) -> Path:
     """Path of the master's results file."""
-    device_kind = cfg.device().device_kind.replace(" ", "_")
+    device_kind = cfg.device_kind.replace(" ", "_")
     return Path("./results") / f"fullbench-{cfg.method}-{device_kind}.json"
 
 
@@ -435,6 +432,22 @@ def args_to_config(args: Namespace) -> Config:
         dataset=args.dataset,
         round_seed=args.round_seed,
     )
+
+
+def setup_device(cfg: Config) -> None:
+    """Configure the jax device."""
+    match cfg.platform:
+        case "cpu":
+            # disable gpu altogether, and create multiple cpu devices
+            config.update("jax_platforms", "cpu")
+            config.update("jax_num_cpu_devices", 4)
+            # 4 cpu devices because bartz uses 4 chains by default
+        case "gpu":
+            # jax would do the same, but by setting it explicitly, we are
+            # forcing an error if there's no gpu
+            config.update("jax_platforms", "cuda,cpu")
+        case _:
+            raise ValueError(cfg.platform)
 
 
 def main(argv: Sequence[str] = sys.argv[1:]) -> None:
