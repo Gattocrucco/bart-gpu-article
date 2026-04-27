@@ -5,7 +5,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
 from pathlib import Path
 
-from jax import block_until_ready, random
+from jax import block_until_ready, config, random
 
 from bart_gpu_article.datasim import make_data, save_data
 
@@ -56,11 +56,10 @@ def parse_args(argv: Sequence[str]) -> Namespace:
 
 def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     """Entry point of the script."""
+    config.update("jax_platforms", "cpu")
     args = parse_args(argv)
     key = random.key(args.seed)
-    data = block_until_ready(
-        make_data(key, args.n, args.p, quantized_x="both")
-    )
+    data = block_until_ready(make_data(key, args.n, args.p, quantized_x="both"))
     target = args.data_dir / f"savedata-{args.n}-{args.p}-{args.seed}"
     args.data_dir.mkdir(parents=True, exist_ok=True)
     print(f"save to {target}...")
