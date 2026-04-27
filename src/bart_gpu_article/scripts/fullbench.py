@@ -1,5 +1,4 @@
 """Realistic benchmark: fit method, predict on held-out set, compute RMSE."""
-from types import MappingProxyType
 
 import json
 import sys
@@ -10,6 +9,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from subprocess import PIPE, TimeoutExpired, run
 from time import perf_counter
+from types import MappingProxyType
 from typing import Any, Mapping
 
 import numpy
@@ -28,8 +28,10 @@ from bart_gpu_article.scripts.benchmark import (
 )
 
 # ideally this list should be empty
-NONDEFAULT_BART_ARGS: Mapping = MappingProxyType(dict(
-    num_chains=None,
+NONDEFAULT_BART_ARGS: Mapping = MappingProxyType(
+    dict(
+        num_chains=None,
+    )
 )
 
 
