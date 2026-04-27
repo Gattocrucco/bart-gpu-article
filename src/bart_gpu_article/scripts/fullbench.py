@@ -159,7 +159,10 @@ class Xgboost(Benchmark):
         self._model.fit(self._X_train, self._y_train)
 
     def predict(self) -> Float[numpy.ndarray, " n_test"]:
-        return self._model.predict(self._X_test)
+        import xgboost
+
+        dtest = xgboost.DMatrix(self._X_test)
+        return self._model.get_booster().predict(dtest)
 
 
 EMPTY_ROW_KEYS = (
