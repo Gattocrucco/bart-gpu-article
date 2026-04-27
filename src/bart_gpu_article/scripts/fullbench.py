@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 import numpy
 from bartz import Bart
-from bartz.jaxext import get_default_device, split
+from bartz.jaxext import split
 from equinox import Module
 from jax import block_until_ready, config, random
 from jax.errors import JaxRuntimeError
@@ -51,7 +51,17 @@ class Config(Module):
 
     @property
     def device_kind(self) -> str:
-        return get_default_device().device_kind
+        if self.platform == "cpu":
+            return "cpu"
+        if self.platform == "gpu":
+            proc = run(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                stdout=PIPE,
+                text=True,
+                check=True,
+            )
+            return proc.stdout.strip().replace(" ", "_")
+        raise ValueError(self.platform)
 
 
 class Timer:
