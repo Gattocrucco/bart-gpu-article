@@ -1,5 +1,6 @@
 """Realistic benchmark: fit method, predict on held-out set, compute RMSE."""
 
+import dataclasses
 import json
 import sys
 from abc import ABC, abstractmethod
@@ -48,6 +49,7 @@ class Config(Module):
     datasets: tuple[str, ...]
     dataset: str | None
     round_seed: int | None
+    binary: bool | None = None
 
     @property
     def device_kind(self) -> str:
@@ -118,6 +120,7 @@ class Bartz(Benchmark):
         self._y_train = y_train
         self._x_test = x_test
         self._platform = cfg.platform
+        self._outcome_type = "binary" if cfg.binary else "continuous"
 
     def train(self) -> None:
         self._bart = Bart(
@@ -125,6 +128,7 @@ class Bartz(Benchmark):
             y_train=self._y_train,
             seed=self._key,
             devices=self._platform,
+            outcome_type=self._outcome_type,
             **NONDEFAULT_BART_ARGS,
         )
         block_until_ready(self._bart)
@@ -135,7 +139,7 @@ class Bartz(Benchmark):
 
 
 class Xgboost(Benchmark):
-    """Xgboost harness using `XGBRegressor` defaults."""
+    """Xgboost harness."""
 
     def setup(
         self,
@@ -145,12 +149,14 @@ class Xgboost(Benchmark):
         x_test: Float[numpy.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        from xgboost import XGBRegressor
+        from xgboost import XGBClassifier, XGBRegressor
 
         self._X_train = x_train.T
         self._y_train = y_train
         self._X_test = x_test.T
-        self._model = XGBRegressor(
+        self._binary = bool(cfg.binary)
+        cls = XGBClassifier if self._binary else XGBRegressor
+        self._model = cls(
             random_state=make_int_seed(key),
             device=cfg.platform,
         )
@@ -159,6 +165,9 @@ class Xgboost(Benchmark):
         self._model.fit(self._X_train, self._y_train)
 
     def predict(self) -> Float[numpy.ndarray, " n_test"]:
+        if self._binary:
+            return self._model.predict_proba(self._X_test)[:, 1]
+
         import xgboost
 
         dtest = xgboost.DMatrix(self._X_test)
@@ -170,12 +179,14 @@ EMPTY_ROW_KEYS = (
     "device",
     "method",
     "dataset_path",
+    "outcome_type",
     "n_train",
     "n_test",
     "p",
     "time_train",
     "time_test",
     "rmse",
+    "logloss",
 )
 
 
@@ -192,6 +203,10 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         raise RuntimeError(
             f"dataset {cfg.dataset} has no raw_X; both bartz and xgboost need it"
         )
+
+    cfg = dataclasses.replace(cfg, binary=bool(data.binary))
+    outcome_type = "binary" if cfg.binary else "continuous"
+    print(f"outcome_type={outcome_type}")
 
     raw_X = numpy.asarray(data.raw_X)
     y = numpy.asarray(data.y)
@@ -235,17 +250,30 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     rmse = numpy.sqrt(numpy.mean(numpy.square(yhat - y_test))).item()
     print(f"rmse: {rmse:.4f}")
 
+    logloss: float | None
+    if cfg.binary:
+        # bartz operates in float32, so clip with a float32-safe epsilon
+        p_hat = numpy.clip(yhat, 1e-7, 1 - 1e-7)
+        logloss = float(
+            -numpy.mean(y_test * numpy.log(p_hat) + (1 - y_test) * numpy.log(1 - p_hat))
+        )
+        print(f"logloss: {logloss:.4f}")
+    else:
+        logloss = None
+
     return dict(
         seed=cfg.round_seed,
         device=cfg.device_kind,
         method=cfg.method,
         dataset_path=cfg.dataset,
+        outcome_type=outcome_type,
         n_train=n_train,
         n_test=n_test,
         p=p,
         time_train=t_train.time,
         time_test=t_test.time,
         rmse=rmse,
+        logloss=logloss,
     )
 
 
@@ -268,12 +296,14 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         device=device_kind,
         method=method,
         dataset_path=dataset,
+        outcome_type=None,
         n_train=None,
         n_test=None,
         p=None,
         time_train=None,
         time_test=None,
         rmse=None,
+        logloss=None,
     )
 
 

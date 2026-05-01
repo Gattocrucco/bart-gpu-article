@@ -13,7 +13,7 @@ from equinox import Module
 from jax import jit, lax, tree
 from jax import numpy as jnp
 from jax.experimental.array_serialization import pytree_serialization
-from jaxtyping import Array, Float, Float32, Integer, Key, UInt, UInt8
+from jaxtyping import Array, Bool, Float, Float32, Integer, Key, UInt, UInt8
 
 _MAX_IO_NBYTES = 2**26
 
@@ -29,15 +29,17 @@ class Data(Module):
     pop_var: Float32[Array, ""]
     eps_var: Float32[Array, ""]
     q: Integer[Array, ""]
+    binary: Bool[Array, ""]
 
 
-@partial(jit, static_argnums=(1, 2, 3, 4))
+@partial(jit, static_argnums=(1, 2, 3, 4, 5))
 def make_data(
     key: Key[Array, ""],
     n: int,
     p: int,
     quantized_x: bool | Literal["both"],
     q: int | None = None,
+    binary: bool = False,
 ) -> Data:
     """Generate data.
 
@@ -47,6 +49,10 @@ def make_data(
     `q` is the number of quadratic interaction terms passed to
     :func:`bartz.testing.gen_params`. When `None`, defaults to ``2 if p > 2
     else 0``.
+
+    `binary` selects the outcome distribution: when `True`, `y` is generated
+    by probit thresholding of the latent function and only takes values 0.0
+    or 1.0; when `False` (default), `y` is continuous Gaussian.
     """
     both = quantized_x == "both"
     want_raw = both or not quantized_x
@@ -66,6 +72,7 @@ def make_data(
         sigma2_lin=sigma2,
         sigma2_quad=sigma2,
         sigma2_eps=sigma2,
+        outcome_type="binary" if binary else "continuous",
     )
 
     # sizing for the scan: worst case is both forms materialised
@@ -107,6 +114,7 @@ def make_data(
         pop_var=params.sigma2_pop,
         eps_var=params.sigma2_eps,
         q=params.q,
+        binary=jnp.asarray(binary, dtype=jnp.bool_),
     )
 
 

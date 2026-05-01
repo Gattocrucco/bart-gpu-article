@@ -78,29 +78,27 @@ def _assert_data_equal(actual, expected):
             assert_array_equal(a, e, strict=True)
 
 
-def test_save_load_round_trip_both(keys, tmp_path: Path):
-    data = make_data(keys.pop(), n=200, p=5, quantized_x="both")
+@pytest.mark.parametrize("quantized_x", [False, True, "both"])
+@pytest.mark.parametrize("binary", [False, True])
+def test_save_load_round_trip(keys, tmp_path: Path, quantized_x, binary):
+    data = make_data(keys.pop(), n=150, p=4, quantized_x=quantized_x, binary=binary)
+    assert (data.quantized_X is None) == (quantized_x is False)
+    assert (data.raw_X is None) == (quantized_x is True)
+    assert bool(data.binary) == binary
     save_data(data, tmp_path / "ds")
     loaded = load_data(tmp_path / "ds")
+    assert (loaded.quantized_X is None) == (quantized_x is False)
+    assert (loaded.raw_X is None) == (quantized_x is True)
+    assert bool(loaded.binary) == binary
     _assert_data_equal(loaded, data)
 
 
-def test_save_load_round_trip_raw_only(keys, tmp_path: Path):
-    data = make_data(keys.pop(), n=150, p=4, quantized_x=False)
-    assert data.quantized_X is None
-    save_data(data, tmp_path / "ds")
-    loaded = load_data(tmp_path / "ds")
-    assert loaded.quantized_X is None
-    _assert_data_equal(loaded, data)
-
-
-def test_save_load_round_trip_quantized_only(keys, tmp_path: Path):
-    data = make_data(keys.pop(), n=150, p=4, quantized_x=True)
-    assert data.raw_X is None
-    save_data(data, tmp_path / "ds")
-    loaded = load_data(tmp_path / "ds")
-    assert loaded.raw_X is None
-    _assert_data_equal(loaded, data)
+def test_make_data_binary_y_values(keys):
+    data = make_data(keys.pop(), n=500, p=6, quantized_x=False, binary=True)
+    y = data.y
+    assert y.dtype == jnp.float32
+    assert jnp.array_equal(jnp.unique(y), jnp.array([0.0, 1.0], dtype=jnp.float32))
+    assert bool(data.binary) is True
 
 
 def test_save_overwrite(keys, tmp_path: Path):
