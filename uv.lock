@@ -112,7 +112,7 @@ provides-extras = ["cuda12", "cuda13"]
 [[package]]
 name = "bartz"
 version = "0.9.0"
-source = { git = "https://github.com/bartz-org/bartz.git?rev=neurips#766d4a97d66daf41efde8ea2908cd841fb402dd3" }
+source = { git = "https://github.com/bartz-org/bartz.git?rev=neurips#545dc5f88e980d6fe81dfedcdc59e9a473fc2d58" }
 dependencies = [
     { name = "equinox" },
     { name = "jax" },
