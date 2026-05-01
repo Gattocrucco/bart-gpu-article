@@ -6,6 +6,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
 from pathlib import Path
 from sys import argv
+from typing import NamedTuple
 
 import numpy as np
 import polars as pl
@@ -29,35 +30,43 @@ def load_results(paths: Sequence[Path]) -> pl.DataFrame:
     return pl.concat(tables, how="vertical")
 
 
-def aggregate(df: pl.DataFrame) -> tuple[pl.DataFrame, str, int]:
-    """Aggregate per (method, dataset) and check device/round invariants."""
-    devices = df["device"].unique().to_list()
-    assert len(devices) == 1, f"expected single device, got {devices}"
+class Agg(NamedTuple):
+    df: pl.DataFrame
+    device: str
+    rounds: int
+    n_test: int
 
+
+def aggregate(df: pl.DataFrame) -> Agg:
+    """Aggregate per (method, dataset) and check device/round invariants."""
     agg = df.group_by("method", "dataset_path", maintain_order=True).agg(
         n=pl.col("n_train").first(),
         p=pl.col("p").first(),
         n_rounds=pl.len(),
         mean_rmse=pl.col("rmse").pow(2).mean().sqrt(),
         rmse_sdev=pl.col("rmse").std(),
+        mean_logloss=pl.col("logloss").mean(),
+        logloss_sdev=pl.col("logloss").std(),
         mean_time_train=pl.col("time_train").mean(),
         time_train_sdev=pl.col("time_train").std(),
         mean_time_test=pl.col("time_test").mean(),
         time_test_sdev=pl.col("time_test").std(),
     )
 
-    rounds = agg["n_rounds"].unique().to_list()
-    assert len(rounds) == 1, f"expected same number of rounds per group, got {rounds}"
+    return Agg(
+        agg,
+        df.get_column("device").unique().item(),
+        agg.get_column("n_rounds").unique().item(),
+        df.get_column("n_test").unique().item(),
+    )
 
-    return agg, devices[0], rounds[0]
 
-
-def plot(agg: pl.DataFrame, device: str, n_rounds: int) -> Figure:
+def plot(agg: Agg) -> Figure:
     """Render the aggregated table as dots-with-errorbars per dataset."""
     plt.close("all")
     plt.rcdefaults()
 
-    info_df = agg.unique(subset=["dataset_path"], maintain_order=True).select(
+    info_df = agg.df.unique(subset=["dataset_path"], maintain_order=True).select(
         "dataset_path", "n", "p"
     )
     info = {d: (n, p) for d, n, p in info_df.iter_rows()}
@@ -65,13 +74,14 @@ def plot(agg: pl.DataFrame, device: str, n_rounds: int) -> Figure:
     datasets.sort(key=lambda d: (info[d], d))
     y_pos = {d: i for i, d in enumerate(datasets)}
 
-    methods = sorted(agg["method"].unique().to_list())
+    methods = sorted(agg.df["method"].unique().to_list())
     offsets = (
         np.linspace(-0.2, 0.2, len(methods)) if len(methods) > 1 else np.array([0.0])
     )
 
     panels = (
-        ("RMSE", "rmse"),
+        (f"RMSE (n_test={agg.n_test})", "rmse"),
+        ("logloss (class. only)", "logloss"),
         ("train time [s]", "time_train"),
         ("predict time [s]", "time_test"),
     )
@@ -80,7 +90,7 @@ def plot(agg: pl.DataFrame, device: str, n_rounds: int) -> Figure:
         1,
         len(panels),
         sharey=True,
-        figsize=[8, 0.7 * len(datasets) + 2.0],
+        figsize=[10, 0.7 * len(datasets) + 2.0],
         num="fullbench-plot",
         clear=True,
         layout="constrained",
@@ -88,7 +98,7 @@ def plot(agg: pl.DataFrame, device: str, n_rounds: int) -> Figure:
 
     for ax, (xlabel, col) in zip(axes, panels):
         for method, dy, style in zip(methods, offsets, _METHOD_STYLES):
-            sub = agg.filter(pl.col("method") == method)
+            sub = agg.df.filter(pl.col("method") == method)
             ys = [y_pos[d] + dy for d in sub["dataset_path"]]
             ax.errorbar(
                 sub[f"mean_{col}"].to_numpy(),
@@ -106,7 +116,7 @@ def plot(agg: pl.DataFrame, device: str, n_rounds: int) -> Figure:
 
     def _label(path: str) -> str:
         name = Path(path).name
-        if re.fullmatch(r"savedata(-[^-]+){3}", name):
+        if re.fullmatch(r"savedata(-[^-]+){4}", name):
             name = "<simulated>"
         return f"{name}\n(n={info[path][0]}, p={info[path][1]})"
 
@@ -115,14 +125,15 @@ def plot(agg: pl.DataFrame, device: str, n_rounds: int) -> Figure:
     axes[0].set_ylim(-1, len(datasets) - 0.4)
     axes[0].invert_yaxis()
 
-    for ax in axes[1:]:
+    for ax in axes[2:]:
         ax.set(xscale="log")
         ax.minorticks_on()
+        ax.yaxis.set_minor_locator(plt.NullLocator())
         ax.grid(which="minor", linestyle=":")
 
-    axes[-1].legend(title="method", loc="upper right")
-    fig.suptitle(f"device: {device}")
-    fig.supxlabel(f"+/– sdev over {n_rounds} rounds", fontsize="medium")
+    axes[-1].legend(loc="upper right")
+    fig.suptitle(f"device: {agg.device}")
+    fig.supxlabel(f"+/– sdev over {agg.rounds} rounds", fontsize="medium")
 
     return fig
 
@@ -155,8 +166,8 @@ def main(argv: Sequence[str] = argv[1:]) -> None:
     """Entry point of the script."""
     args = parse_args(argv)
     df = load_results(args.files)
-    agg, device, n_rounds = aggregate(df)
-    fig = plot(agg, device, n_rounds)
+    agg = aggregate(df)
+    fig = plot(agg)
     save_figure(fig)
     plt.show()
 
