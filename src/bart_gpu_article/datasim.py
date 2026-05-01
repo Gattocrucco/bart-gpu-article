@@ -13,7 +13,7 @@ from equinox import Module
 from jax import jit, lax, tree
 from jax import numpy as jnp
 from jax.experimental.array_serialization import pytree_serialization
-from jaxtyping import Array, Float, Float32, Key, UInt, UInt8
+from jaxtyping import Array, Float, Float32, Integer, Key, UInt, UInt8
 
 _MAX_IO_NBYTES = 2**26
 
@@ -28,16 +28,25 @@ class Data(Module):
     prior_var: Float32[Array, ""]
     pop_var: Float32[Array, ""]
     eps_var: Float32[Array, ""]
+    q: Integer[Array, ""]
 
 
-@partial(jit, static_argnums=(1, 2, 3))
+@partial(jit, static_argnums=(1, 2, 3, 4))
 def make_data(
-    key: Key[Array, ""], n: int, p: int, quantized_x: bool | Literal["both"]
+    key: Key[Array, ""],
+    n: int,
+    p: int,
+    quantized_x: bool | Literal["both"],
+    q: int | None = None,
 ) -> Data:
     """Generate data.
 
     `quantized_x` may be False (raw), True (quantized uint8), or "both"
     (populate both `raw_X` and `quantized_X` on the returned `Data`).
+
+    `q` is the number of quadratic interaction terms passed to
+    :func:`bartz.testing.gen_params`. When `None`, defaults to ``2 if p > 2
+    else 0``.
     """
     both = quantized_x == "both"
     want_raw = both or not quantized_x
@@ -45,12 +54,15 @@ def make_data(
 
     keys = split(key)
 
+    if q is None:
+        q = 2 if p > 2 else 0
+
     sigma2 = 1 / 3
     params = gen_params(
         keys.pop(),
         p=p,
         k=None,
-        q=2 if p > 2 else 0,
+        q=q,
         sigma2_lin=sigma2,
         sigma2_quad=sigma2,
         sigma2_eps=sigma2,
@@ -94,6 +106,7 @@ def make_data(
         prior_var=params.sigma2_pri,
         pop_var=params.sigma2_pop,
         eps_var=params.sigma2_eps,
+        q=params.q,
     )
 
 

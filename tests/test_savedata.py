@@ -14,10 +14,11 @@ def _int_seed(key) -> int:
 def test_savedata_cli(keys, tmp_path):
     seed = _int_seed(keys.pop())
     n, p = 100, 4
+    q = 2 if p > 2 else 0
 
     main(["-n", str(n), "-p", str(p), "-s", str(seed), "-d", str(tmp_path)])
 
-    target = tmp_path / f"savedata-{n}-{p}-{seed}"
+    target = tmp_path / f"savedata-{n}-{p}-{q}"
     assert target.is_dir()
 
     data = load_data(target)

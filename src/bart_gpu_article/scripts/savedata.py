@@ -40,6 +40,14 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         help="random seed",
     )
     parser.add_argument(
+        "-q",
+        "--num-quadratic",
+        type=int,
+        default=None,
+        dest="q",
+        help="number of quadratic interaction terms (default: 2 if p > 2 else 0)",
+    )
+    parser.add_argument(
         "-d",
         "--data-dir",
         type=Path,
@@ -59,8 +67,10 @@ def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     config.update("jax_platforms", "cpu")
     args = parse_args(argv)
     key = random.key(args.seed)
-    data = block_until_ready(make_data(key, args.n, args.p, quantized_x="both"))
-    target = args.data_dir / f"savedata-{args.n}-{args.p}-{args.seed}"
+    data = block_until_ready(
+        make_data(key, args.n, args.p, quantized_x="both", q=args.q)
+    )
+    target = args.data_dir / f"savedata-{args.n}-{args.p}-{int(data.q)}"
     args.data_dir.mkdir(parents=True, exist_ok=True)
     print(f"save to {target}...")
     save_data(data, target, overwrite=args.overwrite)

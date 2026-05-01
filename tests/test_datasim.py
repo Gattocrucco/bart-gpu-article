@@ -1,5 +1,6 @@
 """Tests for :mod:`bart_gpu_article.datasim`."""
 
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -68,17 +69,13 @@ def test_make_data_both_matches_separate(keys):
 
 
 def _assert_data_equal(actual, expected):
-    for field in ("raw_X", "quantized_X"):
-        a = getattr(actual, field)
-        e = getattr(expected, field)
+    for field in fields(expected):
+        a = getattr(actual, field.name)
+        e = getattr(expected, field.name)
         if e is None:
             assert a is None
         else:
             assert_array_equal(a, e, strict=True)
-    for field in ("y", "max_split", "prior_var", "pop_var", "eps_var"):
-        assert_array_equal(
-            getattr(actual, field), getattr(expected, field), strict=True
-        )
 
 
 def test_save_load_round_trip_both(keys, tmp_path: Path):
