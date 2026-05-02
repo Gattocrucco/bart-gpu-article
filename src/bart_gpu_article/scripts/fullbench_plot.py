@@ -47,6 +47,8 @@ def aggregate(df: pl.DataFrame) -> Agg:
         rmse_sdev=pl.col("rmse").std(),
         mean_logloss=pl.col("logloss").mean(),
         logloss_sdev=pl.col("logloss").std(),
+        mean_coverage_50=pl.col("coverage_50").mean(),
+        coverage_50_sdev=pl.col("coverage_50").std(),
         mean_time_train=pl.col("time_train").mean(),
         time_train_sdev=pl.col("time_train").std(),
         mean_time_test=pl.col("time_test").mean(),
@@ -81,7 +83,8 @@ def plot(agg: Agg) -> Figure:
 
     panels = (
         (f"RMSE (n_test={agg.n_test})", "rmse"),
-        ("logloss (class. only)", "logloss"),
+        ("log-loss\n(bayes. and class. only)", "logloss"),
+        ("50% coverage\n(bayes. regr. only)", "coverage_50"),
         ("train time [s]", "time_train"),
         ("predict time [s]", "time_test"),
     )
@@ -113,19 +116,24 @@ def plot(agg: Agg) -> Figure:
             )
         ax.set_xlabel(xlabel)
         ax.grid(linestyle="--", axis="x")
+        if col == "coverage_50":
+            ax.axvline(0.5, color="black", linestyle="--")
 
     def _label(path: str) -> str:
         name = Path(path).name
         if re.fullmatch(r"savedata(-[^-]+){4}", name):
             name = "<simulated>"
-        return f"{name}\n(n={info[path][0]}, p={info[path][1]})"
+        return f"{name}\nn={info[path][0]:_}\np={info[path][1]:_}"
 
     axes[0].set_yticks(range(len(datasets)))
     axes[0].set_yticklabels([_label(d) for d in datasets])
     axes[0].set_ylim(-1, len(datasets) - 0.4)
     axes[0].invert_yaxis()
 
-    for ax in axes[2:]:
+    for ax in axes:
+        ax.grid(axis="y", linestyle=":")
+
+    for ax in axes[3:]:
         ax.set(xscale="log")
         ax.minorticks_on()
         ax.yaxis.set_minor_locator(plt.NullLocator())

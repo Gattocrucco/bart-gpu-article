@@ -7,19 +7,23 @@ from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
 from contextlib import redirect_stdout
+from functools import partial
 from pathlib import Path
 from subprocess import PIPE, TimeoutExpired, run
 from time import perf_counter
 from types import MappingProxyType
 from typing import Any, Mapping
 
-import numpy
+import numpy as np
 from bartz import Bart
 from bartz.jaxext import split
 from equinox import Module
-from jax import block_until_ready, config, random
+from jax import block_until_ready, config, jit, random
+from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
-from jaxtyping import Array, Float, Key
+from jax.nn import logmeanexp
+from jax.scipy.stats import bernoulli, norm
+from jaxtyping import Array, Float, Float32, Key
 
 from bart_gpu_article.datasim import load_data
 from bart_gpu_article.scripts.benchmark import (
@@ -80,15 +84,15 @@ class Timer:
 
 
 class Benchmark(ABC):
-    """Harness base class: separate `train` and `predict` for per-phase timing."""
+    """Harness base class."""
 
     @abstractmethod
     def setup(
         self,
         key: Key[Array, ""],
-        x_train: Float[numpy.ndarray, "p n_train"],
-        y_train: Float[numpy.ndarray, " n_train"],
-        x_test: Float[numpy.ndarray, "p n_test"],
+        x_train: Float[np.ndarray, "p n_train"],
+        y_train: Float[np.ndarray, " n_train"],
+        x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None: ...
 
@@ -96,7 +100,7 @@ class Benchmark(ABC):
     def train(self) -> None: ...
 
     @abstractmethod
-    def predict(self) -> Float[numpy.ndarray, " n_test"]: ...
+    def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff: ...
 
     subclasses: dict[str, type[Benchmark]] = {}
 
@@ -110,32 +114,89 @@ class Bartz(Benchmark):
     def setup(
         self,
         key: Key[Array, ""],
-        x_train: Float[numpy.ndarray, "p n_train"],
-        y_train: Float[numpy.ndarray, " n_train"],
-        x_test: Float[numpy.ndarray, "p n_test"],
+        x_train: Float[np.ndarray, "p n_train"],
+        y_train: Float[np.ndarray, " n_train"],
+        x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        self._key = key
+        self._keys = split(key)
         self._x_train = x_train
         self._y_train = y_train
         self._x_test = x_test
         self._platform = cfg.platform
-        self._outcome_type = "binary" if cfg.binary else "continuous"
+        self._binary = cfg.binary
+        self._outcome_type = "binary" if self._binary else "continuous"
 
     def train(self) -> None:
         self._bart = Bart(
             x_train=self._x_train,
             y_train=self._y_train,
-            seed=self._key,
+            seed=self._keys.pop(),
             devices=self._platform,
             outcome_type=self._outcome_type,
             **NONDEFAULT_BART_ARGS,
         )
         block_until_ready(self._bart)
 
-    def predict(self) -> Float[numpy.ndarray, " n_test"]:
-        yhat = self._bart.predict(self._x_test, kind="mean")
-        return numpy.asarray(yhat)
+    def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
+        stuff = predict_stuff(
+            self._keys.pop(),
+            self._bart,
+            self._x_test,
+            y_test,
+            self._binary,
+        )
+        return block_until_ready(stuff)
+
+
+class PredictStuff(Module):
+    """Output of `predict_stuff`."""
+
+    rmse: Float32[Array, ""]
+    coverage_50: Float32[Array, ""] | None
+    logloss: Float32[Array, ""] | None
+
+
+@partial(jit, static_argnames=("binary",))
+def predict_stuff(
+    key: Key[Array, ""],
+    bart: Bart,
+    x_test: Float[Array, "p n_test"],
+    y_test: Float[Array, " n_test"],
+    binary: bool,
+) -> PredictStuff:
+    """Compute -MLPD (logloss), RMSE, and coverage for Bart."""
+    latent_samples = bart.predict(x_test, kind="latent_samples")  # (samples, points)
+    if binary:
+        mean_samples = norm.cdf(latent_samples)
+    else:
+        mean_samples = latent_samples
+
+    mean = jnp.mean(mean_samples, axis=0)
+    rmse = jnp.sqrt(jnp.mean(jnp.square(y_test - mean)))
+
+    if binary:
+        lpd_samples = bernoulli.logpmf(y_test, mean_samples)
+    else:
+        sdev = bart.get_error_sdev()[:, None]
+        lpd_samples = norm.logpdf(y_test, mean_samples, sdev)
+    lpd = logmeanexp(lpd_samples, axis=0)
+    mlpd = jnp.mean(lpd)
+    logloss = -mlpd
+
+    if binary:
+        coverage_50 = None
+    else:
+        cl = 0.5
+        error = sdev * random.normal(key, mean_samples.shape)
+        outcome_samples = mean_samples + error
+        lower, upper = jnp.quantile(
+            outcome_samples, jnp.array([(1 - cl) / 2, (1 + cl) / 2]), axis=0
+        )
+        covered = y_test == jnp.clip(y_test, lower, upper)
+        coverage_50 = jnp.mean(covered)
+
+    return PredictStuff(rmse, coverage_50, logloss)
 
 
 class Xgboost(Benchmark):
@@ -144,9 +205,9 @@ class Xgboost(Benchmark):
     def setup(
         self,
         key: Key[Array, ""],
-        x_train: Float[numpy.ndarray, "p n_train"],
-        y_train: Float[numpy.ndarray, " n_train"],
-        x_test: Float[numpy.ndarray, "p n_test"],
+        x_train: Float[np.ndarray, "p n_train"],
+        y_train: Float[np.ndarray, " n_train"],
+        x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
         from xgboost import XGBClassifier, XGBRegressor
@@ -154,7 +215,7 @@ class Xgboost(Benchmark):
         self._X_train = x_train.T
         self._y_train = y_train
         self._X_test = x_test.T
-        self._binary = bool(cfg.binary)
+        self._binary = cfg.binary
         cls = XGBClassifier if self._binary else XGBRegressor
         self._model = cls(
             random_state=make_int_seed(key),
@@ -164,14 +225,22 @@ class Xgboost(Benchmark):
     def train(self) -> None:
         self._model.fit(self._X_train, self._y_train)
 
-    def predict(self) -> Float[numpy.ndarray, " n_test"]:
+    def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
         if self._binary:
-            return self._model.predict_proba(self._X_test)[:, 1]
+            yhat = self._model.predict_proba(self._X_test)[:, 1]
+            p_hat = np.clip(yhat, 1e-7, 1 - 1e-7)
+            logloss = -np.mean(
+                y_test * np.log(p_hat) + (1 - y_test) * np.log(1 - p_hat)
+            )
+        else:
+            from xgboost import DMatrix
 
-        import xgboost
+            dtest = DMatrix(self._X_test)
+            yhat = self._model.get_booster().predict(dtest)
+            logloss = None
 
-        dtest = xgboost.DMatrix(self._X_test)
-        return self._model.get_booster().predict(dtest)
+        rmse = np.sqrt(np.mean(np.square(yhat - y_test)))
+        return PredictStuff(rmse, None, logloss)
 
 
 EMPTY_ROW_KEYS = (
@@ -186,6 +255,7 @@ EMPTY_ROW_KEYS = (
     "time_train",
     "time_test",
     "rmse",
+    "coverage_50",
     "logloss",
 )
 
@@ -208,8 +278,8 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     outcome_type = "binary" if cfg.binary else "continuous"
     print(f"outcome_type={outcome_type}")
 
-    raw_X = numpy.asarray(data.raw_X)
-    y = numpy.asarray(data.y)
+    raw_X = np.asarray(data.raw_X)
+    y = np.asarray(data.y)
     del data
 
     p, n_total = raw_X.shape
@@ -221,7 +291,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
 
     keys = split(random.key(cfg.round_seed))
 
-    perm = numpy.asarray(random.permutation(keys.pop(), n_total))
+    perm = np.asarray(random.permutation(keys.pop(), n_total))
     test_idx = perm[:n_test]
     train_idx = perm[n_test:]
 
@@ -244,22 +314,17 @@ def run_slave(cfg: Config) -> dict[str, Any]:
 
     print("predict...")
     with Timer() as t_test:
-        yhat = bench.predict()
+        stuff = bench.predict(y_test)
     print(f"predict time: {format_time(t_test.time)}")
 
-    rmse = numpy.sqrt(numpy.mean(numpy.square(yhat - y_test))).item()
+    rmse = float(stuff.rmse)
+    coverage_50 = None if stuff.coverage_50 is None else float(stuff.coverage_50)
+    logloss = None if stuff.logloss is None else float(stuff.logloss)
     print(f"rmse: {rmse:.4f}")
-
-    logloss: float | None
-    if cfg.binary:
-        # bartz operates in float32, so clip with a float32-safe epsilon
-        p_hat = numpy.clip(yhat, 1e-7, 1 - 1e-7)
-        logloss = float(
-            -numpy.mean(y_test * numpy.log(p_hat) + (1 - y_test) * numpy.log(1 - p_hat))
-        )
+    if coverage_50 is not None:
+        print(f"coverage_50: {coverage_50:.4f}")
+    if logloss is not None:
         print(f"logloss: {logloss:.4f}")
-    else:
-        logloss = None
 
     return dict(
         seed=cfg.round_seed,
@@ -273,6 +338,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         time_train=t_train.time,
         time_test=t_test.time,
         rmse=rmse,
+        coverage_50=coverage_50,
         logloss=logloss,
     )
 
@@ -303,6 +369,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         time_train=None,
         time_test=None,
         rmse=None,
+        coverage_50=None,
         logloss=None,
     )
 
