@@ -1,16 +1,46 @@
+"""Explore OpenML datasets."""
+
 import argparse
+import sys
+from collections import namedtuple
+from collections.abc import Sequence
 from numbers import Number
 from pathlib import Path
+from types import MappingProxyType
+from typing import Any, NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+from openml import OpenMLDataset
 from openml.datasets import get_dataset
 from rapidfuzz import fuzz, process
 
+DATASET_TARGETS = MappingProxyType(
+    {
+        "2018-Airplane-Flights": "PricePerTicket",
+        "5-years-historical-stock-quotes": "close_price",
+        "Australian-Electricity-Demand": "value_0",
+        "BOT-IoT": "attack",
+        "Covid19-us": "value_0",  # confirmed cases
+        "FitBit_HeartRate": "Value",
+        "FitBit_Steps": "Steps",
+        "M4-competition-daily": "value_0",
+        "Methane": "MM256",
+        "New-York-Citi-Bike-Trip-Duration-2016": "trip_duration",
+        "Radar-Traffic-Data": "Volume",
+        "Solar-Power": "value_0",
+        "Wind-Power": "value_0",
+        "cleaned-Edge-IIoTset": "Attack_label",
+        "freMTPL2freq": "ClaimNb",
+    }
+)
+
 
 def print_data_summary(x: pl.DataFrame, y: pl.Series | None = None) -> None:
-    with pl.Config(fmt_str_lengths=100, tbl_cols=-1, tbl_width_chars=10_000):
+    with pl.Config(
+        fmt_str_lengths=100, tbl_cols=-1, tbl_width_chars=10_000, tbl_rows=-1
+    ):
         print("\nX & y")
         if y is not None:
             x = x.with_columns(y)
@@ -18,80 +48,103 @@ def print_data_summary(x: pl.DataFrame, y: pl.Series | None = None) -> None:
         descr = x.describe()
         xnu = x.select(pl.lit("n_unique").alias("statistic"), pl.all().n_unique())
         descr = pl.concat([descr, xnu], how="vertical_relaxed")
+        descr = descr.transpose(
+            include_header=True, header_name="Column", column_names="statistic"
+        )
         print(descr)
 
 
-file = Path("./data/list-datasets.csv")
-print(f"read {file}...")
-datasets = pl.read_csv(file)
+def print_categorical_predictors_info(X: pl.DataFrame):
+    print("\n--- Categorical variables (unique value counts) ---")
+    cat_cols = [col for col, dtype in X.schema.items() if dtype == pl.Categorical]
 
-
-# --- argument parsing ---
-parser = argparse.ArgumentParser(description="Explore OpenML datasets.")
-parser.add_argument(
-    "-n",
-    "--name",
-    metavar="NAME",
-    default=None,
-    help="Select a single dataset by name (fuzzy match).",
-)
-parser.add_argument(
-    "-f",
-    "--from",
-    dest="from_",
-    action="store_true",
-    default=False,
-    help="Process all datasets starting from the one matched by -n (requires -n).",
-)
-args = parser.parse_args()
-
-if args.from_ and args.name is None:
-    parser.error("-f/--from requires -n/--name to be specified.")
-
-if args.name is not None:
-    names = datasets["name"].to_list()
-    result = process.extractOne(args.name, names, scorer=fuzz.WRatio)
-    if result is None:
-        parser.error(f"No dataset found matching {args.name!r}.")
-    matched_name, score, _ = result
-    print(f"Matched dataset: {matched_name!r} (score={score:.0f})")
-    if args.from_:
-        idx = names.index(matched_name)
-        datasets = datasets.slice(idx)
+    if not cat_cols:
+        print("  (none)")
     else:
-        datasets = datasets.filter(pl.col("name") == matched_name)
+        for col in cat_cols:
+            n_unique = X[col].n_unique()
+            values_preview = sorted(X[col].drop_nulls().unique().to_list())[:10]
+            preview_str = str(values_preview) + (" ..." if n_unique > 10 else "")
+            print(f"  {col}: {n_unique} unique values  {preview_str}")
 
-hist_dir = Path("./plots/explore_datasets")
-hist_dir.mkdir(parents=True, exist_ok=True)
 
-dataset_targets = {
-    "2018-Airplane-Flights": "PricePerTicket",
-    "5-years-historical-stock-quotes": "close_price",
-    "Australian-Electricity-Demand": "value_0",
-    "BOT-IoT": "attack",
-    "Covid19-us": "value_0",  # confirmed cases
-    "FitBit_HeartRate": "Value",
-    "FitBit_Steps": "Steps",
-    "M4-competition-daily": "value_0",
-    "Methane": "MM256",
-    "New-York-Citi-Bike-Trip-Duration-2016": "trip_duration",
-    "Radar-Traffic-Data": "Volume",
-    "Solar-Power": "value_0",
-    "Wind-Power": "value_0",
-    "cleaned-Edge-IIoTset": "Attack_label",
-    "freMTPL2freq": "ClaimNb",
-}
+def read_datasets_list() -> pl.DataFrame:
+    file = Path("./data/list-datasets.csv")
+    print(f"read {file}...")
+    return pl.read_csv(file)
+
+
+def parse_argv_and_filter_datasets(
+    argv: Sequence[str], datasets: pl.DataFrame
+) -> pl.DataFrame:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "-n",
+        "--name",
+        metavar="NAME",
+        default=None,
+        help="Select a single dataset by name (fuzzy match).",
+    )
+    parser.add_argument(
+        "-f",
+        "--from",
+        dest="from_",
+        action="store_true",
+        default=False,
+        help="Process all datasets starting from the one matched by -n (requires -n).",
+    )
+    args = parser.parse_args(argv)
+
+    if args.from_ and args.name is None:
+        parser.error("-f/--from requires -n/--name to be specified.")
+
+    if args.name is not None:
+        names = datasets["name"].to_list()
+        result = process.extractOne(args.name, names, scorer=fuzz.WRatio)
+        if result is None:
+            parser.error(f"No dataset found matching {args.name!r}.")
+        matched_name, score, _ = result
+        print(f"Matched dataset: {matched_name!r} (score={score:.0f})")
+        if args.from_:
+            idx = names.index(matched_name)
+            datasets = datasets.slice(idx)
+        else:
+            datasets = datasets.filter(pl.col("name") == matched_name)
+
+    return datasets
 
 
 def to_sin_cos(expr: pl.Expr, period: Number | pl.Expr) -> tuple[pl.Expr, pl.Expr]:
-    t = (2 * np.pi / period) * expr
+    """Map a periodic value to its sine and cosine."""
+    t = expr * (2 * np.pi / period)
     return t.sin().name.suffix("_sin"), t.cos().name.suffix("_cos")
 
 
-for meta in datasets.iter_rows(named=True):
-    did = meta["did"]
-    print(f"####### DATASET {meta['name']} (id {did}) #######")
+def main(argv: Sequence[str]) -> None:
+    datasets = read_datasets_list()
+    datasets = parse_argv_and_filter_datasets(argv, datasets)
+    for meta in datasets.iter_rows(named=True):
+        process_dataset(meta)
 
+
+def basic_checks(X: pl.DataFrame, y: pl.Series) -> None:
+    """check there are no null values and other things."""
+    assert X.null_count().sum_horizontal().item() == 0
+    assert y is not None
+    assert y.null_count() == 0
+    assert y.name not in X.columns
+
+
+class Data(NamedTuple):
+    """Output of `get_data`."""
+
+    dataset: OpenMLDataset
+    X: pl.DataFrame
+    y: pl.Series
+
+
+def get_data(name: str, did: int) -> Data:
+    """Get dataset from OpenML and do basic preprocessing."""
     print("download data...")
     dataset = get_dataset(
         did,
@@ -101,6 +154,7 @@ for meta in datasets.iter_rows(named=True):
         download_qualities=True,
         download_features_meta_data=True,
     )
+    assert dataset.name == name
 
     print("extract data...")
     target = dataset.default_target_attribute
@@ -126,9 +180,9 @@ for meta in datasets.iter_rows(named=True):
     del cat
 
     # pick target for datasets that don't come with a single default target
-    if dataset.name in dataset_targets:
+    if dataset.name in DATASET_TARGETS:
         assert y is None
-        y = X[dataset_targets[dataset.name]]
+        y = X[DATASET_TARGETS[dataset.name]]
         targets = {y.name}
         if dataset.default_target_attribute is not None:
             other_targets = dataset.default_target_attribute.split(",")
@@ -141,29 +195,57 @@ for meta in datasets.iter_rows(named=True):
     # remove all targets from X
     X = X.drop(targets)
 
-    # custom pre-processing
-    if dataset.name == "2018-Airplane-Flights":
-        X = X.with_columns(
-            *to_sin_cos(pl.col("Quarter"), 4),
-        ).drop(
-            "Unnamed:_0",  # this is just an index
-            "InitID",  # this is a coarser version of MktID, redundant
-            "Quarter",  # already converted to periodic form
-        )
+    return Data(dataset, X, y)
 
-    elif dataset.name == "Covid19-us":
-        X = X.drop(
-            "value_1",  # deaths
-        )
 
-    # check there are no null values and other things
-    assert X.null_count().sum_horizontal().item() == 0
-    assert y is not None
-    assert y.null_count() == 0
-    assert y.name not in X.columns
+def custom_preprocessing(data: Data) -> Data:
+    """Bespoke preprocessing for each dataset."""
+    dataset, X, y = data
 
+    match dataset.name:
+        case "2018-Airplane-Flights":
+            X = X.with_columns(
+                *to_sin_cos(pl.col("Quarter"), 4),
+            ).drop(
+                "Unnamed:_0",  # this is just an index
+                "ItinID",  # this is a coarser version of MktID, redundant
+                "Quarter",  # already converted to periodic form
+            )
+
+        case "Covid19-us":
+            X = X.drop(
+                "value_1",  # deaths
+            )
+
+        case _:
+            print(f"==== No custom pre-processing defined for {dataset.name} ====")
+
+    return Data(dataset, X, y)
+
+
+def process_dataset(meta: dict[str, Any]) -> None:
+    """Process a single dataset, `meta` is one row in the list of datasets."""
+    did = meta["did"]
+    print(f"\n\n####### DATASET {meta['name']} (id {did}) #######")
+
+    original_data = get_data(**meta)
+    dataset, X, y = custom_preprocessing(original_data)
+    basic_checks(X, y)
     print_data_summary(X, y)
+    ystuff = preprocess_y(y)
+    y = ystuff.y
+    print_categorical_predictors_info(X)
+    plot_y_distribution(did, dataset, ystuff)
 
+
+class YStuff(NamedTuple):
+    y: pl.Series
+    n_unique: int
+    is_binary: bool
+
+
+def preprocess_y(y: pl.Series) -> YStuff:
+    """Put the target column in a standard format and do some checks."""
     print("\n--- Target variable (y) analysis ---")
 
     # print some unique values of y
@@ -193,16 +275,32 @@ for meta in datasets.iter_rows(named=True):
     else:
         y = y.cast(pl.Float64)
 
-    # histogram of y
+    # print class balance for binary y
+    if is_binary:
+        print(y.value_counts(normalize=True))
+
+    return YStuff(y, y_n_unique, is_binary)
+
+
+def plot_y_distribution(
+    did: int,
+    dataset: OpenMLDataset,
+    ystuff: YStuff,
+) -> None:
+    """Plot the histogram of y, save the figure to file."""
+    # reset matplotlib
+    plt.close("all")
+    plt.rcdefaults()
+
     fig, ax = plt.subplots(
         figsize=(8, 4), clear=True, layout="constrained", num=f"explore_datasets-{did}"
     )
-    y_np = y.to_numpy()
+    y_np = ystuff.y.to_numpy()
 
     # --- choose bins and data to plot ---
-    if y_n_unique <= 100:
+    if ystuff.n_unique <= 100:
         # few unique values: discrete bins centered on each value
-        bins = y.unique().cast(pl.Int64).sort().to_numpy()
+        bins = ystuff.y.unique().cast(pl.Int64).sort().to_numpy()
         mid = (bins[:-1] + bins[1:]) / 2
         left = bins[0] - (mid[0] - bins[0])
         right = bins[-1] + (bins[-1] - mid[-1])
@@ -218,7 +316,7 @@ for meta in datasets.iter_rows(named=True):
     counts, bin_edges, _ = ax.hist(y_plot, bins=bins, histtype="step")
 
     # --- decoration depending on variable type ---
-    if is_binary:
+    if ystuff.is_binary:
         # annotate each bar with its fraction and decimal value
         n_total = len(y_np)
         for i, count in enumerate(counts):
@@ -306,18 +404,12 @@ for meta in datasets.iter_rows(named=True):
     )
 
     # save figure to file
+    hist_dir = Path("./plots/explore_datasets")
+    hist_dir.mkdir(parents=True, exist_ok=True)
     hist_path = hist_dir / f"{did}_{dataset.name}.pdf"
     print(f"write {hist_path}...")
     fig.savefig(hist_path)
 
-    print("\n--- Categorical variables (unique value counts) ---")
-    cat_cols = [col for col, dtype in X.schema.items() if dtype == pl.Categorical]
 
-    if not cat_cols:
-        print("  (none)")
-    else:
-        for col in cat_cols:
-            n_unique = X[col].n_unique()
-            values_preview = sorted(X[col].drop_nulls().unique().to_list())[:10]
-            preview_str = str(values_preview) + (" ..." if n_unique > 10 else "")
-            print(f"  {col}: {n_unique} unique values  {preview_str}")
+if __name__ == "__main__":
+    main(sys.argv[1:])
