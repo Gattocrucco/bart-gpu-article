@@ -216,16 +216,16 @@ class Xgboost(Benchmark):
         self._y_train = y_train
         self._X_test = x_test.T
         self._binary = cfg.binary
+        self._platform = cfg.platform
         cls = XGBClassifier if self._binary else XGBRegressor
-        self._model = cls(
-            random_state=make_int_seed(key),
-            device=cfg.platform,
-        )
+        self._model = cls(random_state=make_int_seed(key), device=self._platform)
 
     def train(self) -> None:
         self._model.fit(self._X_train, self._y_train)
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
+        booster = self._model.get_booster()
+        booster.set_param({"device": self._platform})
         if self._binary:
             yhat = self._model.predict_proba(self._X_test)[:, 1]
             p_hat = np.clip(yhat, 1e-7, 1 - 1e-7)
@@ -233,10 +233,7 @@ class Xgboost(Benchmark):
                 y_test * np.log(p_hat) + (1 - y_test) * np.log(1 - p_hat)
             )
         else:
-            from xgboost import DMatrix
-
-            dtest = DMatrix(self._X_test)
-            yhat = self._model.get_booster().predict(dtest)
+            yhat = self._model.predict(self._X_test)
             logloss = None
 
         rmse = np.sqrt(np.mean(np.square(yhat - y_test)))
