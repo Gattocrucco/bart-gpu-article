@@ -224,16 +224,19 @@ class Xgboost(Benchmark):
         self._model.fit(self._X_train, self._y_train)
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
-        booster = self._model.get_booster()
-        booster.set_param({"device": self._platform})
+        x_test = self._X_test
+        if self._platform == "gpu":
+            import cupy
+
+            x_test = cupy.asarray(self._X_test)
         if self._binary:
-            yhat = self._model.predict_proba(self._X_test)[:, 1]
+            yhat = self._model.predict_proba(x_test)[:, 1]
             p_hat = np.clip(yhat, 1e-7, 1 - 1e-7)
             logloss = -np.mean(
                 y_test * np.log(p_hat) + (1 - y_test) * np.log(1 - p_hat)
             )
         else:
-            yhat = self._model.predict(self._X_test)
+            yhat = self._model.predict(x_test)
             logloss = None
 
         rmse = np.sqrt(np.mean(np.square(yhat - y_test)))
