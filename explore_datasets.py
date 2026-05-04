@@ -2,7 +2,6 @@
 
 import argparse
 import sys
-from collections import namedtuple
 from collections.abc import Sequence
 from numbers import Number
 from pathlib import Path
@@ -36,21 +35,26 @@ DATASET_TARGETS = MappingProxyType(
     }
 )
 
+SELECTED_DATASETS = (
+    "Higgs",
+    "delays_zurich_transport",
+    "poker",
+)
 
-def print_data_summary(x: pl.DataFrame, y: pl.Series | None = None) -> None:
+
+def print_data_summary(x: pl.DataFrame, y: pl.Series) -> None:
     with pl.Config(
         fmt_str_lengths=100, tbl_cols=-1, tbl_width_chars=10_000, tbl_rows=-1
     ):
-        print("\nX & y")
-        if y is not None:
-            x = x.with_columns(y)
+        print("\nX & y (last column)")
+        x = x.with_columns(y)
         x.glimpse()
         descr = x.describe()
         xnu = x.select(pl.lit("n_unique").alias("statistic"), pl.all().n_unique())
         descr = pl.concat([descr, xnu], how="vertical_relaxed")
         descr = descr.transpose(
             include_header=True, header_name="Column", column_names="statistic"
-        )
+        ).drop("count", "null_count")
         print(descr)
 
 
@@ -76,7 +80,7 @@ def read_datasets_list() -> pl.DataFrame:
 
 def parse_argv_and_filter_datasets(
     argv: Sequence[str], datasets: pl.DataFrame
-) -> pl.DataFrame:
+) -> tuple[pl.DataFrame, bool]:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "-n",
@@ -93,10 +97,23 @@ def parse_argv_and_filter_datasets(
         default=False,
         help="Process all datasets starting from the one matched by -n (requires -n).",
     )
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        default=False,
+        help=(
+            "Populate module globals `original_data` and `data` with the processed "
+            "dataset, for use in interactive ipython sessions (requires -n)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.from_ and args.name is None:
         parser.error("-f/--from requires -n/--name to be specified.")
+
+    if args.interactive and args.name is None:
+        parser.error("-i/--interactive requires -n/--name to be specified.")
 
     if args.name is not None:
         names = datasets["name"].to_list()
@@ -111,7 +128,7 @@ def parse_argv_and_filter_datasets(
         else:
             datasets = datasets.filter(pl.col("name") == matched_name)
 
-    return datasets
+    return datasets, args.interactive
 
 
 def to_sin_cos(expr: pl.Expr, period: Number | pl.Expr) -> tuple[pl.Expr, pl.Expr]:
@@ -122,9 +139,12 @@ def to_sin_cos(expr: pl.Expr, period: Number | pl.Expr) -> tuple[pl.Expr, pl.Exp
 
 def main(argv: Sequence[str]) -> None:
     datasets = read_datasets_list()
-    datasets = parse_argv_and_filter_datasets(argv, datasets)
+    datasets, interactive = parse_argv_and_filter_datasets(argv, datasets)
     for meta in datasets.iter_rows(named=True):
-        process_dataset(meta)
+        original_data, data = process_dataset(meta)
+        if interactive:
+            globals()["original_data"] = original_data
+            globals()["data"] = data
 
 
 def basic_checks(X: pl.DataFrame, y: pl.Series) -> None:
@@ -217,25 +237,45 @@ def custom_preprocessing(data: Data) -> Data:
                 "value_1",  # deaths
             )
 
+        case "delays_zurich_transport":
+            X = (
+                X.with_columns(
+                    pl.col("direction").cast(pl.String).str.to_integer(),
+                    *to_sin_cos(pl.col("weekday").cast(pl.String).str.to_integer(), 7),
+                    *to_sin_cos(pl.col("dayminute"), 24 * 60),
+                )
+                .drop(
+                    "hour",  # redundant with dayminute
+                    "weekday",  # already converted to periodic form
+                    "dayminute",  # already converted to periodic form
+                )
+                .to_dummies(["vehicle_type"])
+            )
+
+        case "Higgs" | "poker":
+            # everything already ok
+            pass
+
         case _:
             print(f"==== No custom pre-processing defined for {dataset.name} ====")
 
     return Data(dataset, X, y)
 
 
-def process_dataset(meta: dict[str, Any]) -> None:
+def process_dataset(meta: dict[str, Any]) -> tuple[Data, Data]:
     """Process a single dataset, `meta` is one row in the list of datasets."""
     did = meta["did"]
     print(f"\n\n####### DATASET {meta['name']} (id {did}) #######")
 
     original_data = get_data(**meta)
     dataset, X, y = custom_preprocessing(original_data)
-    basic_checks(X, y)
-    print_data_summary(X, y)
     ystuff = preprocess_y(y)
     y = ystuff.y
+    basic_checks(X, y)
+    print_data_summary(X, y)
     print_categorical_predictors_info(X)
     plot_y_distribution(did, dataset, ystuff)
+    return original_data, Data(dataset, X, y)
 
 
 class YStuff(NamedTuple):
