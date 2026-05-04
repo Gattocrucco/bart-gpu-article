@@ -24,7 +24,7 @@ class Data(Module):
     raw_X: Float[Array, "p n"] | None
     quantized_X: UInt[Array, "p n"] | None
     y: Float32[Array, " n"]
-    max_split: UInt[Array, " p"]
+    max_split: UInt[Array, " p"] | None
     prior_var: Float32[Array, ""]
     pop_var: Float32[Array, ""]
     eps_var: Float32[Array, ""]

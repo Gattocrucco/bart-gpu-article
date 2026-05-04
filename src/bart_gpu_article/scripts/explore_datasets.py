@@ -1,4 +1,4 @@
-"""Explore OpenML datasets."""
+"""Explore the OpenML datasets selected by `list_datasets`."""
 
 import argparse
 import sys
@@ -34,13 +34,6 @@ DATASET_TARGETS = MappingProxyType(
         "freMTPL2freq": "ClaimNb",
     }
 )
-
-SELECTED_DATASETS = (
-    "Higgs",
-    "delays_zurich_transport",
-    "poker",
-)
-
 
 def print_data_summary(x: pl.DataFrame, y: pl.Series) -> None:
     with pl.Config(
@@ -137,11 +130,11 @@ def to_sin_cos(expr: pl.Expr, period: Number | pl.Expr) -> tuple[pl.Expr, pl.Exp
     return t.sin().name.suffix("_sin"), t.cos().name.suffix("_cos")
 
 
-def main(argv: Sequence[str]) -> None:
+def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     datasets = read_datasets_list()
     datasets, interactive = parse_argv_and_filter_datasets(argv, datasets)
     for meta in datasets.iter_rows(named=True):
-        original_data, data = process_dataset(meta)
+        original_data, data = process_dataset(meta, log=True)
         if interactive:
             globals()["original_data"] = original_data
             globals()["data"] = data
@@ -262,19 +255,27 @@ def custom_preprocessing(data: Data) -> Data:
     return Data(dataset, X, y)
 
 
-def process_dataset(meta: dict[str, Any]) -> tuple[Data, Data]:
-    """Process a single dataset, `meta` is one row in the list of datasets."""
+def process_dataset(
+    meta: dict[str, Any], *, log: bool = False
+) -> tuple[Data, Data]:
+    """Process a single dataset, `meta` is one row in the list of datasets.
+
+    With ``log=True``, also print summaries of X and y and write the
+    y-distribution plot.
+    """
     did = meta["did"]
     print(f"\n\n####### DATASET {meta['name']} (id {did}) #######")
 
     original_data = get_data(**meta)
-    dataset, X, y = custom_preprocessing(original_data)
-    ystuff = preprocess_y(y)
+    dataset, X, original_y = custom_preprocessing(original_data)
+    ystuff = preprocess_y(original_y)
     y = ystuff.y
     basic_checks(X, y)
-    print_data_summary(X, y)
-    print_categorical_predictors_info(X)
-    plot_y_distribution(did, dataset, ystuff)
+    if log:
+        print_y_info(original_y, ystuff)
+        print_data_summary(X, y)
+        print_categorical_predictors_info(X)
+        plot_y_distribution(did, dataset, ystuff)
     return original_data, Data(dataset, X, y)
 
 
@@ -286,40 +287,39 @@ class YStuff(NamedTuple):
 
 def preprocess_y(y: pl.Series) -> YStuff:
     """Put the target column in a standard format and do some checks."""
-    print("\n--- Target variable (y) analysis ---")
-
-    # print some unique values of y
     y_n_unique = y.n_unique()
-    cutoff = 10
-    y_unique_cut = y.unique().sort()[:cutoff].to_list()
-    if y_n_unique > cutoff:
-        y_unique_cut.append(f"... (other {y_n_unique - cutoff})")
-    print(f"{y.dtype=}")
-    print(f"unique values: {y_unique_cut}")
 
     # determine type of y
     is_binary = y.dtype in [pl.Categorical, pl.String] or (
         y.dtype.is_integer() and y_n_unique == 2
     )
 
-    # check type determination is consistent
+    # check type determination is consistent and put y in a standard format
     if is_binary:
         assert y_n_unique == 2
+        y_unique = y.unique().sort().to_list()
+        y = y.replace_strict(y_unique, [0, 1], return_dtype=pl.Int8)
     else:  # continuous
         assert y_n_unique > 4
         assert y.dtype.is_numeric()
-
-    # put y in a standard format
-    if is_binary:
-        y = y.replace_strict(y_unique_cut, [0, 1], return_dtype=pl.Int8)
-    else:
         y = y.cast(pl.Float64)
 
-    # print class balance for binary y
-    if is_binary:
-        print(y.value_counts(normalize=True))
-
     return YStuff(y, y_n_unique, is_binary)
+
+
+def print_y_info(original_y: pl.Series, ystuff: YStuff) -> None:
+    """Print analysis of the target variable."""
+    print("\n--- Target variable (y) analysis ---")
+
+    cutoff = 10
+    y_unique_cut = original_y.unique().sort()[:cutoff].to_list()
+    if ystuff.n_unique > cutoff:
+        y_unique_cut.append(f"... (other {ystuff.n_unique - cutoff})")
+    print(f"y.dtype={original_y.dtype}")
+    print(f"unique values: {y_unique_cut}")
+
+    if ystuff.is_binary:
+        print(ystuff.y.value_counts(normalize=True))
 
 
 def plot_y_distribution(
@@ -452,4 +452,4 @@ def plot_y_distribution(
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

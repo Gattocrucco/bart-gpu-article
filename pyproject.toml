@@ -34,6 +34,8 @@ list-datasets = "bart_gpu_article.scripts.list_datasets:main"
 savedata = "bart_gpu_article.scripts.savedata:main"
 fullbench = "bart_gpu_article.scripts.fullbench:main"
 fullbench-plot = "bart_gpu_article.scripts.fullbench_plot:main"
+explore-datasets = "bart_gpu_article.scripts.explore_datasets:main"
+save-datasets = "bart_gpu_article.scripts.save_datasets:main"
 
 [tool.ruff.lint]
 ignore = ["F722"]
