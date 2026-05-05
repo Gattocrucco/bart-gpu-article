@@ -43,7 +43,6 @@ class UnitConfig(Module):
     n: int
     ntree: int
     p: int
-    bartz_xgboost_maxdepth: int
     reps: int
     steps_per_rep: int
     device: Device
@@ -65,9 +64,7 @@ class Config(Module):
     fixed_p: int | None = 100
     n_over_ntree: int | None = None
     n_over_p: int | None = None
-    bartz_xgboost_maxdepth: int = 6
-    reps: int = 2
-    steps_per_rep: int = 15
+    reps: int = 3
 
     def device(self) -> Device:
         """Get the jax device to use for running the algorithm."""
@@ -90,9 +87,8 @@ class Config(Module):
             if self.fixed_ntree is None
             else self.fixed_ntree,
             p=max(1, n // self.n_over_p) if self.fixed_p is None else self.fixed_p,
-            bartz_xgboost_maxdepth=self.bartz_xgboost_maxdepth,
             reps=self.reps,
-            steps_per_rep=self.steps_per_rep,
+            steps_per_rep=1 if self.benchlabel == "xgboost" else 15,
             device=self.device(),
             data_device=self.data_device(),
             benchclass=Benchmark.subclasses[self.benchlabel],
@@ -145,6 +141,10 @@ class Benchmark(ABC):
         """Set up the benchmark initial state."""
         ...
 
+    def setup_run(self) -> None:
+        """Method run before each timed `run`, but not timed, default does nothing."""
+        pass
+
     @abstractmethod
     def run(self, key: Key[Array, ""]) -> None:
         """Run the thing being benchmarked, may update internal state."""
@@ -179,7 +179,10 @@ class Bartz(Benchmark):
                 offset=0.0,
                 max_split=data.max_split,
                 num_trees=cfg.ntree,
-                p_nonterminal=make_p_nonterminal(cfg.bartz_xgboost_maxdepth, 0.95, 2),
+                # 6 is bartz.Bart default, note the convention is different than
+                # xgboost, which at its default "maxdepth=6" will have one level
+                # more
+                p_nonterminal=make_p_nonterminal(6, 0.95, 2),
                 leaf_prior_cov_inv=jnp.float32(cfg.ntree),
                 error_cov_df=2.0,
                 error_cov_scale=2.0,
@@ -263,30 +266,53 @@ class Xgboost(Benchmark):
     """Benchmark harness for xgboost."""
 
     def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
-        """Create the xgboost model."""
-        from xgboost import XGBRegressor
+        """Build the xgboost training matrix and stash params for `run`.
+
+        Quantile binning (the X-quantization equivalent to what bartz does at
+        setup) happens here at QuantileDMatrix construction. The booster
+        itself is (re)created in `setup_run` so each rep starts from a fresh
+        state: unlike bartz/dbarts (which are stateful MCMC and meant to keep
+        stepping), xgboost's "iteration" is a fresh ntree-tree fit, and
+        keeping a single booster across reps would let residuals drift and
+        the per-rep work change.
+        """
+        import xgboost as xgb
+
+        # one xgboost "iteration" is defined as one ntree-tree fit, so the
+        # `run` loop does cfg.ntree boost rounds and steps_per_rep must be 1
+        assert cfg.steps_per_rep == 1, cfg.steps_per_rep
 
         print(f"n * p = {cfg.n * cfg.p:_}, n * ntree = {cfg.n * cfg.ntree:_}")
 
-        # store data for fitting (xgboost expects (n, p) shape)
-        # convert to numpy arrays in case xgboost had some overhead with jax
-        # arrays for whatever reason
-        self.X = numpy.array(data.raw_X.T)
-        self.y = numpy.array(data.y)
+        # convert to numpy (xgboost expects (n, p) shape) just because you
+        # never know
+        X = numpy.array(data.raw_X.T)
+        y = numpy.array(data.y)
 
-        print("define xgboost model...")
-        self.model = XGBRegressor(
-            n_estimators=cfg.ntree,
-            max_depth=cfg.bartz_xgboost_maxdepth - 1,
-            n_jobs=1,
-            random_state=make_int_seed(key),
-            device=cfg.device.platform,
-            verbosity=2,
-        )
+        print("build QuantileDMatrix (quantile binning)...")
+        self.dtrain = xgb.QuantileDMatrix(X, label=y)
+
+        # objective is the XGBRegressor default. nthread is omitted so xgboost
+        # picks the maximum number of available threads.
+        self.params = {
+            "objective": "reg:squarederror",
+            "tree_method": "hist",
+            "device": cfg.device.platform,
+            "seed": make_int_seed(key),
+            "verbosity": 2,
+        }
+        self.num_boost_round = cfg.ntree
+
+    def setup_run(self) -> None:
+        """Build a fresh booster so each timed `run` starts from the same state."""
+        import xgboost as xgb
+
+        self.booster = xgb.Booster(self.params, [self.dtrain])
 
     def run(self, key: Key[Array, ""]) -> None:
-        """Fit the xgboost model."""
-        self.model.fit(self.X, self.y, verbose=True)
+        """Run one full set of ntree boost rounds."""
+        for i in range(self.num_boost_round):
+            self.booster.update(self.dtrain, i)
 
 
 def clock(f: Callable, *args: Any) -> float:
@@ -319,6 +345,7 @@ def benchmark_unit(key: Key[Array, ""], cfg: UnitConfig) -> float:
     print("run...")
     times = []
     for i in range(cfg.reps):
+        bench.setup_run()
         print(f"run {i + 1}/{cfg.reps} ", end="", flush=True)
         time = clock(bench.run, keys.pop())
         print(
@@ -446,7 +473,6 @@ def save_results(cfg: Config, results: Any) -> None:
     output = {
         "package": cfg.benchlabel,
         "device_kind": cfg.device().device_kind,
-        "maxdepth": cfg.bartz_xgboost_maxdepth,
         "results": results,
     }
     if cfg.fixed_ntree is None:
