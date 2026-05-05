@@ -73,7 +73,9 @@ class Config(Module):
 
     def data_device(self) -> Device:
         """Get the jax device to use for data generation."""
-        platform = "cpu" if self.benchlabel == "xgboost" else self.platform
+        platform = (
+            "cpu" if self.benchlabel in ("xgboost", "catboost") else self.platform
+        )
         return devices(platform)[0]
 
     def quantize_x(self) -> bool:
@@ -89,7 +91,7 @@ class Config(Module):
             else self.fixed_ntree,
             p=max(1, n // self.n_over_p) if self.fixed_p is None else self.fixed_p,
             reps=self.reps,
-            steps_per_rep=1 if self.benchlabel == "xgboost" else 15,
+            steps_per_rep=1 if self.benchlabel in ("xgboost", "catboost") else 15,
             device=self.device(),
             data_device=self.data_device(),
             benchclass=Benchmark.subclasses[self.benchlabel],
@@ -354,6 +356,56 @@ class Xgboost(Benchmark):
             self.booster.update(self.dtrain, i)
 
 
+class Catboost(Benchmark):
+    """Benchmark harness for catboost."""
+
+    def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
+        """Build and quantize the catboost Pool, stash params for `run`."""
+        from catboost import Pool
+
+        assert cfg.steps_per_rep == 1, cfg.steps_per_rep
+
+        print(f"n * p = {cfg.n * cfg.p:_}, n * ntree = {cfg.n * cfg.ntree:_}")
+
+        # convert to numpy (catboost expects (n, p) shape)
+        X = numpy.array(data.raw_X.T)
+        y = numpy.array(data.y)
+
+        # catboost uses CPU/GPU instead of cpu/gpu
+        task_type = cfg.device.platform.upper()
+
+        print("build Pool and quantize (quantile binning)...")
+        self.pool = Pool(X, label=y)
+        # task_type sets the right border_count default (254 on CPU, 128 on
+        # GPU) so quantization matches the calcer that will train the model
+        self.pool.quantize(task_type=task_type)
+
+        # loss_function=RMSE is the CatBoostRegressor default and matches
+        # xgboost's reg:squarederror. Other tree-shape params (depth=6,
+        # learning_rate, bootstrap_type=MVS, border_count) take their
+        # catboost defaults — the same hands-off approach used for xgboost.
+        # allow_writing_files=False keeps the catboost_info/ directory out
+        # of cwd. thread_count is omitted so catboost uses every core.
+        self.params: dict[str, Any] = {
+            "loss_function": "RMSE",
+            "iterations": cfg.ntree,
+            "task_type": task_type,
+            "random_seed": make_int_seed(key),
+            "verbose": False,
+            "allow_writing_files": False,
+        }
+
+    def setup_run(self) -> None:
+        """Build a fresh CatBoostRegressor so each timed `run` starts from the same state."""
+        from catboost import CatBoostRegressor
+
+        self.model = CatBoostRegressor(**self.params)
+
+    def run(self, key: Key[Array, ""]) -> None:
+        """Run one full set of ntree boost rounds."""
+        self.model.fit(self.pool)
+
+
 def clock(f: Callable, *args: Any) -> float:
     """Time a function call."""
     start = perf_counter()
@@ -545,8 +597,8 @@ def setup_device(cfg: Config) -> None:
             config.update("jax_platforms", "cpu")
         case "gpu":
             # force an error if gpu not found, and set cpu as default such that
-            # data is generated on cpu and when using xgboost jax won't squat
-            # the gpu memory
+            # data is generated on cpu and when using xgboost / catboost jax
+            # won't squat the gpu memory
             config.update("jax_platforms", "cpu,cuda")
         case _:
             raise ValueError(cfg.platform)

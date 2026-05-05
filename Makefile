@@ -25,6 +25,10 @@ benchmark-cpu:
 	$(UV_RUN) benchmark -d cpu -m xgboost -t
 	$(UV_RUN) benchmark -d cpu -m xgboost -p
 	$(UV_RUN) benchmark -d cpu -m xgboost -t -p
+	$(UV_RUN) benchmark -d cpu -m catboost
+	$(UV_RUN) benchmark -d cpu -m catboost -t
+	$(UV_RUN) benchmark -d cpu -m catboost -p
+	$(UV_RUN) benchmark -d cpu -m catboost -t -p
 	$(UV_RUN_R) benchmark -d cpu -m dbarts
 	$(UV_RUN_R) benchmark -d cpu -m dbarts -t
 	$(UV_RUN_R) benchmark -d cpu -m dbarts -p
@@ -40,6 +44,10 @@ benchmark-gpu:
 	$(UV_RUN) benchmark -d gpu -m xgboost -t
 	$(UV_RUN) benchmark -d gpu -m xgboost -p
 	$(UV_RUN) benchmark -d gpu -m xgboost -t -p
+	$(UV_RUN) benchmark -d gpu -m catboost
+	$(UV_RUN) benchmark -d gpu -m catboost -t
+	$(UV_RUN) benchmark -d gpu -m catboost -p
+	$(UV_RUN) benchmark -d gpu -m catboost -t -p
 
 .PHONY: test-rmse
 test-rmse:
