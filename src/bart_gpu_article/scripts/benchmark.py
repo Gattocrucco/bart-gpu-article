@@ -2,6 +2,7 @@
 
 import json
 import math
+import os
 import platform
 import sys
 from abc import ABC, abstractmethod
@@ -36,6 +37,8 @@ from jax.errors import JaxRuntimeError
 from jaxtyping import Array, Key
 
 from bart_gpu_article.datasim import Data, make_data
+
+MAX_NUM_THREADS = 6
 
 
 class UnitConfig(Module):
@@ -170,6 +173,48 @@ def device_kind(device: Device) -> str:
     return device.device_kind
 
 
+def physical_core_count() -> int:
+    """Return the number of physical CPU cores."""
+    system = platform.system()
+    if system == "Darwin":
+        proc = run(
+            ["sysctl", "-n", "hw.physicalcpu"],
+            stdout=PIPE,
+            text=True,
+            check=True,
+        )
+        return int(proc.stdout.strip())
+    if system == "Linux":
+        # count unique (physical id, core id) pairs in /proc/cpuinfo
+        try:
+            with open("/proc/cpuinfo") as f:
+                cpuinfo = f.read()
+        except OSError:
+            cpuinfo = ""
+        cores: set[tuple[str, str]] = set()
+        current: dict[str, str] = {}
+        for line in cpuinfo.splitlines():
+            if not line.strip():
+                if "physical id" in current and "core id" in current:
+                    cores.add((current["physical id"], current["core id"]))
+                current = {}
+                continue
+            key, sep, value = line.partition(":")
+            if sep:
+                current[key.strip()] = value.strip()
+        if "physical id" in current and "core id" in current:
+            cores.add((current["physical id"], current["core id"]))
+        if cores:
+            return len(cores)
+    # /proc/cpuinfo on aarch64 lacks physical/core ids; fall back to logical count
+    return os.cpu_count() or 1
+
+
+def num_threads() -> int:
+    """Thread count to request from cpu-parallel libraries (xgboost, catboost, dbarts)."""
+    return min(MAX_NUM_THREADS, physical_core_count())
+
+
 class Stop(Exception):
     """Exception to be raised to stop the benchmarking loop."""
 
@@ -281,7 +326,7 @@ class Dbarts(Benchmark):
             n_cuts=255,
             n_trees=cfg.ntree,
             n_chains=1,
-            n_threads=1,
+            n_threads=num_threads(),
             printEvery=1,
             rngSeed=make_int_seed(key),
         )
@@ -333,14 +378,16 @@ class Xgboost(Benchmark):
         print("build QuantileDMatrix (quantile binning)...")
         self.dtrain = xgb.QuantileDMatrix(X, label=y)
 
-        # objective is the XGBRegressor default. nthread is omitted so xgboost
-        # picks the maximum number of available threads.
+        # objective is the XGBRegressor default. nthread is capped at
+        # MAX_NUM_THREADS physical cores to keep cpu runs comparable across
+        # machines.
         self.params = {
             "objective": "reg:squarederror",
             "tree_method": "hist",
             "device": cfg.device.platform,
             "seed": make_int_seed(key),
             "verbosity": 2,
+            "nthread": num_threads(),
         }
         self.num_boost_round = cfg.ntree
 
@@ -385,7 +432,8 @@ class Catboost(Benchmark):
         # learning_rate, bootstrap_type=MVS, border_count) take their
         # catboost defaults — the same hands-off approach used for xgboost.
         # allow_writing_files=False keeps the catboost_info/ directory out
-        # of cwd. thread_count is omitted so catboost uses every core.
+        # of cwd. thread_count is capped at MAX_NUM_THREADS physical cores
+        # to keep cpu runs comparable across machines.
         self.params: dict[str, Any] = {
             "loss_function": "RMSE",
             "iterations": cfg.ntree,
@@ -393,6 +441,7 @@ class Catboost(Benchmark):
             "random_seed": make_int_seed(key),
             "verbose": False,
             "allow_writing_files": False,
+            "thread_count": num_threads(),
         }
 
     def setup_run(self) -> None:
