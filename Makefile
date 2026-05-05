@@ -40,3 +40,10 @@ test-rmse:
 	$(UV_RUN) test-rmse -t
 	$(UV_RUN) test-rmse -p
 	$(UV_RUN) test-rmse -t -p
+
+.PHONY: copy-plots
+copy-plots:
+	cp plots/test-rmse-plot.pdf article/rmse-all.pdf
+	cp plots/test-rmse-plot-1.pdf article/rmse-single.pdf
+	cp plots/benchmark-plot.pdf article/time-all.pdf
+	cp plots/benchmark-plot-1.pdf article/time-single.pdf
