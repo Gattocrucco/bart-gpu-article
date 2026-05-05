@@ -381,9 +381,7 @@ def benchmark_loop_slave(config: Config) -> float:
         time_per_iter = benchmark_unit(key, config.unit_config(n))
 
     except JaxRuntimeError as exc:
-        if not exc.args[0].startswith(
-            "RESOURCE_EXHAUSTED: Out of memory while trying to allocate"
-        ):
+        if "Out of memory" not in str(exc):
             # unknown error, don't catch
             raise
         else:

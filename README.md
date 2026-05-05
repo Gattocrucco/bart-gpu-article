@@ -70,7 +70,8 @@ uv run test-rmse-plot  # plot the results of the above
 The plotting commands require results to be present for various combinations of options of the results-producing commands. For convenience, these `make` targets will run the commands for all configurations:
 
 ```sh
-make benchmark-cpu  # repeat cpu benchmark for all configurations
+make benchmark-cpu  # repeat cpu benchmark for all configurations, ~1 hour
+
 make benchmark-gpu  # repeat gpu benchmark for all configurations
 make test-rmse      # repeat bart packages comparison for all configurations
 ```
