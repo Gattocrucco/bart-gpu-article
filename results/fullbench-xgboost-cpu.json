@@ -1,0 +1,41 @@
+{
+    "seed": [
+        946387049
+    ],
+    "device": [
+        "cpu"
+    ],
+    "method": [
+        "xgboost"
+    ],
+    "dataset_path": [
+        "data/dataset-Higgs"
+    ],
+    "outcome_type": [
+        "binary"
+    ],
+    "n_train": [
+        10999000
+    ],
+    "n_test": [
+        1000
+    ],
+    "p": [
+        28
+    ],
+    "time_train": [
+        21.370769124943763
+    ],
+    "time_test": [
+        0.002346624853089452
+    ],
+    "rmse": [
+        0.413086861371994
+    ],
+    "coverage_50": [
+        null
+    ],
+    "logloss": [
+        0.5106589794158936
+    ]
+}
