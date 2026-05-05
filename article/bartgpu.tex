@@ -69,7 +69,7 @@
     \icmlauthor{Giacomo Petrillo}{unifi}
 \end{icmlauthorlist}
 
-\icmlaffiliation{unifi}{Department of Statistics, Computer Science,
+\icmlaffiliation{unifi}{Independent, formerly Department of Statistics, Computer Science,
 Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
 \icmlcorrespondingauthor{Giacomo Petrillo}{giacomo.petrillo@unifi.it}
@@ -96,7 +96,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \begin{abstract}
 
-        Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian regression technique based on an ensemble of decision trees. It is part of the toolbox of many statisticians. The overall statistical quality of the regression is typically higher than other generic alternatives, and it requires less manual tuning, making it a good default choice. However, it is a niche method compared to natural competitors such as \texttt{XGBoost}, due to the longer running time, making sample sizes above \num{10000}--\num{100000} a nuisance. We present a GPU-enabled implementation of BART, faster by up to 200x relative to a single CPU core, making BART competitive in running time with non-Bayesian algorithms. This implementation is available in the Python package \texttt{bartz}.
+        Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian regression technique based on an ensemble of decision trees. It is part of the toolbox of many statisticians. The overall statistical quality of the regression is typically higher than other generic alternatives, and it requires less manual tuning, making it a good default choice. However, it is a niche method compared to natural competitors such as \texttt{XGBoost}, due to the longer running time, making sample sizes above \num{10000}--\num{100000} a nuisance. We present a GPU-enabled implementation of BART, faster by up to 100x in a given GPU vs.\ CPU comparison, making BART fast enough to be a viable alternative to non-Bayesian algorithms. This implementation is available in the Python package \texttt{bartz}.
 
     \end{abstract}
 
