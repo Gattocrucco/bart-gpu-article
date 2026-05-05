@@ -45,6 +45,8 @@ def results_to_df(results: list[dict], filter: bool) -> pl.DataFrame:
                     "NVIDIA RTX PRO 6000 Blackwell Workstation Edition": "P6000",
                     "NVIDIA RTX PRO 5000 Blackwell": "P5000",
                     "NVIDIA GeForce RTX 5060 Ti": "5060Ti",
+                    "Apple M1 Pro": "M1pro",
+                    "AMD EPYC 7402 24-Core Processor": "epyc6",
                 }
             )
         )
@@ -52,7 +54,9 @@ def results_to_df(results: list[dict], filter: bool) -> pl.DataFrame:
     )
 
     if filter:
-        df = df.filter(pl.col("device_kind").is_in(["A4000", "P6000", "5060Ti"]).not_())
+        df = df.filter(
+            pl.col("device_kind").is_in(["A4000", "P6000", "5060Ti", "epyc6"]).not_()
+        )
 
     return df
 
@@ -153,10 +157,10 @@ def plot(df: pl.DataFrame, single_figure: bool):
 
         expected_labels = {
             "bartz-P5000",
-            "bartz-cpu",
-            "dbarts-cpu",
+            "bartz-M1pro",
+            "dbarts-M1pro",
             "xgboost-P5000",
-            "xgboost-cpu",
+            "xgboost-M1pro",
         }
         if {line.get_label() for line in ax.get_lines()} != expected_labels:
             print("final selection not recognized, skip hand-tuning labels")
