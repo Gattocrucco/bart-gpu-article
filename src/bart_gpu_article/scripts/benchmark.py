@@ -320,7 +320,7 @@ class Dbarts(Benchmark):
 
         print("initialize dbarts state...")
         control = dbartsControl(
-            verbose=True,
+            verbose=False,
             keepTrainingFits=False,
             keepTrees=False,
             n_cuts=255,
