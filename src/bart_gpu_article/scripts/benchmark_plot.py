@@ -1,8 +1,10 @@
 """Plot the results of `benchmark`."""
 
 import json
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+import sys
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from pathlib import Path
+from typing import Sequence
 
 import polars as pl
 from cycler import Cycler
@@ -55,7 +57,12 @@ def results_to_df(results: list[dict], filter: bool) -> pl.DataFrame:
 
     if filter:
         df = df.filter(
-            pl.col("device_kind").is_in(["A4000", "P6000", "5060Ti", "epyc6"]).not_()
+            # keep only one cpu and one gpu, exclude the rest
+            pl.col("device_kind").is_in(["A4000", "P6000", "5060Ti", "epyc6"]).not_(),
+            # skip catboost cpu, keep only gpu, just to reduce clutter
+            (pl.col("package") == "catboost")
+            .and_(pl.col("device_kind") == "M1pro")
+            .not_(),
         )
 
     return df
@@ -144,27 +151,33 @@ def plot(df: pl.DataFrame, single_figure: bool):
             ax.set(xlim=(10, None))
             xvals = None
 
-        match keys:
-            # bartz-p5000, bartz-cpu, dbarts-cpu, xgboost-p5000, xgboost-cpu
-            case (_, None, _, None):
-                xvals = [100_000, 3500, 300, 300, 2000]
-            case (None, _, None, _):
-                xvals = [100, 100, 300, 1000, 1000]
-            case (None, _, _, None):
-                xvals = [100, 100, 300, 10_000, 2000]
-            case (_, None, None, _):
-                xvals = [200, 3500, 300, 400, 5000]
-
-        expected_labels = {
+        handtuning_label_ordering = [
             "bartz-P5000",
             "bartz-M1pro",
             "dbarts-M1pro",
             "xgboost-P5000",
             "xgboost-M1pro",
-        }
-        if {line.get_label() for line in ax.get_lines()} != expected_labels:
+            "catboost-P5000",
+        ]
+
+        match keys:
+            case (_, None, _, None):  # top left
+                xvals = [100_000, 3500, 300, 3000, 100, 100]
+            case (None, _, None, _):  # top right
+                xvals = [100, 100, 200, 1000, 1000, 100]
+            case (None, _, _, None):  # bottom left
+                xvals = [100, 100, 200, 1000, 6000, 100]
+            case (_, None, None, _):  # bottom right
+                xvals = [100, 3500, 300, 400, 6000, 100]
+
+        labels = [line.get_label() for line in ax.get_lines()]
+        if set(labels) != set(handtuning_label_ordering):
             print("final selection not recognized, skip hand-tuning labels")
             xvals = None
+        else:
+            # re-sort to match actual lines
+            xvals = dict(zip(handtuning_label_ordering, xvals))
+            xvals = [xvals[k] for k in labels]
 
         labelLines(ax.get_lines(), xvals=xvals, outline_width=3)
 
@@ -202,7 +215,7 @@ def save_figures(figs: list[Figure]) -> None:
         fig.savefig(file)
 
 
-def parse_args():
+def parse_args(argv: Sequence[str]) -> Namespace:
     """Parse command line arguments."""
     parser = ArgumentParser(
         description=__doc__,
@@ -221,11 +234,11 @@ def parse_args():
         action="store_true",
         help="keep only the selected data for the final plot",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv: Sequence[str] = sys.argv[1:]):
+    args = parse_args(argv)
     results = load_results()
     df = results_to_df(results, args.filter)
     plot(df, args.single_figure)
