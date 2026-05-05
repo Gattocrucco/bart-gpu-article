@@ -326,7 +326,7 @@ class Dbarts(Benchmark):
             n_cuts=255,
             n_trees=cfg.ntree,
             n_chains=1,
-            n_threads=num_threads(),
+            n_threads=1,  # multi-threading does not work and the manual says it's not useful anyway without chains
             printEvery=1,
             rngSeed=make_int_seed(key),
         )
