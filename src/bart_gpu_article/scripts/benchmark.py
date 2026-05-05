@@ -2,6 +2,7 @@
 
 import json
 import math
+import platform
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
@@ -127,6 +128,44 @@ def format_time(t: float) -> str:
 def format_mem(m: float) -> str:
     """Format an amount of memory in bytes."""
     return f"{num2si(m)}B"
+
+
+def cpu_brand() -> str:
+    """Return a human-readable CPU model string (e.g. 'Apple M1 Pro')."""
+    system = platform.system()
+    if system == "Darwin":
+        proc = run(
+            ["sysctl", "-n", "machdep.cpu.brand_string"],
+            stdout=PIPE,
+            text=True,
+            check=True,
+        )
+        brand = proc.stdout.strip()
+        if brand:
+            return brand
+    elif system == "Linux":
+        # /proc/cpuinfo "model name" works on x86; on aarch64 it's missing and
+        # we fall back to the SoC string from "Hardware" or "CPU implementer"
+        try:
+            with open("/proc/cpuinfo") as f:
+                cpuinfo = f.read()
+        except OSError:
+            cpuinfo = ""
+        for key in ("model name", "Hardware", "cpu model"):
+            for line in cpuinfo.splitlines():
+                if line.startswith(key):
+                    _, _, value = line.partition(":")
+                    value = value.strip()
+                    if value:
+                        return value
+    return platform.processor() or platform.machine() or "cpu"
+
+
+def device_kind(device: Device) -> str:
+    """Return the device identifier used in result filenames and JSON output."""
+    if device.platform == "cpu":
+        return cpu_brand()
+    return device.device_kind
 
 
 class Stop(Exception):
@@ -470,7 +509,7 @@ def save_results(cfg: Config, results: Any) -> None:
     # write all output in a dictionary
     output = {
         "package": cfg.benchlabel,
-        "device_kind": cfg.device().device_kind,
+        "device_kind": device_kind(cfg.device()),
         "results": results,
     }
     if cfg.fixed_ntree is None:
