@@ -24,7 +24,7 @@ def load_results() -> list[dict]:
     return results
 
 
-def results_to_df(results: list[dict]) -> pl.DataFrame:
+def results_to_df(results: list[dict], filter: bool) -> pl.DataFrame:
     """Merge results into a dataframe."""
     tables = []
     for things in results:
@@ -43,13 +43,16 @@ def results_to_df(results: list[dict]) -> pl.DataFrame:
                     "NVIDIA A100-SXM4-40GB": "A100",
                     "NVIDIA RTX A4000": "A4000",
                     "NVIDIA RTX PRO 6000 Blackwell Workstation Edition": "P6000",
+                    "NVIDIA RTX PRO 5000 Blackwell": "P5000",
+                    "NVIDIA GeForce RTX 5060 Ti": "5060Ti",
                 }
             )
         )
         .with_columns(case=pl.concat_str("package", "device_kind", separator="-"))
     )
 
-    df = df.filter(pl.col("device_kind") != "A4000")
+    if filter:
+        df = df.filter(pl.col("device_kind").is_in(["A4000", "P6000", "5060Ti"]).not_())
 
     return df
 
@@ -138,7 +141,7 @@ def plot(df: pl.DataFrame, single_figure: bool):
             xvals = None
 
         match keys:
-            # bartz-p6000, bartz-cpu, dbarts-cpu, xgboost-p6000, xgboost-cpu
+            # bartz-p5000, bartz-cpu, dbarts-cpu, xgboost-p5000, xgboost-cpu
             case (_, None, _, None):
                 xvals = [100_000, 3500, 300, 300, 2000]
             case (None, _, None, _):
@@ -147,7 +150,17 @@ def plot(df: pl.DataFrame, single_figure: bool):
                 xvals = [100, 100, 300, 10_000, 2000]
             case (_, None, None, _):
                 xvals = [200, 3500, 300, 400, 5000]
-        # xvals = None
+
+        expected_labels = {
+            "bartz-P5000",
+            "bartz-cpu",
+            "dbarts-cpu",
+            "xgboost-P5000",
+            "xgboost-cpu",
+        }
+        if {line.get_label() for line in ax.get_lines()} != expected_labels:
+            print("final selection not recognized, skip hand-tuning labels")
+            xvals = None
 
         labelLines(ax.get_lines(), xvals=xvals, outline_width=3)
 
@@ -198,13 +211,19 @@ def parse_args():
         dest="single_figure",
         help="combine all plots into a single figure",
     )
+    parser.add_argument(
+        "-f",
+        "--filter",
+        action="store_true",
+        help="keep only the selected data for the final plot",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     results = load_results()
-    df = results_to_df(results)
+    df = results_to_df(results, args.filter)
     plot(df, args.single_figure)
 
 
