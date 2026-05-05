@@ -1,6 +1,6 @@
 {
     "package": "dbarts",
-    "device_kind": "cpu",
+    "device_kind": "Apple M1 Pro",
     "results": {
         "n": [
             2,
