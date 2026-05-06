@@ -96,7 +96,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \begin{abstract}
 
-        Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian regression technique based on an ensemble of decision trees. It is part of the toolbox of many statisticians. The overall statistical quality of the regression is typically higher than other generic alternatives, and it requires less manual tuning, making it a good default choice. However, it is a niche method compared to natural competitors such as \texttt{XGBoost}, due to the longer running time, making sample sizes above \num{10000}--\num{100000} a nuisance. We present a GPU-enabled implementation of BART, faster by up to 100x in a given GPU vs.\ CPU comparison, making BART fast enough to be a viable alternative to non-Bayesian algorithms. This implementation is available in the Python package \texttt{bartz}.
+        Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian regression technique based on an ensemble of decision trees. It is part of the toolbox of many statisticians. The overall statistical quality of the regression is typically higher than other generic alternatives, and it requires less manual tuning, making it a good default choice. However, it is a niche method compared to natural competitors such as \texttt{XGBoost}, due to the longer running time, making sample sizes above \num{10000}--\num{100000} a nuisance. We present a GPU-enabled implementation of BART, faster by up to 100x in a given GPU vs.\ CPU comparison, making BART fast enough to be a viable alternative to non-Bayesian algorithms on large datasets. This implementation is available in the Python package \texttt{bartz}.
 
     \end{abstract}
 
@@ -113,18 +113,18 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \paragraph{BART vs.\ XGBoost}
 
-    According to the \citet[p.~35]{kaggle2021} survey, the most popular regression method in the class of BART is the variant of gradient boosting implemented in the software \texttt{XGBoost} \citep{chen2016}, used by half of the surveyed data scientists. \citet[table~2, p.~1105]{linero2018b} show that BART predicts better than \texttt{XGBoost} on average on a set of benchmark datasets (with both methods cross validated). The other advantages of BART over \texttt{XGBoost} are that, due to being Bayesian, it provides full uncertainty quantification out of the box, a principled way to extend the model for special settings, and good results even without cross validation. However, BART is much slower than \texttt{XGBoost}, making it impractical for large datasets: the largest BART analysis I know of had $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features \citep{pratola2020}, while \texttt{XGBoost} boasts ``billions of examples'' on its home page.
+    According to the \citet[p.~35]{kaggle2021} survey, the most popular regression method in the class of BART is the variant of gradient boosting implemented in the software \texttt{XGBoost} \citep{chen2016}, used by half of the surveyed data scientists. \citet[table~2, p.~1105]{linero2018b} show that BART predicts better than \texttt{XGBoost} on average on a set of benchmark datasets (with both methods cross validated). The other advantages of BART over \texttt{XGBoost} are that, due to being Bayesian, it provides full uncertainty quantification out of the box, a principled way to extend the model for special settings, and good results even without cross validation. However, BART is much slower than \texttt{XGBoost}, making it impractical for large datasets: the largest BART analysis we know of had $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features \citep{pratola2020}, while \texttt{XGBoost} boasts ``billions of examples'' on its home page.
 
     \paragraph{XBART}
 
-    \citet{he2019} and \citet{he2021} introduced Accelerated BART (XBART), a BART variant that partially sacrifices Bayesianism to run 20--30 times faster. They show XBART is overall better at prediction than Random Forests and \texttt{XGBoost}, by working well in both high and low noise settings. However, to this day, XBART seems to not have gained traction. I believe this is due to the lack of a welcoming software ecosystem and publicity, rather than a problem with the method. XBART, not being fully Bayesian, also loses the advantage of a well-defined way of extending the model, which is important in Statistics.
+    \citet{he2019} and \citet{he2021} introduced Accelerated BART (XBART), a BART variant that partially sacrifices Bayesianism to run 20--30 times faster. They show XBART is overall better at prediction than Random Forests and \texttt{XGBoost}, by working well in both high and low noise settings. However, to this day, XBART seems to not have gained traction. We believe this is due to the lack of a welcoming software ecosystem and publicity, rather than a problem with the method. XBART, not being fully Bayesian, also loses the advantage of a well-defined way of extending the model, which is important in Statistics.
 
     \paragraph{BART on GPU}
 
-    To tackle this challenge, and bring the features of BART to large datasets, I re-implemented the original BART algorithm for GPU. My implementation yields a speed gain of up to 200 times, comparing a Nvidia A100 GPU against a single Apple M1 Pro CPU core. The maximum gain can be reached only with sample size $n \gtrsim \num{1000000}$ and  number of predictors and number of trees $p,n_\text{tree}\lesssim\num{10000}$, but these limits look solvable with additional work. The memory usage is $n(p+n_\text{tree})$ bytes, about 20 times less than the previous fastest implementation. I provide a Python package,
+    To tackle this challenge, and bring the features of BART to large datasets, we re-implemented the original BART algorithm for GPU. Our implementation yields a speed gain of up to 200 times, comparing a Nvidia A100 GPU against a single Apple M1 Pro CPU core. The maximum gain can be reached only with sample size $n \gtrsim \num{1000000}$ and  number of predictors and number of trees $p,n_\text{tree}\lesssim\num{10000}$, but these limits look solvable with additional work. The memory usage is $n(p+n_\text{tree})$ bytes, about 20 times less than the previous fastest implementation. We provide a Python package,
     \texttt{bartz}
     \citep{petrillo2024b}%
-    , which mimics the most common BART interface found in R packages. In \autoref{sec:bart} I summarize the background knowledge on BART, then in \autoref{sec:impl} I describe how to adapt BART to run on GPU, and in \autoref{sec:perf} I measure the performance of my implementation. Finally, in \autoref{sec:conclusions} I assess the merits of my work and consider further research directions.
+    , which mimics the most common BART interface found in R packages. In \autoref{sec:bart} we summarize the background knowledge on BART, then in \autoref{sec:impl} we describe how to adapt BART to run on GPU, and in \autoref{sec:perf} we measure the performance of our implementation. Finally, in \autoref{sec:conclusions} we assess the merits of our work and consider further research directions.
 
     \section{BART recap}
     \label{sec:bart}
@@ -144,7 +144,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
     \subsection{Definition of the BART model and prior distribution}
     \label{sec:bartprior}
 
-    I summarize the description from the original BART paper \citep{chipman2010}.
+    We summarize the description from the original BART paper \citep{chipman2010}.
 
     \paragraph{Decision trees}
 
@@ -157,7 +157,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \paragraph{Decision trees for regression}
 
-    A decision tree can be used to represent a parametrized family of functions for regression. The parameters are the structure of the tree $T$, including splitting decisions, and the leaf values $M$. I indicate the function represented by the tree with $g(\mathbf x;T,M)$. To use this model in Bayesian inference, it is necessary to specify a prior distribution over $(T,M)$. I factorize the prior as $p(T,M) = p(M\mid T) p(T)$ and specify the two parts separately.
+    A decision tree can be used to represent a parametrized family of functions for regression. The parameters are the structure of the tree $T$, including splitting decisions, and the leaf values $M$. We indicate the function represented by the tree with $g(\mathbf x;T,M)$. To use this model in Bayesian inference, it is necessary to specify a prior distribution over $(T,M)$. We factorize the prior as $p(T,M) = p(M\mid T) p(T)$ and specify the two parts separately.
 
     \paragraph{Prior over tree structure}
 
@@ -201,7 +201,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
         \item The splitting grid. The two common defaults are 100 equally spaced splits along each $\mathbf x$ axis in the range of the data, or a split midway between each observed value along each $\mathbf x$ axis.
 
-        \item The number of trees $m$, default 200. Although ``$m$'' is the original notation, in the following I'll refer to this as ``$n_\text{tree}$'' for clarity.
+        \item The number of trees $m$, default 200. Although ``$m$'' is the original notation, in the following we'll refer to this as ``$n_\text{tree}$'' for clarity.
 
         \item $\alpha$ and $\beta$, regulating the depth distribution of the
         trees. Default 0.95 and 2.
@@ -215,7 +215,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \subsection{BART inference procedure and posterior distribution}
 
-    In this section I give an overview of the algorithm used in BART to ``learn'' the trees from the data. In the explanation I assume knowledge of the basic techniques used in Bayesian inference with MCMC; see \autoref{sec:bayesrecap} for a recap of the topic. For more complete details of the BART algorithm, see \citet{chipman1998,chipman2010}, \citet[\S A]{kapelner2016}, \citet[ch.~5]{daniels2023}, and \citet[\S2.1.4, p.~5]{tan2019}.
+    In this section we give an overview of the algorithm used in BART to ``learn'' the trees from the data. In the explanation we assume knowledge of the basic techniques used in Bayesian inference with MCMC; see \autoref{sec:bayesrecap} for a recap of the topic. For more complete details of the BART algorithm, see \citet{chipman1998,chipman2010}, \citet[\S A]{kapelner2016}, \citet[ch.~5]{daniels2023}, and \citet[\S2.1.4, p.~5]{tan2019}.
 
     \paragraph{The BART MCMC}
 
@@ -223,7 +223,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \paragraph{Behavior of the BART MCMC}
 
-    The following is based on my general experience with BART and with developing the implementation described in this paper. The acceptance of the tree structure Metropolis step is typically \SI{10}\%--\SI{30}\% \citep[see also][p.~891]{pratola2016}, so on average the whole forest moves every 3 to 10 MCMC iterations. Pathological cases can lower this acceptance to very small values. A rule of thumb on the number of samples is to run the chain for 2000 samples and discard the first 1000 (differently from the defaults of BART packages, which range from 100 to 500).
+    The following is based on our general experience with BART and with developing the implementation described in this paper. The acceptance of the tree structure Metropolis step is typically \SI{10}\%--\SI{30}\% \citep[see also][p.~891]{pratola2016}, so on average the whole forest moves every 3 to 10 MCMC iterations. Pathological cases can lower this acceptance to very small values. A rule of thumb on the number of samples is to run the chain for 2000 samples and discard the first 1000 (differently from the defaults of BART packages, which range from 100 to 500).
     %
     % default burn-ins on 2024-10-30:
     % 100 in BART, dbarts::bart, BayesTree
@@ -248,7 +248,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \paragraph{Tooling}
 
-    I write the code in Python using the machine learning framework JAX \citep{bradbury2018}. This stands in contrast to almost all of the existing implementations, that provide an R interface to lower-level code in C++ or Java. I believe the success of this implementation crucially depends on this choice of using modern ML tools instead of the ones typical of this field. JAX provides a computing toolset built around array objects, mimicking Numpy \citep{harris2020}, and optimizes and compiles the sequence of operations for CPU, GPU or TPU.
+    We write the code in Python using the machine learning framework JAX \citep{bradbury2018}. This stands in contrast to almost all of the existing implementations, that provide an R interface to lower-level code in C++ or Java. We believe the success of this implementation crucially depends on this choice of using modern ML tools instead of the ones typical of this field. JAX provides a computing toolset built around array objects, mimicking Numpy \citep{harris2020}, and optimizes and compiles the sequence of operations for CPU, GPU or TPU.
 
     \subsection{Parallelism and branchlessness}
     \label{sec:branchless}
@@ -267,21 +267,21 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \paragraph{Bottom line}
 
-    To write an efficient JAX implementation of BART, I have to express the BART MCMC procedure as pre-determined arithmetic operations on large matrices.
+    To write an efficient JAX implementation of BART, we have to express the BART MCMC procedure as pre-determined arithmetic operations on large matrices.
 
     \subsection{Representation of variables}
     \label{sec:repr}
 
     \paragraph{Trees}
 
-    My goal is representing the trees in computer memory with a few large matrices of fixed size. The simplest way of doing this is with a heap, illustrated in \autoref{fig:heaptree}.
+    Our goal is representing the trees in computer memory with a few large matrices of fixed size. The simplest way of doing this is with a heap, illustrated in \autoref{fig:heaptree}.
     %
     \begin{figure}
         \halfcenter{\includegraphics[width=0.75\columnwidth]{heaptree}}
         \caption{\label{fig:heaptree} Heap representation of a decision tree, with the maximum depth set to 3.}
     \end{figure}
     %
-    Each tree is represented by 3 arrays, separately holding the axis and splitting point for decision nodes, and the value for leaf nodes. The arrays are fixed in size, and each index corresponds to a potential node in the tree. The indices are assigned to the (potential) tree nodes in order, starting from 1, top to bottom, left to right (like reading text), imagining a full, balanced binary tree with the maximum allowed depth. The entries corresponding to nodes not actually present in the tree are ignored, as are the axis and cutpoint entries (resp.\ the leaf value entry) corresponding to leaf (resp.\ decision) nodes. I fix the convention that the cutpoints start from 1, and that a 0 value in the cutpoint array entry marks the node as a leaf. The set of trees is then represented by 3 matrices where each row is a single tree array. I set as default, and always use in this article, maximum depth $D=6$, where $D=1$ for a root-only tree. See \autoref{sec:impldetails} for an analysis of the size of this representation.
+    Each tree is represented by 3 arrays, separately holding the axis and splitting point for decision nodes, and the value for leaf nodes. The arrays are fixed in size, and each index corresponds to a potential node in the tree. The indices are assigned to the (potential) tree nodes in order, starting from 1, top to bottom, left to right (like reading text), imagining a full, balanced binary tree with the maximum allowed depth. The entries corresponding to nodes not actually present in the tree are ignored, as are the axis and cutpoint entries (resp.\ the leaf value entry) corresponding to leaf (resp.\ decision) nodes. We fix the convention that the cutpoints start from 1, and that a 0 value in the cutpoint array entry marks the node as a leaf. The set of trees is then represented by 3 matrices where each row is a single tree array. We set as default, and always use in this article, maximum depth $D=6$, where $D=1$ for a root-only tree. See \autoref{sec:impldetails} for an analysis of the size of this representation.
 
     \paragraph{Predictors}
 
@@ -289,11 +289,11 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \subsection{The algorithm}
 
-    I explain in full detail how to traverse the decision trees, as a simple illustration of how to write vectorized code, then describe the rest of the algorithm only in broad terms. See the software package documentation for details; the internals are documented.
+    We explain in full detail how to traverse the decision trees, as a simple illustration of how to write vectorized code, then describe the rest of the algorithm only in broad terms. See the software package documentation for details; the internals are documented.
 
     \paragraph{Traversing the trees}
 
-    By ``traversing'' a decision tree I mean finding the leaf associated with a given $\mathbf x$ vector. To fix in advance the sequence of operations irrespectively of the actual position in the tree of the leaf, this procedure can be implemented as a loop through the levels of the tree, up to the maximum possible depth, carrying a flag to indicate whether the leaf has already been reached or not. This way the number of iterations of the loop does not depend on the depth of the target leaf. See \autoref{alg:traverse}.
+    By ``traversing'' a decision tree we mean finding the leaf associated with a given $\mathbf x$ vector. To fix in advance the sequence of operations irrespectively of the actual position in the tree of the leaf, this procedure can be implemented as a loop through the levels of the tree, up to the maximum possible depth, carrying a flag to indicate whether the leaf has already been reached or not. This way the number of iterations of the loop does not depend on the depth of the target leaf. See \autoref{alg:traverse}.
     %
     \begin{algorithm}[t]
         \caption{\label{alg:traverse} Branchless traverse of a decision tree}
@@ -317,7 +317,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \paragraph{Tree structure proposal}
 
-    I have to propose a modification to each tree structure as moves for the Metropolis steps. The original BART picks at random amongst 4 types of moves: GROW (add two children to a leaf node), PRUNE (remove two sibling leaves), SWAP (permute the parameters of two directly connected decision nodes), and CHANGE (change the parameters of a decision node) \citep[\S5.1, p.~940]{chipman1998}. Following the implementation of \texttt{BART}, I use only GROW and PRUNE for simplicity \citep[\S C, p.~57]{sparapani2021}. To stay branchless, I have to execute all the calculations for both moves, even if I end up using only one. GROW and PRUNE have the nice properties that the modifications can not overlap in the tree arrays, and that the tree proposed by GROW contains the initial tree which in turn contains the tree proposed by PRUNE. This allows to share the memory and most of the calculations between the two moves, and simplifies the operations with indices and residuals described next.
+    We have to propose a modification to each tree structure as moves for the Metropolis steps. The original BART picks at random amongst 4 types of moves: GROW (add two children to a leaf node), PRUNE (remove two sibling leaves), SWAP (permute the parameters of two directly connected decision nodes), and CHANGE (change the parameters of a decision node) \citep[\S5.1, p.~940]{chipman1998}. Following the implementation of \texttt{BART}, we use only GROW and PRUNE for simplicity \citep[\S C, p.~57]{sparapani2021}. To stay branchless, we have to execute all the calculations for both moves, even if we end up using only one. GROW and PRUNE have the nice properties that the modifications can not overlap in the tree arrays, and that the tree proposed by GROW contains the initial tree which in turn contains the tree proposed by PRUNE. This allows to share the memory and most of the calculations between the two moves, and simplifies the operations with indices and residuals described next.
 
     \paragraph{Traverse indices cache}
 
@@ -325,7 +325,7 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \paragraph{Residuals cache}
 
-    The residuals, i.e., the difference between the data $\mathbf y$ and the predictions of the tree ensemble, appear in many calculations in the MCMC. Computing the residuals is somewhat expensive, but they change progressively as each tree is modified in turn, so I keep a cache of residuals and, after modifying each tree, I update them by adding the difference between the old and new leaves of the tree (properly broadcasted to all the datapoints).
+    The residuals, i.e., the difference between the data $\mathbf y$ and the predictions of the tree ensemble, appear in many calculations in the MCMC. Computing the residuals is somewhat expensive, but they change progressively as each tree is modified in turn, so we keep a cache of residuals and, after modifying each tree, we update them by adding the difference between the old and new leaves of the tree (properly broadcasted to all the datapoints).
 
     \paragraph{Computations parallel across trees}
 
@@ -371,9 +371,9 @@ Applications ``Giuseppe Parenti'' (DISIA), University of Florence, Italy}
 
     \subsection{Software package}
 
-    I implemented the algorithm in the Python package \texttt{bartz}, distributed through PyPI
+    We implemented the algorithm in the Python package \texttt{bartz}, distributed through PyPI
     \citep{petrillo2024b}%
-    . The code is available under the permissive MIT open-source license. The correctness of the implementation is checked with automatic unit tests. To ease adoption for BART users, I provide an interface (in addition to lower-level functions) that imitates \texttt{BART}, which in turn shares most of the interface with \texttt{dbarts} and the historical implementation \texttt{BayesTree}. Some unit tests check that the samples produced by \texttt{bartz} and \texttt{BART} with the same configuration represent the same posterior. The prototype usage is
+    . The code is available under the permissive MIT open-source license. The correctness of the implementation is checked with automatic unit tests. To ease adoption for BART users, we provide an interface (in addition to lower-level functions) that imitates \texttt{BART}, which in turn shares most of the interface with \texttt{dbarts} and the historical implementation \texttt{BayesTree}. Some unit tests check that the samples produced by \texttt{bartz} and \texttt{BART} with the same configuration represent the same posterior. The prototype usage is
     %
     \lstset{
         language=Python,
@@ -390,25 +390,25 @@ y_pred = bart.predict(X_test) # predict
     \section{Performance measurements}
     \label{sec:perf}
 
-    In \autoref{sec:speed} I measure the running speed and memory usage of the algorithm, while in \autoref{sec:pred} I check its correctness.
+    In \autoref{sec:speed} we measure the running speed and memory usage of the algorithm, while in \autoref{sec:pred} we check its correctness.
 
     \subsection{Speed benchmark}
     \label{sec:speed}
 
     \paragraph{General setup}
 
-    I pit my implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts} (the fastest BART implementation) and \texttt{XGBoost}.\marginpar{Add XBART} My CPU is a single core of an Apple M1 Pro. As GPU, I use the Nvidia L4 for \texttt{XGBoost} and the Nvidia A100 for \texttt{bartz}. The L4 is smaller than the A100, but that does not make a difference for \texttt{XGBoost}, and it was more convenient to access. As performance metric I use the time per iteration (see \autoref{sec:itertime} in the appendix for details); for BART, this is the time of a MCMC iteration, while for \texttt{XGBoost} this is the time to build all the trees, so they are not directly comparable. BART requires $O(1000)$ iterations for the MCMC, while \texttt{XGBoost} $O(100)$ for a potential cross validation, but can also be run just once.
+    We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts} (the fastest BART implementation) and \texttt{XGBoost}.\marginpar{Add XBART} Our CPU is a single core of an Apple M1 Pro. As GPU, we use the Nvidia L4 for \texttt{XGBoost} and the Nvidia A100 for \texttt{bartz}. The L4 is smaller than the A100, but that does not make a difference for \texttt{XGBoost}, and it was more convenient to access. As performance metric we use the time per iteration (see \autoref{sec:itertime} in the appendix for details); for BART, this is the time of a MCMC iteration, while for \texttt{XGBoost} this is the time to build all the trees, so they are not directly comparable. BART requires $O(1000)$ iterations for the MCMC, while \texttt{XGBoost} $O(100)$ for a potential cross validation, but can also be run just once.
 
     \paragraph{Data generating process}
 
-    I run the benchmark on synthetic data for convenience in setting arbitrarily the training set size $n$ and number of predictors $p$. For \texttt{bartz} I use a not particularly meaningful data generating process (DGP), designed purely for convenience in avoiding out-of-memory errors when generating large datasets:
+    We run the benchmark on synthetic data for convenience in setting arbitrarily the training set size $n$ and number of predictors $p$. For \texttt{bartz} we use a not particularly meaningful data generating process (DGP), designed purely for convenience in avoiding out-of-memory errors when generating large datasets:
     %
     \begin{align}
         y_i &= \cos\left( \frac{2n\pi}{32} \frac{i-1}{n-1} \right), \quad i = 1,\ldots, n, \\
         X_{ij} &= (i + (p+1)j) \bmod 256.
     \end{align}
     %
-    Since \texttt{bartz} is branchless, the running time does not depend on the DGP, so the DGP does not need to be realistic. Instead, for \texttt{dbarts} and \texttt{XGBoost}, I have to specify a DGP that makes sense, otherwise their running time may vary substantially. I use
+    Since \texttt{bartz} is branchless, the running time does not depend on the DGP, so the DGP does not need to be realistic. Instead, for \texttt{dbarts} and \texttt{XGBoost}, we have to specify a DGP that makes sense, otherwise their running time may vary substantially. We use
     %
     \begin{align}
         y_i &= \frac1{\sqrt p}\sum_{j=1}^p \cos(\pi X_{ij}) + \varepsilon_i, \\
@@ -420,7 +420,7 @@ y_pred = bart.predict(X_test) # predict
 
     \paragraph{Size settings}
 
-    The number of predictors and the number of trees influence the running time and the memory usage, so I repeat the benchmark on a $2\times 2$ grid of settings: low/high p $\times$ low/high number of trees. As ``low'' settings I use $p=100$, $n_\text{tree} = 200$, while as ``high'' I make the parameters grow proportionally to $n$ with $n/p = 10$ and $n/n_\text{tree}=8$. The number of trees being proportional to $n$ is an unusually high setting.\marginpar{This number of trees probably is too crazy high for XGBoost. I don't know how to set it sensibly. It shouldn't stay constant either.} These combinations are not optimal for inference, they are simple extreme cases to understand the computational complexity of the algorithms. The ``low-low'' setting is the one closer to common usage.
+    The number of predictors and the number of trees influence the running time and the memory usage, so we repeat the benchmark on a $2\times 2$ grid of settings: low/high p $\times$ low/high number of trees. As ``low'' settings we use $p=100$, $n_\text{tree} = 200$, while as ``high'' we make the parameters grow proportionally to $n$ with $n/p = 10$ and $n/n_\text{tree}=8$. The number of trees being proportional to $n$ is an unusually high setting.\marginpar{This number of trees probably is too crazy high for XGBoost. We don't know how to set it sensibly. It shouldn't stay constant either.} These combinations are not optimal for inference, they are simple extreme cases to understand the computational complexity of the algorithms. The ``low-low'' setting is the one closer to common usage.
 
     \paragraph{Results}
 
@@ -433,7 +433,7 @@ y_pred = bart.predict(X_test) # predict
 
     \paragraph{Memory usage}
 
-    I did not measure memory usage programmatically, but I observed on the system monitor that \texttt{bartz} uses $\approx n(p+n_\text{tree})$ bytes as expected, while \texttt{dbarts} uses $\approx 24 n(p+n_\text{tree})$. In my personal experience, memory usage is the showstopper in analysing large datasets.\marginpar{someone in the literature said the same, but I can't remember who} \texttt{dbarts} is the fastest package, but not the one with the lowest memory usage, as it caches the tree traverse like \texttt{bartz}, so this comparison does not necessarily make \texttt{bartz} state of the art re memory. The memory requirements would increase if the number of cutpoints was $>255$ or the maximum tree depth $>8$.
+    We did not measure memory usage programmatically, but we observed on the system monitor that \texttt{bartz} uses $\approx n(p+n_\text{tree})$ bytes as expected, while \texttt{dbarts} uses $\approx 24 n(p+n_\text{tree})$. In our personal experience, memory usage is the showstopper in analysing large datasets.\marginpar{someone in the literature said the same, but we can't remember who} \texttt{dbarts} is the fastest package, but not the one with the lowest memory usage, as it caches the tree traverse like \texttt{bartz}, so this comparison does not necessarily make \texttt{bartz} state of the art re memory. The memory requirements would increase if the number of cutpoints was $>255$ or the maximum tree depth $>8$.
 
     \paragraph{Caveats about practical performance}
 
@@ -442,7 +442,7 @@ y_pred = bart.predict(X_test) # predict
     \subsection{Predictive accuracy}
     \label{sec:pred}
 
-    Since I re-implemented a well known algorithm, with unit tests checking that it yields the same results as an existing implementation, there is no need to measure its statistical performance thoroughly. Anyway, to show at least one concrete piece of evidence that everything is working correctly, I run a comparison of the out-of-sample prediction error\marginpar{Measure also coverage.} between my package \texttt{bartz} and the 3 most popular BART implementations, on data simulated from a simple model with a dense linear term and a sparse quadratic term. I use the same ``low/high'' settings of \autoref{sec:speed} for $p$ and $n_\text{tree}$. The result at ``low-low'' settings is in \autoref{fig:rmse-single} (complete results in \autoref{fig:rmse-all} in the appendix); the RMSEs shake out similar to each other as expected.
+    Since we re-implemented a well known algorithm, with unit tests checking that it yields the same results as an existing implementation, there is no need to measure its statistical performance thoroughly. Anyway, to show at least one concrete piece of evidence that everything is working correctly, we run a comparison of the out-of-sample prediction error\marginpar{Measure also coverage.} between our package \texttt{bartz} and the 3 most popular BART implementations, on data simulated from a simple model with a dense linear term and a sparse quadratic term. We use the same ``low/high'' settings of \autoref{sec:speed} for $p$ and $n_\text{tree}$. The result at ``low-low'' settings is in \autoref{fig:rmse-single} (complete results in \autoref{fig:rmse-all} in the appendix); the RMSEs shake out similar to each other as expected.
 
     \begin{figure}
         \halfcenter{\includempl{rmse-single}}
@@ -472,15 +472,15 @@ y_pred = bart.predict(X_test) # predict
 
     \paragraph{Main result}
 
-    I devised a branchless version of the BART MCMC algorithm to run BART on GPU. This achieves a speedup sufficient to make BART competitive with \texttt{XGBoost}, the most popular tree-based method, making BART a concrete alternative for big datasets. The maximum speedup is reached only with $n\gtrsim\num{1000000}$, but this is the regime that matters anyway, as speed is less of a problem with less data.
+    We devised a branchless version of the BART MCMC algorithm to run BART on GPU. This achieves a speedup sufficient to make BART competitive with \texttt{XGBoost}, the most popular tree-based method, making BART a concrete alternative for big datasets. The maximum speedup is reached only with $n\gtrsim\num{1000000}$, but this is the regime that matters anyway, as speed is less of a problem with less data.
 
     \paragraph{Mild limitations}
 
-    Compared to \texttt{XGBoost}, the first evident limitation of my software package \texttt{bartz} is that it does not implement regression with binary outcomes, which would be straightforward to add following the BART literature. The second one is that it runs on only one CPU core or GPU at once, while \texttt{XGBoost} allows to split data and processing across machines. This feature is straightforward to add as well, as JAX scales to large clusters, and the BART MCMC allows efficient sharding of the data \citep{pratola2014}; I simply have not put in the work. In general my software is not mature and so does not provide a truly viable competitor to \texttt{XGBoost} right away.
+    Compared to \texttt{XGBoost}, the first evident limitation of our software package \texttt{bartz} is that it does not implement regression with binary outcomes, which would be straightforward to add following the BART literature. The second one is that it runs on only one CPU core or GPU at once, while \texttt{XGBoost} allows to split data and processing across machines. This feature is straightforward to add as well, as JAX scales to large clusters, and the BART MCMC allows efficient sharding of the data \citep{pratola2014}; we simply have not put in the work. In general our software is not mature and so does not provide a truly viable competitor to \texttt{XGBoost} right away.
 
     \paragraph{Deeper limitations}
 
-    My implementation runs out of GPU memory when the number of predictors $p$ or the number of trees are high (see \autoref{sec:gpumem} in the appendix). This problem is unavoidable. The implementation already uses only 1 byte per predictor and 1 byte per tree index, so it's close to the minimum memory requirements. The indices cache could potentially be dropped, slowing down the algorithm, or batched from CPU memory; but the predictors matrix is always used all at once. Even though it is possible to adapt the algorithm to run on multiple GPUs, the partition across GPUs has to be along the observations, not the predictors: if each GPU stores a small number of observations to fit a large number of predictors, there is no speed advantage.
+    Our implementation runs out of GPU memory when the number of predictors $p$ or the number of trees are high (see \autoref{sec:gpumem} in the appendix). This problem is unavoidable. The implementation already uses only 1 byte per predictor and 1 byte per tree index, so it's close to the minimum memory requirements. The indices cache could potentially be dropped, slowing down the algorithm, or batched from CPU memory; but the predictors matrix is always used all at once. Even though it is possible to adapt the algorithm to run on multiple GPUs, the partition across GPUs has to be along the observations, not the predictors: if each GPU stores a small number of observations to fit a large number of predictors, there is no speed advantage.
 
     \paragraph{Future directions}
 
@@ -490,7 +490,7 @@ y_pred = bart.predict(X_test) # predict
 
     % \textless REDACTED FOR ANONYMITY\textgreater
 
-    I thank Antonio Linero, Andrew Herren, Richard P.\ Hahn, and Francesco C.\ Stingo for useful comments and suggestions. I did this work as a PhD candidate at the Department of Statistics, Computer Science, Applications (DISIA) ``G.~Parenti'' of the University of Florence (UNIFI), Italy, and as a visiting researcher at the Department of Statistics and Data Science (SDS) of the University of Texas at Austin (UT Austin), USA. The introductory material in sections~\ref{sec:intro} and~\ref{sec:bartprior} is adapted from \citet{petrillo2024f} by the same author.
+    We thank Antonio Linero, Andrew Herren, Richard P.\ Hahn, and Francesco C.\ Stingo for useful comments and suggestions. We did this work as a PhD candidate at the Department of Statistics, Computer Science, Applications (DISIA) ``G.~Parenti'' of the University of Florence (UNIFI), Italy, and as a visiting researcher at the Department of Statistics and Data Science (SDS) of the University of Texas at Austin (UT Austin), USA. The introductory material in sections~\ref{sec:intro} and~\ref{sec:bartprior} is adapted from \citet{petrillo2024f} by the same author.
 
     \section*{Code and data}
 
@@ -503,7 +503,7 @@ y_pred = bart.predict(X_test) # predict
     \section*{Statement of impact}
 
     % verbatim snippet as per ICML guidelines
-    This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of my work, none which I feel must be specifically highlighted here.
+    This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here.
 
 \bibliography{bibliography}
 \bibliographystyle{icml2025}
@@ -563,7 +563,7 @@ y_pred = bart.predict(X_test) # predict
     \subsection{Precise definition of iteration time}
     \label{sec:itertime}
 
-    For BART, I am careful to measure only the time to run an iteration, after warming up, and not the time taken by initialization or post-processing. This is possible because both my package and \texttt{dbarts} allow to run each step of the algorithm separately. For \texttt{XGBoost}, instead, I measure the time to run it once with its default configuration; I expect this is indeed the time each fold in a CV would take and so it is the correct measure to make comparisons.\marginpar{I would really like an XGBoost expert to weigh in.}
+    For BART, we are careful to measure only the time to run an iteration, after warming up, and not the time taken by initialization or post-processing. This is possible because both our package and \texttt{dbarts} allow to run each step of the algorithm separately. For \texttt{XGBoost}, instead, we measure the time to run it once with its default configuration; we expect this is indeed the time each fold in a CV would take and so it is the correct measure to make comparisons.\marginpar{We would really like an XGBoost expert to weigh in.}
 
     \begin{figure*}
         \widecenter{\includempl{time-all}}
@@ -573,7 +573,7 @@ y_pred = bart.predict(X_test) # predict
     \subsection{Effect of limited GPU memory}
     \label{sec:gpumem}
 
-    A striking feature of the speed benchmarks in \autoref{fig:time-all} is that with high $p$ or $n_\text{tree}$ the \texttt{bartz-A100} line terminates at lower $n$, despite not taking much time. This is because I run out of GPU memory. The memory of GPUs is fixed, it can't be expanded, and there is no virtual memory, so this is an unavoidable limit. The speed premium of the GPU kicks in only at high $n$, so the memory limit indirectly limits the speed gain. The practical consequence is that running the algorithm in ``high'' $p$ or $n_\text{tree}$ settings allows a speed gain of at most 20--40x rather than the maximum 200x.
+    A striking feature of the speed benchmarks in \autoref{fig:time-all} is that with high $p$ or $n_\text{tree}$ the \texttt{bartz-A100} line terminates at lower $n$, despite not taking much time. This is because we run out of GPU memory. The memory of GPUs is fixed, it can't be expanded, and there is no virtual memory, so this is an unavoidable limit. The speed premium of the GPU kicks in only at high $n$, so the memory limit indirectly limits the speed gain. The practical consequence is that running the algorithm in ``high'' $p$ or $n_\text{tree}$ settings allows a speed gain of at most 20--40x rather than the maximum 200x.
 
     \begin{figure*}
         \widecenter{\includempl{rmse-all}}
@@ -583,16 +583,16 @@ y_pred = bart.predict(X_test) # predict
     \subsection{On increasing the number of trees}
     \label{sec:moretrees}
 
-    In this section I discuss how the speed of this implementation allows to run BART with many more trees than usual, which is an unexplored route in the BART literature, and potentially connects to various scaling behaviors of BART.
+    In this section we discuss how the speed of this implementation allows to run BART with many more trees than usual, which is an unexplored route in the BART literature, and potentially connects to various scaling behaviors of BART.
 
     \paragraph{Effect of forest size on predictive performance}
 
-    I look at my RMSE measurements to get some empirical evidence that increasing the number of trees is useful. Consider the top panels of \autoref{fig:rmse-all}. They both have the ``high'' $p$ setting ($n = 10p$), while differring in the number of trees. In the right panel, at fixed $n_\text{tree}=200$, the RMSE at some point starts going up with $n$, while in the left panel it remains constant. This indicates that, at least with this kind of DGP, the number of trees should grow with $p$ (not necessarily linearly).
-    %Similarly, although much less markedly, comparing the bottom panels suggests that, as $n$ increases, at some point the number of trees should increase as well.\marginpar{I wrote this because of the upward tail in low-low, right? But that may be because of the increasing total variance.}
+    We look at our RMSE measurements to get some empirical evidence that increasing the number of trees is useful. Consider the top panels of \autoref{fig:rmse-all}. They both have the ``high'' $p$ setting ($n = 10p$), while differring in the number of trees. In the right panel, at fixed $n_\text{tree}=200$, the RMSE at some point starts going up with $n$, while in the left panel it remains constant. This indicates that, at least with this kind of DGP, the number of trees should grow with $p$ (not necessarily linearly).
+    %Similarly, although much less markedly, comparing the bottom panels suggests that, as $n$ increases, at some point the number of trees should increase as well.\marginpar{We wrote this because of the upward tail in low-low, right? But that may be because of the increasing total variance.}
 
     \paragraph{Typical forest size in the literature}
 
-    Nobody, that I know of, ever explored the effect of increasing the number of trees this much. At ``high'' $n_\text{tree}$, the series stop at $n\approx 8000$, which means $n_\text{tree}\approx 1000$. I've never seen more than 200 trees in the literature, but for \citet[fig.~6, p.~286]{chipman2010} who reach $m=300$ as an experiment.
+    Nobody, that we know of, ever explored the effect of increasing the number of trees this much. At ``high'' $n_\text{tree}$, the series stop at $n\approx 8000$, which means $n_\text{tree}\approx 1000$. We've never seen more than 200 trees in the literature, but for \citet[fig.~6, p.~286]{chipman2010} who reach $m=300$ as an experiment.
 
     \paragraph{Connection between forest size and MCMC behavior}
 
@@ -600,11 +600,11 @@ y_pred = bart.predict(X_test) # predict
 
     \paragraph{Semi-formal argument on optimal forest size}
 
-    I now make an informal argument about what the number of trees should be. The number of leaves in each tree is not fixed, but at equilibrium and with many trees there will be a typical value. As the leaf values determine the values of the function, the total number of leaves in the ensemble is the number of parameters of the regression. This number should be equal to the total number of degrees of freedom required to explain the function behind the data on the observed region. An upper bound on this is the number of observed points $n$. If the number of leaves per tree has to be $\lesssim 10$ for the well-functioning of the MCMC, then in the worst case there should be at least $n/10$ trees. The effective number of parameters depends on the properties of the function; for example, under this view, the increasing RMSE($n$) (with $p \propto n$) in the top-right panel of \autoref{fig:rmse-all} is due to the true function (\autoref{eq:rmsedgp}) having a number of parameters $\propto p$.
+    We now make an informal argument about what the number of trees should be. The number of leaves in each tree is not fixed, but at equilibrium and with many trees there will be a typical value. As the leaf values determine the values of the function, the total number of leaves in the ensemble is the number of parameters of the regression. This number should be equal to the total number of degrees of freedom required to explain the function behind the data on the observed region. An upper bound on this is the number of observed points $n$. If the number of leaves per tree has to be $\lesssim 10$ for the well-functioning of the MCMC, then in the worst case there should be at least $n/10$ trees. The effective number of parameters depends on the properties of the function; for example, under this view, the increasing RMSE($n$) (with $p \propto n$) in the top-right panel of \autoref{fig:rmse-all} is due to the true function (\autoref{eq:rmsedgp}) having a number of parameters $\propto p$.
 
     \paragraph{Potential implications}
 
-    These considerations, together with the absence of high-$n_\text{tree}$ experiments in the literature, suggest this as an interesting area to explore, made accessible by this work as it alleviates the computational burden. I consider three specific examples:
+    These considerations, together with the absence of high-$n_\text{tree}$ experiments in the literature, suggest this as an interesting area to explore, made accessible by this work as it alleviates the computational burden. We consider three specific examples:
 
     \begin{itemize}
 
