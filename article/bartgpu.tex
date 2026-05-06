@@ -1,18 +1,39 @@
 \documentclass{article}
 
-\usepackage[preprint]{neurips_2026}
+\usepackage[preprint, nonatbib]{neurips_2026}
 
 % math
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{siunitx}
 
+% bibliography
+\usepackage[
+    style=authoryear-comp,
+    natbib=true,
+    uniquename=false,
+    uniquelist=false,
+    date=year,
+    backref=true,
+]{biblatex}
+\addbibresource{bibliography.bib}
+\AtEveryBibitem{
+    \iffieldundef{doi}{}{ % remove other links if there is a DOI
+        \clearfield{url}
+        \clearfield{eprint}
+    }
+    \iffieldundef{eprint}{}{ % remove url if there is an eprint
+        \clearfield{url}
+    }
+    \clearfield{language} % guess what
+    \clearfield{addendum} % remove personal notes
+}
+
 % code
 \usepackage{listings}
 
 % algorithms
-\usepackage{algorithm}
-\usepackage{algorithmic}
+\usepackage[algoruled,vlined]{algorithm2e}
 
 % lists
 \usepackage{enumitem}
@@ -20,7 +41,6 @@
 % links and pdf index
 \usepackage{hyperref}
 \renewcommand{\subsectionautorefname}{section}
-\newcommand{\algorithmautorefname}{Algorithm}
 
 % images
 \usepackage{graphicx}
@@ -255,21 +275,19 @@
     By ``traversing'' a decision tree we mean finding the leaf associated with a given $\mathbf x$ vector. To fix in advance the sequence of operations irrespectively of the actual position in the tree of the leaf, this procedure can be implemented as a loop through the levels of the tree, up to the maximum possible depth, carrying a flag to indicate whether the leaf has already been reached or not. This way the number of iterations of the loop does not depend on the depth of the target leaf. See \autoref{alg:traverse}.
     %
     \begin{algorithm}[t]
+        \KwData{Predictors $\mathbf x$, axis vector $\mathbf a$, cutpoint vector $\mathbf s$}
+        \KwResult{Heap index of the leaf $\mathbf x$ falls into}
+        leaf\_found = False\;
+        index = 1\;
+        \For{i = 1 \KwTo $D - 1$}{
+            axis = $a_\text{index}$\;
+            split = $s_\text{index}$\;
+            leaf\_found = leaf\_found OR (split = 0)\;
+            child\_index = $2 \times \text{index} + (\text{1 \emph{if} $x_\text{axis} \ge \text{split}$ \emph{else} 0})$\;
+            index = index \emph{if} leaf\_found \emph{else} child\_index\;
+        }
+        \Return index\;
         \caption{\label{alg:traverse} Branchless traverse of a decision tree}
-        \begin{algorithmic}
-            \STATE \textbf{Input:} Predictors $\mathbf x$, and the rules of a decision tree represented by axis vector $\mathbf a$ and cutpoint vector $\mathbf s$
-            \STATE \textbf{Output:} Heap index of the leaf $\mathbf x$ falls into
-            \STATE leaf\_found = False
-            \STATE index = 1
-            \FOR{i = 1 \textbf{to} $D - 1$}
-                \STATE axis = $a_\text{index}$
-                \STATE split = $s_\text{index}$
-                \STATE leaf\_found = leaf\_found OR (split = 0)
-                \STATE child\_index = $2 \times \text{index} + (\text{1 \emph{if} $x_\text{axis} \ge \text{split}$ \emph{else} 0})$
-                \STATE index = index \emph{if} leaf\_found \emph{else} child\_index
-            \ENDFOR
-            \STATE \textbf{return} index
-        \end{algorithmic}
     \end{algorithm}
     %
     JAX automatically vectorizes the code: each operation in the traverse is repeated for all points and all trees. To repeat, it is not the whole algorithm which is run once for each combination of $\mathbf x$ and tree, but rather each operation in the algorithm is run on all combinations before moving to the next instruction, and the scalar variables become vectors or matrices as needed.
@@ -461,8 +479,7 @@ y_pred = bart.predict(X_test) # predict
 
     % SEE SUPPLEMENTARY MATERIAL
 
-\bibliography{bibliography}
-\bibliographystyle{plainnat}
+\printbibliography
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
