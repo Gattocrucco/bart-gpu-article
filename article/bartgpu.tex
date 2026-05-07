@@ -1,6 +1,6 @@
 \documentclass{article}
 
-\usepackage[preprint, nonatbib]{neurips_2026}
+\usepackage[nonatbib]{neurips_2026}
 
 % math
 \usepackage{amsmath}
@@ -60,8 +60,8 @@
 
 % Todonotes is useful during development; simply uncomment the next line
 %    and comment out the line below the next line to turn off comments
-%\usepackage[disable,textsize=tiny]{todonotes}
-\usepackage[textsize=tiny]{todonotes}
+\usepackage[disable,textsize=tiny]{todonotes}
+%\usepackage[textsize=tiny]{todonotes}
 
 \title{Very Fast Bayesian Additive Regression Trees on GPU}
 
@@ -270,7 +270,7 @@ with the prior above, plus the usual error term:
 	%
 	%
 	 &
-	p(\{T_j\}, \{M_j\}) = \prod_{j=1}^m p(M_j \mid T_j) p(T_j).
+	p(\{T_j\}, \{M_j\}) = \prod_{j=1}^{n_\text{tree}} p(M_j \mid T_j) p(T_j).
 	\label{eq:bartdef2}
 	%
 \end{align}
@@ -540,7 +540,7 @@ generating process (DGP) is the following sparse quadratic model:
 		                                         1 & \min(|j-j'|,p-|j-j'|) \le q/2, \\
 		                                         0 & \text{otherwise,}
 	                                         \end{cases}, \quad q \bmod 2 = 0, \quad q < p,                                                                  \\
-	A_{jj'}                              & \sim P_{jj'} N(0, \sigma^2_\text{quad} / (p (4/5 + q)),                                                           \\
+	A_{jj'}                              & \sim P_{jj'} N(0, \sigma^2_\text{quad} / (p (4/5 + q))),                                                          \\
 	Y_i                                  & \sim N\left(\sum_j \beta_j X_{ij} + \sum_{jj'} A_{jj'} X_{ij} X_{ij'}, \sigma^2_\text{eps}\right), \label{eq:dgp} \\
 	E[\operatorname{Var}[Y_i|X,\beta,A]] & = \sigma^2_\text{lin} + \sigma^2_\text{quad} + \sigma^2_\text{eps}, \quad \text{(expected population variance)}   \\
 	\operatorname{Var}[Y_i]              & = E[\operatorname{Var}[Y_i|X,\beta,A]] + \sigma^2_\text{quad} / (4/5 + q), \quad \text{(prior variance)}          \\
@@ -684,13 +684,11 @@ to profile and optimize our implementation.
 	at Austin (UT Austin), USA. The introductory material in
 	sections~\ref{sec:intro} and~\ref{sec:bart} is adapted from
 	\citet{petrillo2024f} by the same author. We thank Miaoqing Yu for
-	implementing additional features in the software package.
+	implementing additional features in the software package. The author
+	received no specific funding for this work, and declares no competing
+	interests.
 
 \end{ack}
-
-\section*{Code and data}
-
-The results in this paper are fully reproducible with \citet{petrillo2025}.
 
 \printbibliography
 
@@ -927,6 +925,10 @@ increasing the number of trees as an option:
 	      trees become immediately shallower when their number is increased.
 
 \end{itemize}
+
+\section{Code and data}
+
+The results in this paper are fully reproducible with \citet{petrillo2025}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
