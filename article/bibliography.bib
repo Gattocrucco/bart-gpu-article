@@ -1407,7 +1407,6 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	file = {Submitted Version:/Users/giacomo/Zotero/storage/ZCBKAIFE/Murray - 2021 - Log-Linear Bayesian Additive Regression Trees for Multinomial Logistic and Count Regression Models.pdf:application/pdf},
 }
 
-
 @misc{herren_stochtree_2026,
 	title = {{StochTree}: {BART}-based modeling in R and Python},
 	url = {http://arxiv.org/abs/2512.12051},
@@ -1423,4 +1422,39 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	eprint = {2512.12051 [stat]},
 	keywords = {Statistics - Computation},
 	file = {PDF:/Users/giacomo/Zotero/storage/X855JQN7/Herren et al. - StochTree BART-based modeling in R and Python.pdf:application/pdf},
+}
+
+
+@inproceedings{lakshminarayanan_particle_2015,
+	title = {Particle Gibbs for Bayesian Additive Regression Trees},
+	issn = {1938-7228},
+	url = {https://proceedings.mlr.press/v38/lakshminarayanan15.html},
+	abstract = {Additive regression trees are flexible non-parametric models and popular off-the-shelf tools for real-world non-linear regression. In application domains, such as bioinformatics, where there is also demand for probabilistic predictions with measures of uncertainty, the Bayesian additive regression trees ({BART}) model, introduced by Chipman et al. (2010), is increasingly popular. As data sets have grown in size, however, the standard Metropolis–Hastings algorithms used to per- form inference in {BART} are proving inadequate. In particular, these Markov chains make local changes to the trees and suffer from slow mixing when the data are high- dimensional or the best-fitting trees are more than a few layers deep. We present a novel sampler for {BART} based on the Particle Gibbs ({PG}) algorithm (Andrieu et al., 2010) and a top-down particle filtering algorithm for Bayesian decision trees (Lakshminarayanan et al., 2013). Rather than making local changes to individual trees, the {PG} sampler proposes a complete tree to fit the residual. Experiments show that the {PG} sampler outperforms existing samplers in many settings.},
+	eventtitle = {Artificial Intelligence and Statistics},
+	pages = {553--561},
+	booktitle = {Proceedings of the Eighteenth International Conference on Artificial Intelligence and Statistics},
+	publisher = {{PMLR}},
+	author = {Lakshminarayanan, Balaji and Roy, Daniel and Teh, Yee Whye},
+	urldate = {2026-05-07},
+	date = {2015-02-21},
+	langid = {english},
+	file = {PDF:/Users/giacomo/Zotero/storage/ECT6M4WA/Lakshminarayanan et al. - Particle Gibbs for Bayesian Additive Regression Trees.pdf:application/pdf},
+}
+
+
+@misc{yannotty_combining_2026,
+	title = {Combining Climate Models using Bayesian Regression Trees and Random Paths},
+	url = {http://arxiv.org/abs/2407.13169},
+	doi = {10.48550/arXiv.2407.13169},
+	abstract = {Climate models, also known as general circulation models ({GCMs}), are essential tools for climate studies. Each climate model may have varying accuracy across the input domain, but no single model is uniformly better than the others. One strategy to improving climate model prediction performance is to integrate multiple model outputs using input-dependent weights. Along with this concept, weight functions modeled using Bayesian Additive Regression Trees ({BART}) were recently shown to be useful for integrating multiple E!ective Field Theories in nuclear physics applications. However, a restriction of this approach is that the weights could only be modeled as piecewise constant functions. To smoothly integrate multiple climate models, we propose a new tree-based model, Random Path {BART} ({RPBART}), that incorporates random path assignments into the {BART} model to produce smooth weight functions and smooth predictions of the physical system, all in a matrix-free formulation. The smoothness feature of {RPBART} requires a more complex prior speciﬁcation, for which we introduce a semivariogram to guide its hyperparameter selection. This approach is easy to interpret, computationally cheap, and avoids an expensive cross-validation study. Finally, we propose a posterior projection technique to enable detailed analysis of the ﬁtted posterior weight functions. This allows us to identify a sparse set of climate models that can largely recover the underlying system within a given spatial region as well as quantifying model discrepancy within the model set under consideration. Our method is demonstrated on an ensemble of 8 {GCMs} modeling the average monthly surface temperature.},
+	number = {{arXiv}:2407.13169},
+	publisher = {{arXiv}},
+	author = {Yannotty, John C. and Santner, Thomas J. and Li, Bo and Pratola, Matthew T.},
+	urldate = {2026-04-22},
+	date = {2026-01-24},
+	langid = {english},
+	eprinttype = {arxiv},
+	eprint = {2407.13169 [stat]},
+	keywords = {Statistics - Methodology},
+	file = {PDF:/Users/giacomo/Zotero/storage/BDDNRACG/Yannotty et al. - 2026 - Combining Climate Models using Bayesian Regression Trees and Random Paths.pdf:application/pdf},
 }
