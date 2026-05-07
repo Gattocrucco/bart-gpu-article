@@ -159,20 +159,20 @@ XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
 statistical model, our plain BART implementation is 100 times faster on GPU vs.\
 CPU, while achieving state-of-the-art speed on CPU (at $n \gtrsim
 	\num{1000000}$, on a Nvidia RTX Pro 5000 Blackwell vs.\ an Apple M1 Pro). This
-makes BART fast enough to be an alternative to non-Bayesian methods on large
-datasets without methodological caveats, but with the inconvenience of requiring
-a GPU.\footnote{In a previous version of this manuscript, we claimed running
-	time ``comparable'' to XGBoost, and a 200x speedup vs.\ cpu. We moderated these
-	claims as both XGBoost and our cpu implementation became faster in the
-	intervening time before this revision, while the speed on gpu at high $n$ has
-	not changed.} While XGBoost \& co.{} have their own GPU implementations as well,
-we find that BART achieves higher speed ups with parallelization. We provide a
-Python package, \texttt{bartz} \citep{gattocrucco_2026_19661598}. In
-\autoref{sec:bart} we summarize the background knowledge on BART, then in
-\autoref{sec:impl} we describe how to adapt BART to run on GPU, and in
-\autoref{sec:perf} we measure the performance of our implementation. Finally, in
-\autoref{sec:conclusions} we assess the merits of our work and consider further
-research directions.
+makes BART fast enough to be a (still generally slower) alternative to
+non-Bayesian methods on large datasets without methodological caveats, but with
+the inconvenience of requiring a GPU.\footnote{In a previous version of this
+	manuscript, we claimed running time ``comparable'' to XGBoost, and a 200x
+	speedup vs.\ cpu. We moderated these claims as both XGBoost and our cpu
+	implementation became faster in the intervening time before this revision, while
+	the speed on gpu at high $n$ has not changed.} While XGBoost \& co.{} have their
+own GPU implementations as well, we find that BART achieves higher speed ups
+with parallelization. We provide a Python package, \texttt{bartz}
+\citep{gattocrucco_2026_19661598}. In \autoref{sec:bart} we summarize the
+background knowledge on BART, then in \autoref{sec:impl} we describe how to
+adapt BART to run on GPU, and in \autoref{sec:perf} we measure the performance
+of our implementation. Finally, in \autoref{sec:conclusions} we assess the
+merits of our work and consider further research directions.
 
 \section{BART recap}
 \label{sec:bart}
@@ -567,13 +567,14 @@ CPU is an Apple M1 Pro with 16 GB RAM, while the GPU is a Nvidia RTX Pro 5000
 Blackwell with 48 GB RAM. All methods that support it are allowed to use up to 6
 cores on CPU. For all software packages, we run their setup and pre-processing
 step separately, before starting the timer. This includes data pre-processing,
-and XLA compilation for \texttt{bartz} specifically. We clock a full iteration
-(a sweep through all trees), taking the best of three runs. For BART packages,
-we repeat the run starting from the final state of the previous run. For
-gradient boosting packages, each run starts fresh. While \texttt{bartz} is
-branchless, \texttt{dbarts} is not, and given the state dependence,
-\texttt{dbarts} timing is less reliable. Since we take best of three, the bias
-should be in the conservative direction of making \texttt{dbarts} appear faster.
+and XLA compilation for \texttt{bartz} specifically. The configurations are
+mostly left to their default values. We clock a full iteration (a sweep through
+all trees), taking the best of three runs. For BART packages, we repeat the run
+starting from the final state of the previous run. For gradient boosting
+packages, each run starts fresh. While \texttt{bartz} is branchless,
+\texttt{dbarts} is not, and given the state dependence, \texttt{dbarts} timing
+is less reliable. Since we take best of three, the bias should be in the
+conservative direction of making \texttt{dbarts} appear faster.
 
 Note that BART requires 1000--2000 iterations to produce a result, while
 gradient boosting one iteration, though more runs are common to cross validate
