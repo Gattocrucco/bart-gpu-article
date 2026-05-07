@@ -63,6 +63,11 @@
 \usepackage[disable,textsize=tiny]{todonotes}
 %\usepackage[textsize=tiny]{todonotes}
 
+% placeholder for self-citations redacted for anonymous review;
+% the argument is the original citation code, ignored here, kept so it
+% can be restored later by redefining this macro as \newcommand{\redactedcite}[1]{#1}
+\newcommand{\redactedcite}[1]{[REDACTED CITATION]}
+
 \title{Very Fast Bayesian Additive Regression Trees on GPU}
 
 \author{%
@@ -168,7 +173,7 @@ the inconvenience of requiring a GPU.\footnote{In a previous version of this
 	the speed on gpu at high $n$ has not changed.} While XGBoost \& co.{} have their
 own GPU implementations as well, we find that BART achieves higher speed ups
 with parallelization. We provide a Python package, \texttt{bartz}
-\citep{gattocrucco_2026_19661598}. In \autoref{sec:bart} we summarize the
+\redactedcite{\citep{gattocrucco_2026_19661598}}. In \autoref{sec:bart} we summarize the
 background knowledge on BART, then in \autoref{sec:impl} we describe how to
 adapt BART to run on GPU, and in \autoref{sec:perf} we measure the performance
 of our implementation. Finally, in \autoref{sec:conclusions} we assess the
@@ -358,7 +363,7 @@ down to every detail. See \citet[p.~12]{ronen2022} and \citet[p.~4]{tan2024}.
 
 This is the principal contribution of this paper. The implementation described
 here corresponds to version 0.9.0 of the Python package \texttt{bartz}
-\citep{gattocrucco_2026_19661598}. The software is a pure Python package based
+\redactedcite{\citep{gattocrucco_2026_19661598}}. The software is a pure Python package based
 on the machine learning library JAX \citep{bradbury2018}, which provides a
 computing toolset built around Numpy-like \citep{harris2020} tensor objects.
 
@@ -683,7 +688,7 @@ to profile and optimize our implementation.
 	Department of Statistics and Data Science (SDS) of the University of Texas
 	at Austin (UT Austin), USA. The introductory material in
 	sections~\ref{sec:intro} and~\ref{sec:bart} is adapted from
-	\citet{petrillo2024f} by the same author. We thank Miaoqing Yu for
+	\redactedcite{\citet{petrillo2024f}} by the same author. We thank Miaoqing Yu for
 	implementing additional features in the software package. The author
 	received no specific funding for this work, and declares no competing
 	interests.
@@ -928,7 +933,7 @@ increasing the number of trees as an option:
 
 \section{Code and data}
 
-The results in this paper are fully reproducible with \citet{petrillo2025}.
+The results in this paper are fully reproducible with \redactedcite{\citet{petrillo2025}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
