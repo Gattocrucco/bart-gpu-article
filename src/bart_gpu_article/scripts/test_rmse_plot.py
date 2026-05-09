@@ -109,7 +109,7 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
         vd = (
             group.group_by("n")
             .agg(
-                pl.col(*sdev_labels).first(),
+                pl.col(*sdev_labels).first().sqrt(),
             )
             .sort("n")
         )
