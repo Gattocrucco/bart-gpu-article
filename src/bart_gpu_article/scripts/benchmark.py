@@ -309,7 +309,7 @@ class Dbarts(Benchmark):
 
     def setup(self, key: Key[Array, ""], data: Data, cfg: UnitConfig) -> None:
         """Create the initial dbarts state."""
-        from bart_gpu_article.rbartpackages.dbarts import dbarts, dbartsControl
+        from rbartpackages.dbarts import dbarts, dbartsControl
 
         # check device
         if cfg.device.platform != "cpu":

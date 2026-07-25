@@ -20,10 +20,10 @@ from bartz.jaxext import split
 from equinox import Module
 from jax import block_until_ready, random
 from jaxtyping import Array, Float32, Float64, Key
+from rbartpackages import BART3, dbarts
 from rpy2 import robjects
 from wurlitzer import pipes
 
-from bart_gpu_article.rbartpackages import BART3, bartMachine, dbarts
 from bart_gpu_article.datasim import Data, make_data
 from bart_gpu_article.scripts.benchmark import format_time, make_int_seed
 
@@ -129,6 +129,12 @@ def run_dbarts(
 def run_bartMachine(
     key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
 ) -> Float64[np.ndarray, "n_test"]:
+    # importing the wrapper loads bartMachine's R namespace, which starts the
+    # JVM, and the JVM reads its options only at startup, so set them first.
+    # rbartpackages would default the heap limit to 5 GB, too little at large n.
+    robjects.r('options(java.parameters = c("-Xmx20g", "-XX:+UseZGC"))')
+    from rbartpackages import bartMachine
+
     # I can't configure the splitting grid with bartMachine
     kw_bartMachine = dict(kwargs)
     kw_bartMachine.pop("x_test")

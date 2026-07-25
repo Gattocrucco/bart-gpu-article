@@ -15,6 +15,7 @@ dependencies = [
     "polars[pandas]>=1.37.1",
     "pytest>=9.0.2",
     "rapidfuzz>=3.14.3",
+    "rbartpackages[jax,polars]>=0.2.0",
     "rpy2>=3.6.4",
     "scikit-learn>=1.8.0",
     "tensorstore>=0.1.82",
