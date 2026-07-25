@@ -16,7 +16,7 @@ from typing import Any, Mapping
 
 import numpy as np
 from bartz import Bart
-from bartz.jaxext import split
+from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
 from equinox import Module
 from jax import block_until_ready, config, jit, random
 from jax import numpy as jnp

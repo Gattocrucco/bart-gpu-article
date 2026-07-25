@@ -17,9 +17,9 @@ from time import perf_counter
 from typing import Any, Literal
 
 import numpy
-from bartz.jaxext import split
-from bartz.mcmcloop import run_mcmc
-from bartz.mcmcstep import State, init, make_p_nonterminal
+from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
+from bartz.mcmcloop import Callback, run_mcmc
+from bartz.mcmcstep import State, Wishart, init, make_p_nonterminal
 from equinox import Module
 from jax import (
     Device,
@@ -247,6 +247,14 @@ class Benchmark(ABC):
         Benchmark.subclasses[cls.__name__.lower()] = cls
 
 
+class ProgressDotCallback(Callback):
+    """Print a dot per mcmc iteration."""
+
+    def __call__(self, **_) -> None:
+        """Print one dot, leaving state and callback untouched."""
+        debug.callback(lambda: print(".", end="", flush=True))
+
+
 class Bartz(Benchmark):
     """Benchmark harness for the bartz mcmc step."""
 
@@ -270,8 +278,7 @@ class Bartz(Benchmark):
                 # more
                 p_nonterminal=make_p_nonterminal(6, 0.95, 2),
                 leaf_prior_cov_inv=jnp.float32(cfg.ntree),
-                error_cov_df=2.0,
-                error_cov_scale=2.0,
+                error_cov_inv=Wishart(nu=2.0, rate=2.0, value=1.0),
                 min_points_per_decision_node=10 if cfg.n > 10 else None,
             )
         del data
@@ -282,10 +289,9 @@ class Bartz(Benchmark):
 
         @partial(jit, donate_argnums=(1,))
         def run_bart(key: Key[Array, ""], bart: State) -> State:
-            def callback(**_):
-                return debug.callback(lambda: print(".", end="", flush=True))
-
-            bart, _, _ = run_mcmc(key, bart, cfg.steps_per_rep, callback=callback)
+            bart, _, _ = run_mcmc(
+                key, bart, cfg.steps_per_rep, callback=ProgressDotCallback()
+            )
             return bart
 
         self.run_bart = run_bart.lower(key, self.state).compile()

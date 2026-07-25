@@ -16,7 +16,7 @@ from typing import Any
 import bartz
 import numpy as np
 import polars as pl
-from bartz.jaxext import split
+from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
 from equinox import Module
 from jax import block_until_ready, random
 from jaxtyping import Array, Float32, Float64, Key
@@ -93,7 +93,9 @@ def get_bartz_kwargs(ntree: int, test: Data) -> Mapping[str, Any]:
 def run_bartz(
     key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
 ) -> Float32[Array, "n_test"]:
-    bart = bartz.BART.gbart(train.raw_X, train.y, **kwargs, seed=key)
+    kw_bartz = dict(kwargs)
+    kw_bartz.update(x_test=kwargs["x_test"].T)
+    bart = bartz.BART.gbart(train.raw_X.T, train.y, **kw_bartz, seed=key)
     pred = bart.yhat_test_mean
     return pred.block_until_ready()
 

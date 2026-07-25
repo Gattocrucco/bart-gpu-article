@@ -11,6 +11,9 @@ resolution-markers = [
 exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P1W"
 
+[options.exclude-newer-package]
+bartz = "2026-07-26T00:00:00Z"
+
 [[package]]
 name = "argon2-cffi"
 version = "25.1.0"
@@ -98,7 +101,7 @@ cuda13 = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bartz", git = "https://github.com/bartz-org/bartz.git?rev=neurips" },
+    { name = "bartz", specifier = ">=0.12.0" },
     { name = "catboost", specifier = ">=1.2.10" },
     { name = "cupy-cuda12x", marker = "extra == 'cuda12'" },
     { name = "cupy-cuda13x", marker = "extra == 'cuda13'" },
@@ -123,14 +126,20 @@ provides-extras = ["cuda12", "cuda13"]
 
 [[package]]
 name = "bartz"
-version = "0.9.0"
-source = { git = "https://github.com/bartz-org/bartz.git?rev=neurips#545dc5f88e980d6fe81dfedcdc59e9a473fc2d58" }
+version = "0.12.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "equinox" },
     { name = "jax" },
     { name = "jaxtyping" },
     { name = "numpy" },
     { name = "scipy" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/27/7d/7efa7a5e730b8b8121496c50b761ba18b55a217073c53dc69a4d18876c78/bartz-0.12.0.tar.gz", hash = "sha256:c891bde1b4b61acb28f14982eaf29e459d521c74f7b5c5b3e62ad0eac3b076ba", size = 183957, upload-time = "2026-07-24T17:02:27.638Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/e9/3878e53e43f10f89043b63b138da5de00797494c655275a98a2c6e9d27be/bartz-0.12.0-py3-none-any.whl", hash = "sha256:d19c24da485d94f5bcaae213f57e2b253ca44293a38cf77dadedaa0e7c205929", size = 225169, upload-time = "2026-07-24T17:02:26.241Z" },
 ]
 
 [[package]]

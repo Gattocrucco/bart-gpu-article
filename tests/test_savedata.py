@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from bartz.jaxext import split
+from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
 from jax import numpy as jnp
 from jax import random
 
