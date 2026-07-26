@@ -41,6 +41,16 @@ NONDEFAULT_BART_ARGS: Mapping = MappingProxyType(
     )
 )
 
+MOVE_ACC_THRESHOLD = 0.05
+"""Refit with twice the trees if the acceptance rate falls below this.
+
+With too few trees each one has to carry too much signal, so it grows against
+the depth cap and the grow/prune moves are all rejected: the tree structures
+freeze. Refitting with more trees is a poor man's substitute for inference on
+the number of trees, which bartz does not implement. The check is done once,
+and its cost is included in the training time on purpose.
+"""
+
 
 class Config(Module):
     """Configuration for the fullbench script."""
@@ -93,6 +103,19 @@ class TreeStats(NamedTuple):
     move_acc: float | None
     """Fraction of accepted grow/prune moves, or `None` if not an MCMC method."""
 
+    move_acc_first: float | None = None
+    """`move_acc` of the initial fit, which differs only if it was redone with
+    more trees; compare with `num_trees` to see whether that happened."""
+
+
+def move_acc(bart: Bart) -> float:
+    """Fraction of accepted grow/prune moves, averaged over the main trace."""
+    trace = bart._main_trace  # noqa: SLF001
+    # one grow-or-prune proposal per tree per iteration, so the number of trees
+    # is the proposal count (see bartz.mcmcloop._callback)
+    acc_count = trace.grow_acc_count + trace.prune_acc_count
+    return float(jnp.mean(acc_count) / bart.num_trees)
+
 
 class Benchmark(ABC):
     """Harness base class."""
@@ -133,7 +156,7 @@ class Bartz(Benchmark):
         x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        self._keys = split(key)
+        self._keys = split(key, 3)  # initial fit, refit, predict
         self._x_train = x_train
         self._y_train = y_train
         self._x_test = x_test
@@ -141,16 +164,29 @@ class Bartz(Benchmark):
         self._binary = cfg.binary
         self._outcome_type = "binary" if self._binary else "continuous"
 
-    def train(self) -> None:
-        self._bart = Bart(
+    def _fit(self, num_trees: int | None) -> Bart:
+        # `num_trees=None` leaves the bartz default in place
+        extra = {} if num_trees is None else dict(num_trees=num_trees)
+        bart = Bart(
             x_train=self._x_train,
             y_train=self._y_train,
             seed=self._keys.pop(),
             devices=self._platform,
             outcome_type=self._outcome_type,
             **NONDEFAULT_BART_ARGS,
+            **extra,
         )
-        block_until_ready(self._bart)
+        return block_until_ready(bart)
+
+    def train(self) -> None:
+        self._bart = self._fit(None)
+        # deciding whether to refit is part of the fitting cost, so it happens
+        # here rather than in `tree_stats`, inside the timed region
+        self._move_acc_first = move_acc(self._bart)
+        if self._move_acc_first < MOVE_ACC_THRESHOLD:
+            num_trees = 2 * self._bart.num_trees
+            del self._bart  # free the first fit before allocating the second
+            self._bart = self._fit(num_trees)
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
         stuff = predict_stuff(
@@ -164,15 +200,12 @@ class Bartz(Benchmark):
 
     def tree_stats(self) -> TreeStats:
         # average over trees and mcmc samples (and chains, if any)
-        trace = self._bart._main_trace  # noqa: SLF001
-        num_trees = self._bart.num_trees
-        # one grow-or-prune proposal per tree per iteration, so the number of
-        # trees is the proposal count (see bartz.mcmcloop._callback)
-        acc_count = trace.grow_acc_count + trace.prune_acc_count
+        split_tree = self._bart._main_trace.split_tree  # noqa: SLF001
         return TreeStats(
-            num_trees,
-            float(forest_mean_leaves(trace.split_tree)),
-            float(jnp.mean(acc_count) / num_trees),
+            self._bart.num_trees,
+            float(forest_mean_leaves(split_tree)),
+            move_acc(self._bart),
+            self._move_acc_first,
         )
 
 
@@ -293,6 +326,7 @@ EMPTY_ROW_KEYS = (
     "num_trees",
     "mean_leaves",
     "move_acc",
+    "move_acc_first",
 )
 
 
@@ -367,6 +401,8 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     print(f"mean_leaves: {stats.mean_leaves:.4f}")
     if stats.move_acc is not None:
         print(f"move_acc: {stats.move_acc:.4f}")
+    if stats.move_acc_first is not None:
+        print(f"move_acc_first: {stats.move_acc_first:.4f}")
 
     return dict(
         seed=cfg.round_seed,
@@ -385,6 +421,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         num_trees=stats.num_trees,
         mean_leaves=stats.mean_leaves,
         move_acc=stats.move_acc,
+        move_acc_first=stats.move_acc_first,
     )
 
 
@@ -419,6 +456,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         num_trees=None,
         mean_leaves=None,
         move_acc=None,
+        move_acc_first=None,
     )
 
 
