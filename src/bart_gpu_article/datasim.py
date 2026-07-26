@@ -72,11 +72,6 @@ def make_data(
         sigma2_lin=sigma2,
         sigma2_quad=sigma2,
         sigma2_eps=sigma2,
-        # pass offset explicitly even though 0.0 is the default: gen_params is
-        # jitted, and jax does not trace defaults, so an omitted offset stays a
-        # python float and trips gen_params' internal `offset.ndim` check
-        # (bartz 0.12.0). Passing it makes it a traced array.
-        offset=0.0,
         outcome_type="binary" if binary else "continuous",
     )
 

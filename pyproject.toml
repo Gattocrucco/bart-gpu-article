@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "bartz>=0.12.0",
+    "bartz",
     "catboost>=1.2.10",
     "flatbuffers>=25.12.19",
     "ipython>=9.9.0",
@@ -39,17 +39,14 @@ fullbench-plot = "bart_gpu_article.scripts.fullbench_plot:main"
 explore-datasets = "bart_gpu_article.scripts.explore_datasets:main"
 save-datasets = "bart_gpu_article.scripts.save_datasets:main"
 
-[tool.uv]
-# bartz 0.12.0 was released 2026-07-24; exempt it from the rolling
-# `exclude-newer` cutoff set in the user-level uv config. Can be dropped once
-# the release is older than that window.
-exclude-newer-package = { bartz = "2026-07-26T00:00:00Z" }
-
 [tool.ruff.lint]
 ignore = ["F722"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "neurips-2" }
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
