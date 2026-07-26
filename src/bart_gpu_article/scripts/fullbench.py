@@ -86,10 +86,12 @@ class Timer:
 
 
 class TreeStats(NamedTuple):
-    """Size of the fitted forest."""
+    """Size of the fitted forest, and how well its sampler is moving."""
 
     num_trees: int
     mean_leaves: float
+    move_acc: float | None
+    """Fraction of accepted grow/prune moves, or `None` if not an MCMC method."""
 
 
 class Benchmark(ABC):
@@ -162,8 +164,16 @@ class Bartz(Benchmark):
 
     def tree_stats(self) -> TreeStats:
         # average over trees and mcmc samples (and chains, if any)
-        split_tree = self._bart._main_trace.split_tree  # noqa: SLF001
-        return TreeStats(self._bart.num_trees, float(forest_mean_leaves(split_tree)))
+        trace = self._bart._main_trace  # noqa: SLF001
+        num_trees = self._bart.num_trees
+        # one grow-or-prune proposal per tree per iteration, so the number of
+        # trees is the proposal count (see bartz.mcmcloop._callback)
+        acc_count = trace.grow_acc_count + trace.prune_acc_count
+        return TreeStats(
+            num_trees,
+            float(forest_mean_leaves(trace.split_tree)),
+            float(jnp.mean(acc_count) / num_trees),
+        )
 
 
 class PredictStuff(Module):
@@ -263,7 +273,7 @@ class Xgboost(Benchmark):
         # each dumped tree is a text listing of its nodes, one "leaf=" per leaf
         dumps = self._model.get_booster().get_dump()
         leaves = [tree.count("leaf=") for tree in dumps]
-        return TreeStats(len(dumps), float(np.mean(leaves)))
+        return TreeStats(len(dumps), float(np.mean(leaves)), None)
 
 
 EMPTY_ROW_KEYS = (
@@ -282,6 +292,7 @@ EMPTY_ROW_KEYS = (
     "logloss",
     "num_trees",
     "mean_leaves",
+    "move_acc",
 )
 
 
@@ -354,6 +365,8 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     stats = bench.tree_stats()
     print(f"num_trees: {stats.num_trees}")
     print(f"mean_leaves: {stats.mean_leaves:.4f}")
+    if stats.move_acc is not None:
+        print(f"move_acc: {stats.move_acc:.4f}")
 
     return dict(
         seed=cfg.round_seed,
@@ -371,6 +384,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         logloss=logloss,
         num_trees=stats.num_trees,
         mean_leaves=stats.mean_leaves,
+        move_acc=stats.move_acc,
     )
 
 
@@ -404,6 +418,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         logloss=None,
         num_trees=None,
         mean_leaves=None,
+        move_acc=None,
     )
 
 
