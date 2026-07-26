@@ -49,11 +49,13 @@ test-rmse:
 .PHONY: fullbench-cpu
 fullbench-cpu:
 	$(UV_RUN) fullbench -d cpu -m bartz $(ARGS) $(DATASETS)
+	$(UV_RUN) fullbench -d cpu -m bartzadaptive $(ARGS) $(DATASETS)
 	$(UV_RUN) fullbench -d cpu -m xgboost $(ARGS) $(DATASETS)
 
 .PHONY: fullbench-gpu
 fullbench-gpu:
 	$(UV_RUN) fullbench -d gpu -m bartz $(ARGS) $(DATASETS)
+	$(UV_RUN) fullbench -d gpu -m bartzadaptive $(ARGS) $(DATASETS)
 	$(UV_RUN) fullbench -d gpu -m xgboost $(ARGS) $(DATASETS)
 
 .PHONY: copy-plots

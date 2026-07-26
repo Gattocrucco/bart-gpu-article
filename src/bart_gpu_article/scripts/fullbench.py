@@ -47,9 +47,13 @@ MOVE_ACC_THRESHOLD = 0.05
 With too few trees each one has to carry too much signal, so it grows against
 the depth cap and the grow/prune moves are all rejected: the tree structures
 freeze. Refitting with more trees is a poor man's substitute for inference on
-the number of trees, which bartz does not implement. The check is done once,
-and its cost is included in the training time on purpose.
+the number of trees, which bartz does not implement. The checks and the extra
+fits are inside the timed region on purpose, so the reported training time
+includes the cost of picking the number of trees.
 """
+
+MAX_DOUBLINGS = 3
+"""How many times `BartzAdaptive` may double the number of trees."""
 
 
 class Config(Module):
@@ -146,7 +150,14 @@ class Benchmark(ABC):
 
 
 class Bartz(Benchmark):
-    """Bartz harness using the high-level `bartz.Bart` interface."""
+    """Bartz harness using the high-level `bartz.Bart` interface.
+
+    Fits once, with the bartz default number of trees.
+    """
+
+    max_doublings = 0
+    """How many times `train` may double the number of trees to try to unstick
+    the tree MCMC. See `MOVE_ACC_THRESHOLD`."""
 
     def setup(
         self,
@@ -156,7 +167,7 @@ class Bartz(Benchmark):
         x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        self._keys = split(key, 3)  # initial fit, refit, predict
+        self._keys = split(key, 2 + self.max_doublings)  # one per fit, plus predict
         self._x_train = x_train
         self._y_train = y_train
         self._x_test = x_test
@@ -182,11 +193,15 @@ class Bartz(Benchmark):
         self._bart = self._fit(None)
         # deciding whether to refit is part of the fitting cost, so it happens
         # here rather than in `tree_stats`, inside the timed region
-        self._move_acc_first = move_acc(self._bart)
-        if self._move_acc_first < MOVE_ACC_THRESHOLD:
+        acc = move_acc(self._bart)
+        self._move_acc_first = acc
+        for _ in range(self.max_doublings):
+            if acc >= MOVE_ACC_THRESHOLD:
+                break
             num_trees = 2 * self._bart.num_trees
-            del self._bart  # free the first fit before allocating the second
+            del self._bart  # free the previous fit before allocating the next
             self._bart = self._fit(num_trees)
+            acc = move_acc(self._bart)
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
         stuff = predict_stuff(
@@ -207,6 +222,16 @@ class Bartz(Benchmark):
             move_acc(self._bart),
             self._move_acc_first,
         )
+
+
+class BartzAdaptive(Bartz):
+    """Bartz, refitting with twice the trees while the tree MCMC looks stuck.
+
+    Runs as a separate method so that its results sit in their own file and can
+    be compared against plain `Bartz` on the same plot.
+    """
+
+    max_doublings = MAX_DOUBLINGS
 
 
 class PredictStuff(Module):
