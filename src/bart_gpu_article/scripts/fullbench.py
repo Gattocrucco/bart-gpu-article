@@ -55,6 +55,13 @@ includes the cost of picking the number of trees.
 MAX_DOUBLINGS = 3
 """How many times `BartzAdaptive` may double the number of trees."""
 
+# TEMPORARY, for the test runs on the 12 GB 3060: a fit of Higgs (11M rows)
+# needs about 17 GB at 1600 trees and OOMs, which loses the whole row, the good
+# fits that preceded it included. Measured peak use at 800 trees is 8.9 GB, and
+# delays_zurich (5.5M rows) and poker (1M) both fit at 1600 trees.
+CROWDED_N = 8_000_000
+CROWDED_MAX_DOUBLINGS = 2
+
 
 class Config(Module):
     """Configuration for the fullbench script."""
@@ -232,6 +239,18 @@ class BartzAdaptive(Bartz):
     """
 
     max_doublings = MAX_DOUBLINGS
+
+    def setup(
+        self,
+        key: Key[Array, ""],
+        x_train: Float[np.ndarray, "p n_train"],
+        y_train: Float[np.ndarray, " n_train"],
+        x_test: Float[np.ndarray, "p n_test"],
+        cfg: Config,
+    ) -> None:
+        if x_train.shape[1] > CROWDED_N:  # TEMPORARY, see CROWDED_N
+            self.max_doublings = CROWDED_MAX_DOUBLINGS
+        super().setup(key, x_train, y_train, x_test, cfg)
 
 
 class PredictStuff(Module):
