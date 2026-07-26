@@ -2,6 +2,9 @@ CUDA_VERSION = $(shell nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9]*' |
 EXTRAS = $(if $(filter 12 13,$(CUDA_VERSION)),--extra=cuda$(CUDA_VERSION),)
 UV_RUN = RPY2_CFFI_MODE=ABI uv run $(EXTRAS)
 
+# datasets for fullbench; not data/* because that also matches list-datasets.csv
+DATASETS ?= $(wildcard data/dataset-*)
+
 .PHONY: help
 help:
 	@echo "Available targets:"
@@ -9,6 +12,8 @@ help:
 	@echo benchmark-cpu
 	@echo benchmark-gpu
 	@echo test-rmse
+	@echo fullbench-cpu
+	@echo fullbench-gpu
 
 .PHONY: setup
 setup:
@@ -40,6 +45,16 @@ test-rmse:
 	$(UV_RUN) test-rmse -t
 	$(UV_RUN) test-rmse -p
 	$(UV_RUN) test-rmse -t -p
+
+.PHONY: fullbench-cpu
+fullbench-cpu:
+	$(UV_RUN) fullbench -d cpu -m bartz $(DATASETS)
+	$(UV_RUN) fullbench -d cpu -m xgboost $(DATASETS)
+
+.PHONY: fullbench-gpu
+fullbench-gpu:
+	$(UV_RUN) fullbench -d gpu -m bartz $(DATASETS)
+	$(UV_RUN) fullbench -d gpu -m xgboost $(DATASETS)
 
 .PHONY: copy-plots
 copy-plots:
