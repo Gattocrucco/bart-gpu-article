@@ -45,6 +45,12 @@ ignore = ["F722"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.uv]
+# cap resolutions at 1 week old so a freshly released version can't break the
+# build; set here rather than in a personal uv config so that machines without
+# that config resolve the same way instead of re-locking and dirtying uv.lock
+exclude-newer = "1 week"
+
 [tool.uv.sources]
 bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "neurips-2" }
 
