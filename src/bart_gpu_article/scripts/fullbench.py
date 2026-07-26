@@ -558,8 +558,11 @@ def args_to_config(args: Namespace) -> Config:
 
 def setup_device(cfg: Config) -> None:
     """Configure the jax device."""
-    if cfg.method != "bartz":
-        # make sure jax does not hog the gpu if we don't use it
+    if cfg.method != "bartz" or not cfg.slave:
+        # make sure jax does not hog the gpu if we don't use it; the master
+        # never computes on it, it only draws the seeds, but merely touching
+        # the cuda backend makes jax preallocate most of the gpu and starve
+        # the slaves
         config.update("jax_platforms", "cpu")
     elif cfg.platform == "cpu":
         # disable gpu altogether, and create multiple cpu devices
