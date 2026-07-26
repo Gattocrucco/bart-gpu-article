@@ -13,11 +13,15 @@ import polars as pl
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
-_METHOD_STYLES = (
+METHOD_STYLES = (
     {"markerfacecolor": "black", "markeredgecolor": "none"},
     {"markerfacecolor": "white", "markeredgecolor": "black"},
     {"markerfacecolor": "red", "markeredgecolor": "black"},
 )
+
+MARKERSIZE = 10  # points
+DOT_SHIFT = 0.2  # vertical gap between dots of the same dataset, in data units,
+# tuned by eye such that vertically aligned dots touch
 
 
 def load_results(paths: Sequence[Path]) -> pl.DataFrame:
@@ -77,9 +81,7 @@ def plot(agg: Agg) -> Figure:
     y_pos = {d: i for i, d in enumerate(datasets)}
 
     methods = sorted(agg.df["method"].unique().to_list())
-    offsets = (
-        np.linspace(-0.2, 0.2, len(methods)) if len(methods) > 1 else np.array([0.0])
-    )
+    offsets = (np.arange(len(methods)) - (len(methods) - 1) / 2) * DOT_SHIFT
 
     panels = (
         (f"RMSE (n_test={agg.n_test})", "rmse"),
@@ -100,7 +102,7 @@ def plot(agg: Agg) -> Figure:
     )
 
     for ax, (xlabel, col) in zip(axes, panels):
-        for method, dy, style in zip(methods, offsets, _METHOD_STYLES):
+        for method, dy, style in zip(methods, offsets, METHOD_STYLES):
             sub = agg.df.filter(pl.col("method") == method)
             ys = [y_pos[d] + dy for d in sub["dataset_path"]]
             ax.errorbar(
@@ -108,7 +110,7 @@ def plot(agg: Agg) -> Figure:
                 ys,
                 xerr=sub[f"{col}_sdev"].to_numpy(),
                 fmt="o",
-                markersize=10,
+                markersize=MARKERSIZE,
                 capsize=4,
                 color="black",
                 label=method,
@@ -123,6 +125,8 @@ def plot(agg: Agg) -> Figure:
         name = Path(path).name
         if re.fullmatch(r"savedata(-[^-]+){4}", name):
             name = "<simulated>"
+        else:
+            name = name.removeprefix("dataset-").replace("_", " ")
         return f"{name}\nn={info[path][0]:_}\np={info[path][1]:_}"
 
     axes[0].set_yticks(range(len(datasets)))
@@ -140,7 +144,7 @@ def plot(agg: Agg) -> Figure:
         ax.grid(which="minor", linestyle=":")
 
     axes[-1].legend(loc="upper right")
-    fig.suptitle(f"device: {agg.device}")
+    fig.suptitle(f"device: {agg.device.replace('_', ' ')}")
     fig.supxlabel(f"+/– sdev over {agg.rounds} rounds", fontsize="medium")
 
     return fig
