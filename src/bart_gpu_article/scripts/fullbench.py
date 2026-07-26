@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import os
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
@@ -602,6 +603,9 @@ def setup_device(cfg: Config) -> None:
         config.update("jax_num_cpu_devices", 4)
         # 4 cpu devices because bartz uses 4 chains by default
     elif cfg.platform == "gpu":
+        # claim almost all the gpu memory instead of the default 75%
+        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.95"
+
         # jax would do the same, but by setting it explicitly, we are
         # forcing an error if there's no gpu
         config.update("jax_platforms", "cuda,cpu")
