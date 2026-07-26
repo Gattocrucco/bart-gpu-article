@@ -12,11 +12,12 @@ from pathlib import Path
 from subprocess import PIPE, TimeoutExpired, run
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Mapping, NamedTuple
 
 import numpy as np
 from bartz import Bart
 from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
+from bartz.grove import forest_mean_leaves
 from equinox import Module
 from jax import block_until_ready, config, jit, random
 from jax import numpy as jnp
@@ -83,6 +84,13 @@ class Timer:
         self.time = perf_counter() - self._start
 
 
+class TreeStats(NamedTuple):
+    """Size of the fitted forest."""
+
+    num_trees: int
+    mean_leaves: float
+
+
 class Benchmark(ABC):
     """Harness base class."""
 
@@ -101,6 +109,9 @@ class Benchmark(ABC):
 
     @abstractmethod
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff: ...
+
+    @abstractmethod
+    def tree_stats(self) -> TreeStats: ...
 
     subclasses: dict[str, type[Benchmark]] = {}
 
@@ -147,6 +158,11 @@ class Bartz(Benchmark):
             self._binary,
         )
         return block_until_ready(stuff)
+
+    def tree_stats(self) -> TreeStats:
+        # average over trees and mcmc samples (and chains, if any)
+        split_tree = self._bart._main_trace.split_tree  # noqa: SLF001
+        return TreeStats(self._bart.num_trees, float(forest_mean_leaves(split_tree)))
 
 
 class PredictStuff(Module):
@@ -242,6 +258,12 @@ class Xgboost(Benchmark):
         rmse = np.sqrt(np.mean(np.square(yhat - y_test)))
         return PredictStuff(rmse, None, logloss)
 
+    def tree_stats(self) -> TreeStats:
+        # each dumped tree is a text listing of its nodes, one "leaf=" per leaf
+        dumps = self._model.get_booster().get_dump()
+        leaves = [tree.count("leaf=") for tree in dumps]
+        return TreeStats(len(dumps), float(np.mean(leaves)))
+
 
 EMPTY_ROW_KEYS = (
     "seed",
@@ -257,6 +279,8 @@ EMPTY_ROW_KEYS = (
     "rmse",
     "coverage_50",
     "logloss",
+    "num_trees",
+    "mean_leaves",
 )
 
 
@@ -326,6 +350,10 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     if logloss is not None:
         print(f"logloss: {logloss:.4f}")
 
+    stats = bench.tree_stats()
+    print(f"num_trees: {stats.num_trees}")
+    print(f"mean_leaves: {stats.mean_leaves:.4f}")
+
     return dict(
         seed=cfg.round_seed,
         device=cfg.device_kind,
@@ -340,6 +368,8 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         rmse=rmse,
         coverage_50=coverage_50,
         logloss=logloss,
+        num_trees=stats.num_trees,
+        mean_leaves=stats.mean_leaves,
     )
 
 
@@ -371,6 +401,8 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         rmse=None,
         coverage_50=None,
         logloss=None,
+        num_trees=None,
+        mean_leaves=None,
     )
 
 
