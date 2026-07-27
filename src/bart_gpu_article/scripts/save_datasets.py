@@ -44,7 +44,9 @@ def parse_args(argv: Sequence[str]) -> Namespace:
     return parser.parse_args(argv)
 
 
-def to_sim_data(X: pl.DataFrame, y: pl.Series) -> SimData:
+def to_sim_data(
+    X: pl.DataFrame, y: pl.Series, test_pool_start: int | None = None
+) -> SimData:
     """Pack a preprocessed (X, y) pair into a `datasim.Data` for serialization."""
     nan = jnp.float32(jnp.nan)
     return SimData(
@@ -57,6 +59,9 @@ def to_sim_data(X: pl.DataFrame, y: pl.Series) -> SimData:
         eps_var=nan,
         q=jnp.int32(0),
         binary=jnp.bool_(y.dtype.is_integer()),
+        test_pool_start=None
+        if test_pool_start is None
+        else jnp.int32(test_pool_start),
     )
 
 
@@ -76,7 +81,7 @@ def main(argv: Sequence[str] = sys.argv[1:]) -> None:
         _, data = process_dataset(meta)
         target = args.data_dir / f"dataset-{name}"
         print(f"save to {target}...")
-        simdata = to_sim_data(data.X, data.y)
+        simdata = to_sim_data(data.X, data.y, data.test_pool_start)
         save_data(simdata, target, overwrite=args.overwrite)
 
 

@@ -30,6 +30,11 @@ class Data(Module):
     eps_var: Float32[Array, ""]
     q: Integer[Array, ""]
     binary: Bool[Array, ""]
+    test_pool_start: Integer[Array, ""] | None = None
+    """When set, the rows are in chronological order and the test set must be
+    drawn from the rows at this index onwards, with the earlier rows as
+    training set; `None` means the rows are exchangeable and the split may be
+    random. Datasets saved before this field existed load as `None`."""
 
 
 @partial(jit, static_argnums=(1, 2, 3, 4, 5))
