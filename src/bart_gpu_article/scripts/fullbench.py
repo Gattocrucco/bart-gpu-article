@@ -131,6 +131,12 @@ def move_acc(bart: Bart) -> float:
 class Benchmark(ABC):
     """Harness base class."""
 
+    needs_jax: bool = False
+    """Whether the method computes with jax, and so needs the jax device to be
+    the gpu. Methods that reach the gpu by their own path want jax to keep off
+    it, because merely touching the cuda backend makes jax preallocate most of
+    the memory."""
+
     @abstractmethod
     def setup(
         self,
@@ -161,6 +167,8 @@ class Bartz(Benchmark):
 
     Fits once, with the bartz default number of trees.
     """
+
+    needs_jax = True
 
     max_doublings = 0
     """How many times `train` may double the number of trees to try to unstick
@@ -688,7 +696,7 @@ def args_to_config(args: Namespace) -> Config:
 
 def setup_device(cfg: Config) -> None:
     """Configure the jax device."""
-    if cfg.method != "bartz" or not cfg.slave:
+    if not Benchmark.subclasses[cfg.method].needs_jax or not cfg.slave:
         # make sure jax does not hog the gpu if we don't use it; the master
         # never computes on it, it only draws the seeds, but merely touching
         # the cuda backend makes jax preallocate most of the gpu and starve
