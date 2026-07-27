@@ -1,4 +1,6 @@
-CUDA_VERSION = $(shell nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9]*' | cut -d' ' -f3)
+# nvidia-smi -q says "CUDA Version : 13.3" up to driver 610, "CUDA UMD Version"
+# from 610 on (both until CUDA 14, when the old spelling disappears)
+CUDA_VERSION = $(shell nvidia-smi -q 2>/dev/null | grep -o 'CUDA[^:]*Version *: *[0-9]*' | grep -o '[0-9]*' | head -1)
 EXTRAS = $(if $(filter 12 13,$(CUDA_VERSION)),--extra=cuda$(CUDA_VERSION),)
 UV_RUN = RPY2_CFFI_MODE=ABI uv run $(EXTRAS)
 
