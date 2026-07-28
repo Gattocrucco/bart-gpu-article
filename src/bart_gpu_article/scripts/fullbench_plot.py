@@ -19,8 +19,8 @@ METHOD_STYLES = (
     {"markerfacecolor": "red", "markeredgecolor": "black"},
 )
 
-MARKERSIZE = 10  # points
-DOT_SHIFT = 0.2  # vertical gap between dots of the same dataset, in data units,
+MARKERSIZE = 6  # points
+DOT_SHIFT = 0.12  # vertical gap between dots of the same dataset, in data units,
 # tuned by eye such that vertically aligned dots touch
 
 
