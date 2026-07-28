@@ -122,6 +122,7 @@ def plot(agg: Agg) -> Figure:
         ax.grid(linestyle="--", axis="x")
         if col == "coverage_50":
             ax.axvline(0.5, color="black", linestyle="--")
+            ax.legend(loc="upper right")
         if col == "relmse":
             ax.set_xlim(0, 1)
 
@@ -147,7 +148,6 @@ def plot(agg: Agg) -> Figure:
         ax.yaxis.set_minor_locator(plt.NullLocator())
         ax.grid(which="minor", linestyle=":")
 
-    axes[-1].legend(loc="upper right")
     fig.suptitle(f"device: {agg.device.replace('_', ' ')}")
     fig.supxlabel(f"+/– sdev over {agg.rounds} rounds", fontsize="medium")
 
