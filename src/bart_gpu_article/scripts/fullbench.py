@@ -383,36 +383,20 @@ def run_slave(cfg: Config) -> dict[str, Any]:
 
     raw_X = np.asarray(data.raw_X)
     y = np.asarray(data.y)
-    test_pool_start = (
-        None if data.test_pool_start is None else int(data.test_pool_start)
-    )
     del data
 
     p, n_total = raw_X.shape
     n_test = cfg.test_size
+    n_train = n_total - n_test
+    if n_train <= 0:
+        raise RuntimeError(f"n_total={n_total} <= test_size={n_test}")
+    print(f"n_train={n_train:_}, n_test={n_test:_}, p={p:_}")
 
     keys = split(random.key(cfg.round_seed))
 
-    if test_pool_start is None:
-        # exchangeable rows: random train/test split
-        n_train = n_total - n_test
-        if n_train <= 0:
-            raise RuntimeError(f"n_total={n_total} <= test_size={n_test}")
-        perm = np.asarray(random.permutation(keys.pop(), n_total))
-        test_idx = perm[:n_test]
-        train_idx = perm[n_test:]
-    else:
-        # chronological rows: train on everything before the pool, test on a
-        # random subsample of the pool
-        n_train = test_pool_start
-        n_pool = n_total - test_pool_start
-        if n_test > n_pool:
-            raise RuntimeError(f"test pool size {n_pool} < test_size={n_test}")
-        print(f"temporal split: test drawn from the last {n_pool:_} rows")
-        perm = np.asarray(random.permutation(keys.pop(), n_pool))
-        test_idx = test_pool_start + perm[:n_test]
-        train_idx = np.arange(test_pool_start)
-    print(f"n_train={n_train:_}, n_test={n_test:_}, p={p:_}")
+    perm = np.asarray(random.permutation(keys.pop(), n_total))
+    test_idx = perm[:n_test]
+    train_idx = perm[n_test:]
 
     x_train = raw_X[:, train_idx]
     y_train = y[train_idx]

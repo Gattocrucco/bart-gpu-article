@@ -130,32 +130,6 @@ def to_sin_cos(expr: pl.Expr, period: Number | pl.Expr) -> tuple[pl.Expr, pl.Exp
     return t.sin().name.suffix("_sin"), t.cos().name.suffix("_cos")
 
 
-def zurich_week_starts(weekday: pl.Series) -> np.ndarray:
-    """Row indices where each calendar week of `delays_zurich_transport` starts.
-
-    The dataset has no timestamp, so the temporal train/test split relies on
-    the row order, whose structure this function asserts: the rows come in
-    four contiguous calendar weeks (the data covers Sun 2016-10-30 to
-    Sun 2016-11-27). Within a week, runs of constant weekday belong to
-    interleaved operational days that span midnight, so the weekday moves by
-    +-1 between consecutive runs; it falls back by 6 (Saturday -> Sunday)
-    exactly at the three week boundaries.
-    """
-    wd = weekday.cast(pl.String).str.to_integer().to_numpy()
-    assert wd[0] == 0  # the data starts on a Sunday
-    (run_starts,) = np.nonzero(np.diff(wd))
-    run_starts += 1
-    run_wd = wd[np.concatenate([[0], run_starts])]
-    diffs = np.diff(run_wd)
-    assert set(diffs.tolist()) == {-6, -1, 1}
-    (week_boundaries,) = np.nonzero(diffs == -6)
-    week_starts = np.concatenate([[0], run_starts[week_boundaries]])
-    assert len(week_starts) == 4
-    for start, end in zip(week_starts, np.append(week_starts[1:], len(wd))):
-        assert set(wd[start:end].tolist()) == set(range(7))
-    return week_starts
-
-
 def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     datasets = read_datasets_list()
     datasets, interactive = parse_argv_and_filter_datasets(argv, datasets)
@@ -180,10 +154,6 @@ class Data(NamedTuple):
     dataset: OpenMLDataset
     X: pl.DataFrame
     y: pl.Series
-    test_pool_start: int | None = None
-    """When set, the rows are in chronological order and the test set must be
-    drawn from the rows at this index onwards; `None` means the rows are
-    exchangeable and the train/test split may be random."""
 
 
 def get_data(name: str, did: int) -> Data:
@@ -243,7 +213,7 @@ def get_data(name: str, did: int) -> Data:
 
 def custom_preprocessing(data: Data) -> Data:
     """Bespoke preprocessing for each dataset."""
-    dataset, X, y, test_pool_start = data
+    dataset, X, y = data
 
     match dataset.name:
         case "2018-Airplane-Flights":
@@ -261,12 +231,6 @@ def custom_preprocessing(data: Data) -> Data:
             )
 
         case "delays_zurich_transport":
-            # The rows come in 4 chronological calendar weeks and are heavily
-            # autocorrelated, so a random train/test split would be leaky:
-            # hold out the last week as the test pool, making the split
-            # temporal. `zurich_week_starts` asserts the row-order structure.
-            test_pool_start = int(zurich_week_starts(X["weekday"])[-1])
-
             # Follow Grinsztajn et al. 2022, whose xgboost setup one-hots all
             # the categoricals and keeps `hour` and `dayminute` as raw
             # numbers: no cyclic (sin/cos) encoding, and `hour` is kept even
@@ -280,7 +244,7 @@ def custom_preprocessing(data: Data) -> Data:
         case _:
             print(f"==== No custom pre-processing defined for {dataset.name} ====")
 
-    return Data(dataset, X, y, test_pool_start)
+    return Data(dataset, X, y)
 
 
 def process_dataset(
@@ -295,7 +259,7 @@ def process_dataset(
     print(f"\n\n####### DATASET {meta['name']} (id {did}) #######")
 
     original_data = get_data(**meta)
-    dataset, X, original_y, test_pool_start = custom_preprocessing(original_data)
+    dataset, X, original_y = custom_preprocessing(original_data)
     ystuff = preprocess_y(original_y)
     y = ystuff.y
     basic_checks(X, y)
@@ -304,7 +268,7 @@ def process_dataset(
         print_data_summary(X, y)
         print_categorical_predictors_info(X)
         plot_y_distribution(did, dataset, ystuff)
-    return original_data, Data(dataset, X, y, test_pool_start)
+    return original_data, Data(dataset, X, y)
 
 
 class YStuff(NamedTuple):
