@@ -91,11 +91,13 @@ def plot(agg: Agg) -> Figure:
         ("predict time [s]", "time_test"),
     )
 
+    width_ratios = [2 if col == "time_train" else 1 for _, col in panels]
     fig, axes = plt.subplots(
         1,
         len(panels),
         sharey=True,
-        figsize=[10, 0.7 * len(datasets) + 2.0],
+        width_ratios=width_ratios,
+        figsize=[2 * sum(width_ratios), 0.7 * len(datasets) + 2.0],
         num="fullbench-plot",
         clear=True,
         layout="constrained",
