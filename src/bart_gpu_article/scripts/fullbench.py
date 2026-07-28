@@ -351,6 +351,7 @@ EMPTY_ROW_KEYS = (
     "n_train",
     "n_test",
     "p",
+    "test_sdev",
     "time_train",
     "time_test",
     "rmse",
@@ -405,6 +406,10 @@ def run_slave(cfg: Config) -> dict[str, Any]:
 
     del raw_X, y
 
+    # the yardstick for rmse: the rmse of predicting the test mean
+    test_sdev = float(np.std(y_test))
+    print(f"test_sdev: {test_sdev:.4f}")
+
     print(f"setup {cfg.method}...")
     bench = Benchmark.subclasses[cfg.method]()
     bench.setup(keys.pop(), x_train, y_train, x_test, cfg)
@@ -446,6 +451,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         n_train=n_train,
         n_test=n_test,
         p=p,
+        test_sdev=test_sdev,
         time_train=t_train.time,
         time_test=t_test.time,
         rmse=rmse,
@@ -481,6 +487,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         n_train=None,
         n_test=None,
         p=None,
+        test_sdev=None,
         time_train=None,
         time_test=None,
         rmse=None,
