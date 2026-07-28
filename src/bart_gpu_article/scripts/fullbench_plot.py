@@ -47,8 +47,8 @@ def aggregate(df: pl.DataFrame) -> Agg:
         n=pl.col("n_train").first(),
         p=pl.col("p").first(),
         n_rounds=pl.len(),
-        mean_rmse=pl.col("rmse").pow(2).mean().sqrt(),
-        rmse_sdev=pl.col("rmse").std(),
+        mean_relmse=(pl.col("rmse") / pl.col("test_sdev")).pow(2).mean(),
+        relmse_sdev=(pl.col("rmse") / pl.col("test_sdev")).pow(2).std(),
         mean_logloss=pl.col("logloss").mean(),
         logloss_sdev=pl.col("logloss").std(),
         mean_coverage_50=pl.col("coverage_50").mean(),
@@ -84,7 +84,7 @@ def plot(agg: Agg) -> Figure:
     offsets = (np.arange(len(methods)) - (len(methods) - 1) / 2) * DOT_SHIFT
 
     panels = (
-        (f"RMSE (n_test={agg.n_test})", "rmse"),
+        (f"MSE / test var\n(n_test={agg.n_test})", "relmse"),
         ("log-loss\n(bayes. and class. only)", "logloss"),
         ("50% coverage\n(bayes. regr. only)", "coverage_50"),
         ("train time [s]", "time_train"),
@@ -120,6 +120,8 @@ def plot(agg: Agg) -> Figure:
         ax.grid(linestyle="--", axis="x")
         if col == "coverage_50":
             ax.axvline(0.5, color="black", linestyle="--")
+        if col == "relmse":
+            ax.set_xlim(0, 1)
 
     def _label(path: str) -> str:
         name = Path(path).name
