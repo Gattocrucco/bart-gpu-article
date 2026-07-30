@@ -1,4 +1,4 @@
-"""Compare bartz with other BART packages in terms of RMSE on simulated data."""
+"""Compare bartz with other BART packages in terms of MSE on simulated data."""
 
 import json
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
@@ -19,7 +19,7 @@ import polars as pl
 from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
 from equinox import Module
 from jax import block_until_ready, random
-from jaxtyping import Array, Float32, Float64, Key
+from jaxtyping import Array, Float, Float32, Float64, Key
 from rbartpackages import BART3, dbarts
 from rpy2 import robjects
 from scipy.special import logsumexp, ndtr
@@ -100,7 +100,7 @@ def run_bartz(
     kw_bartz = dict(kwargs)
     kw_bartz.update(x_test=kwargs["x_test"].T)
     bart = bartz.BART.gbart(train.raw_X.T, train.y, **kw_bartz, seed=key)
-    return block_until_ready((bart.yhat_test, bart.sigma_))
+    return block_until_ready((bart.yhat_test, bart.sigma_**2))
 
 
 def run_BART3(
@@ -114,7 +114,7 @@ def run_BART3(
         seed=make_int_seed(key),
     )
     bart = BART3.mc_gbart(train.raw_X.T, train.y, **kw_BART)
-    return bart.yhat_test, bart.sigma_
+    return bart.yhat_test, np.square(bart.sigma_)
 
 
 def run_dbarts(
@@ -128,7 +128,7 @@ def run_dbarts(
         keeptrees=False,
     )
     bart = dbarts.bart(train.raw_X.T, train.y, **kw_dbarts)
-    return bart.yhat_test, bart.sigma
+    return bart.yhat_test, np.square(bart.sigma)
 
 
 def run_bartMachine(
@@ -163,7 +163,7 @@ def run_bartMachine(
         bart, pl.DataFrame(np.array(kwargs["x_test"].T)), verbose=False
     )
     sigsq = bartMachine.get_sigsqs(bart, verbose=False)
-    return post["y_hat_posterior_samples"].T, np.sqrt(sigsq)
+    return post["y_hat_posterior_samples"].T, sigsq
 
 
 RUNNERS: Mapping[str, Callable] = MappingProxyType(
@@ -241,13 +241,13 @@ class PredStats(TypedDict):
     mlpd: float
     """Mean over test points of the log posterior predictive density of y."""
 
-    sigma_mean: float
-    """Posterior mean of the error standard deviation."""
+    sigma2_mean: float
+    """Posterior mean of the error variance."""
 
 
 def compute_pred_stats(
-    f_draws: Float64[np.ndarray, "ndpost n_test"] | Float32[Array, "ndpost n_test"],
-    sigma_draws: Float64[np.ndarray, " ndpost"] | Float32[Array, " ndpost"],
+    f_draws: Float[np.ndarray | Array, "ndpost n_test"],
+    sigma2_draws: Float[np.ndarray | Array, " ndpost"],
     test: Data,
 ) -> PredStats:
     """Compute prediction quality statistics from posterior draws.
@@ -256,8 +256,8 @@ def compute_pred_stats(
     ----------
     f_draws
         Posterior draws of the latent mean function at the test points.
-    sigma_draws
-        Posterior draws of the error sdev, paired with the rows of `f_draws`.
+    sigma2_draws
+        Posterior draws of the error variance, paired with the rows of `f_draws`.
     test
         The test data.
 
@@ -266,11 +266,12 @@ def compute_pred_stats(
     A `PredStats` dictionary of statistics.
     """
     f_draws = np.asarray(f_draws, dtype=np.float64)
-    sigma = np.asarray(sigma_draws, dtype=np.float64)
+    sigma2 = np.asarray(sigma2_draws, dtype=np.float64)
+    sigma = np.sqrt(sigma2)
     y = np.asarray(test.y, dtype=np.float64)
     mu = np.asarray(test.mu, dtype=np.float64)
     ndpost, n_test = f_draws.shape
-    assert sigma.shape == (ndpost,)
+    assert sigma2.shape == (ndpost,)
     assert y.shape == mu.shape == (n_test,)
 
     stats: dict[str, float] = {}
@@ -295,7 +296,7 @@ def compute_pred_stats(
     log_pdf = norm.logpdf(y, loc=f_draws, scale=sigma[:, None])
     stats["mlpd"] = np.mean(logsumexp(log_pdf, axis=0) - np.log(ndpost)).item()
 
-    stats["sigma_mean"] = sigma.mean().item()
+    stats["sigma2_mean"] = sigma2.mean().item()
     return cast(PredStats, stats)
 
 
@@ -307,7 +308,7 @@ def run_slave(cfg: Config) -> None:
         ntree = cfg.fixed_ntree
 
         # compute number of runs to do to make sure the "effective sample size"
-        # is at least 1000 to reduce the error on the RMSE, but no more than 10
+        # is at least 1000 to reduce the error on the MSE, but no more than 10
         # runs to avoid overhead
         num = min(10, ceil(1000 / n))
 
@@ -327,12 +328,12 @@ def run_slave(cfg: Config) -> None:
 
             print(f"run {cfg.method} ({i + 1}/{num})...")
             with Timer() as timer:
-                f_draws, sigma_draws = runner(keys.pop(), train, bartz_kwargs)
+                f_draws, sigma2_draws = runner(keys.pop(), train, bartz_kwargs)
 
             # compute prediction stats and store results
             times.append(timer.time)
-            stats_list.append(compute_pred_stats(f_draws, sigma_draws, test))
-            del f_draws, sigma_draws
+            stats_list.append(compute_pred_stats(f_draws, sigma2_draws, test))
+            del f_draws, sigma2_draws
 
             # free memory
             collect()
@@ -340,23 +341,19 @@ def run_slave(cfg: Config) -> None:
 
         time = np.mean(times).item()
 
-        # per-repetition values of each statistic, with rmses in place of mses
+        # per-repetition values of each statistic
         values = {k: np.asarray([s[k] for s in stats_list]) for k in stats_list[0]}
-        values["rmse"] = np.sqrt(values.pop("mse"))
-        values["rmse_truth"] = np.sqrt(values.pop("mse_truth"))
 
-        # means over the repetitions (pooling the rmse on the mse scale), and
-        # sdevs across repetitions for error estimation (null if num == 1)
+        # means over the repetitions, and sdevs across repetitions for error
+        # estimation (null if num == 1)
         means = {k: np.mean(v).item() for k, v in values.items()}
-        means["rmse"] = np.sqrt(np.mean(np.square(values["rmse"]))).item()
-        means["rmse_truth"] = np.sqrt(np.mean(np.square(values["rmse_truth"]))).item()
         sdevs = {
             f"{k}_sdev": np.std(v, ddof=1).item() if num > 1 else None
             for k, v in values.items()
         }
 
         print(
-            f"{cfg.method} time: {format_time(time)}, rmse: {means['rmse']:.2f}, "
+            f"{cfg.method} time: {format_time(time)}, mse: {means['mse']:.2f}, "
             f"mlpd: {means['mlpd']:.2f}, cov50: {means['coverage_50']:.2f}"
         )
 
@@ -465,7 +462,7 @@ def run_master(cfg: Config) -> dict[str, dict[str, list[int | float]]]:
                 continue
             print(
                 f"{method:12s}: time = {format_time(result['time'][-1]):>7s}, "
-                f"rmse = {result['rmse'][-1]:.2f}, "
+                f"mse = {result['mse'][-1]:.2f}, "
                 f"mlpd = {result['mlpd'][-1]:.2f}, "
                 f"cov50 = {result['coverage_50'][-1]:.2f}"
             )

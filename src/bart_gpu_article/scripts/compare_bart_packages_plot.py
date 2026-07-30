@@ -93,30 +93,30 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
     cycler = get_cycler()
 
     for ax, (keys, group) in zip(axs, groups):
-        # plot rmse curves
+        # plot mse curves
         ax.set_prop_cycle(cycler)
         for (package,), data in group.group_by(["package"], maintain_order=True):
-            ax.plot(data["n"], data["rmse"], markerfacecolor="none", label=package)
+            ax.plot(data["n"], data["mse"], markerfacecolor="none", label=package)
 
-        # prepare data to plot standard deviation references
-        sdev_labels = {
-            "eps_var": "error sdev",
-            "pop_var": "population sdev",
-            "prior_var": "prior sdev",
+        # prepare data to plot variance references
+        var_labels = {
+            "eps_var": "error var",
+            "pop_var": "population var",
+            "prior_var": "prior var",
         }
-        vd_check = group.group_by("n").agg(pl.col(*sdev_labels).n_unique())
+        vd_check = group.group_by("n").agg(pl.col(*var_labels).n_unique())
         assert vd_check.drop("n").select(pl.all_horizontal(pl.all() == 1).all()).item()
         vd = (
             group.group_by("n")
             .agg(
-                pl.col(*sdev_labels).first().sqrt(),
+                pl.col(*var_labels).first(),
             )
             .sort("n")
         )
 
-        # plot standard deviation references
+        # plot variance references
         error_lines = []
-        for key, label in sdev_labels.items():
+        for key, label in var_labels.items():
             (line,) = ax.plot(vd["n"], vd[key], "--k", label=label)
             error_lines.append(line)
 
@@ -128,10 +128,10 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
             10 ** math.ceil(math.log10(ref_n.max())),
         )
 
-        # add labels on top of standard deviation lines
+        # add labels on top of variance lines
         labelLines(
             error_lines,
-            xvals=[20, 2000, 300],
+            xvals=[1000, 2000, 300],
             drop_label=True,
             outline_width=6,
             align=False,
@@ -160,12 +160,12 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
         if ss.is_last_row():
             ax.set_xlabel("n")
         if ss.is_first_col():
-            ax.set_ylabel("RMSE")
+            ax.set_ylabel("MSE")
         ax.grid(linestyle="--")
         ax.grid(which="minor", linestyle=":")
 
     # if single_figure:
-    #     axs[0].set_ylim(0.95, 1.95)
+    #     axs[0].set_ylim(0.95**2, 1.95**2)
 
     return figs
 

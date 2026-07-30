@@ -613,7 +613,7 @@ again: these figures do not include predictor quantization.)
 		Keep into account that gradient boosting requires only one iteration to
 		produce a usable result, while BART requires $O(1000)$ iterations.
 		%
-		\textbf{Right panel:} Test set root mean square error (RMSE) vs.\
+		\textbf{Right panel:} Test set mean square error (MSE) vs.\
 		training set size, comparing \texttt{bartz} with the most popular
 		implementations of BART, to check they yield the same accuracy. The test
 		set size is always 1000.}
@@ -627,7 +627,7 @@ not include a thorough assessment of the predictive performance of BART
 that our implementation is correct, we compare the out-of-sample prediction
 error between our package \texttt{bartz} and the 3 most popular BART
 implementations. The result at ``low-low'' settings is in \autoref{fig:single}
-(complete results in \autoref{fig:rmse-all} in the appendix); the RMSEs shake
+(complete results in \autoref{fig:rmse-all} in the appendix); the MSEs shake
 out similar to each other as expected.
 
 \section{Conclusions}
@@ -817,7 +817,7 @@ the implementation.
 \section{Complete results of performance measurements, and further considerations}
 \label{sec:gpumem}
 
-The speed benchmarks and out-of-sample RMSE tests for all combinations of
+The speed benchmarks and out-of-sample MSE tests for all combinations of
 $p$-$n_\text{tree}$ settings are in Figures~\ref{fig:time-all} and~\ref{fig:rmse-all}.
 
 \begin{figure}
@@ -848,7 +848,7 @@ most about 20x rather than the asymptotic 100x.
 \begin{figure}
 	\centering
 	\widecenter{\includempl{rmse-all}}
-	\caption{\label{fig:rmse-all} Test set root mean square error (RMSE) vs.\
+	\caption{\label{fig:rmse-all} Test set mean square error (MSE) vs.\
 		training set size, comparing \texttt{bartz} with the most popular
 		implementations of BART, to check they yield the same predictive
 		performance, for various settings of number of trees and number of
@@ -866,11 +866,11 @@ parameters will in general increase with $p$ and $n$, and 3) the trees ought to
 remain shallow, then: the number of trees should increase up to linearly with
 $\max(n, p)$.
 
-We look at our RMSE measurements to get some empirical evidence that increasing
+We look at our MSE measurements to get some empirical evidence that increasing
 the number of trees is useful. Consider the left column of panels in
 \autoref{fig:rmse-all}. They both have a ``high'' $p$ setting ($n = 20p$),
 while differring in the number of trees. In the bottom panel, at fixed
-$n_\text{tree}=200$, the RMSE increases faster with $n$, reaching at some point
+$n_\text{tree}=200$, the MSE increases faster with $n$, reaching at some point
 the population variance, indicating useless predictions.
 
 Nobody, that we know of, ever explored the effect of increasing the number of
