@@ -18,6 +18,7 @@ from bart_gpu_article.scripts.explore_datasets import (
 
 SELECTED_DATASETS = (
     "Higgs",
+    "Radar-Traffic-Data",
     "delays_zurich_transport",
     "poker",
 )
@@ -73,8 +74,11 @@ def main(argv: Sequence[str] = sys.argv[1:]) -> None:
                 f"expected exactly one entry for {name!r}, found {matches.height}"
             )
         meta = matches.row(0, named=True)
-        _, data = process_dataset(meta)
         target = args.data_dir / f"dataset-{name}"
+        if target.exists() and not args.overwrite:
+            print(f"skip {target}, already exists (use --overwrite to redo)...")
+            continue
+        _, data = process_dataset(meta)
         print(f"save to {target}...")
         simdata = to_sim_data(data.X, data.y)
         save_data(simdata, target, overwrite=args.overwrite)

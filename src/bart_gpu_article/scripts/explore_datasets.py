@@ -241,6 +241,73 @@ def custom_preprocessing(data: Data) -> Data:
             # everything already ok
             pass
 
+        case "Radar-Traffic-Data":
+            # The original Austin data is one row per lane, but the Kaggle
+            # repackaging on OpenML dropped the lane column, leaving
+            # duplicated predictors with different targets: aggregate to the
+            # total volume per (location, timestamp, direction). Discard the
+            # ~0.5% of groups whose lane count differs from the mode of
+            # their (location, direction), because their sums are corrupted
+            # by detector dropouts or duplicated records. Use the
+            # coordinates to identify locations: `location_name` has
+            # whitespace-variant duplicates.
+            loc_dir = ["location_latitude", "location_longitude", "Direction"]
+            df = (
+                X.with_columns(y)
+                .group_by(*loc_dir, "Year", "Month", "Day", "Hour", "Minute")
+                .agg(
+                    pl.len().alias("n_lanes"),
+                    pl.col("Volume").cast(pl.Int64).sum(),
+                )
+            )
+            modal = df.group_by(loc_dir).agg(
+                pl.col("n_lanes").mode().min().alias("modal_lanes")
+            )
+            df = (
+                df.join(modal, on=loc_dir)
+                .filter(pl.col("n_lanes") == pl.col("modal_lanes"))
+                .drop("n_lanes", "modal_lanes")
+            )
+
+            # Temporal features: an absolute timestamp to allow a pure trend
+            # term, plus sin/cos encodings of the year, week, and day
+            # periods, all computed from the full-resolution timestamp
+            # rather than from coarser summaries of it.
+            ts = pl.datetime("Year", "Month", "Day", "Hour", "Minute")
+            # cast: Hour is u8 and would overflow in Hour * 60
+            day_frac = (pl.col("Hour").cast(pl.Int32) * 60 + pl.col("Minute")) / (
+                24 * 60
+            )
+            df = (
+                df.with_columns(
+                    (ts.dt.epoch("s") / 86_400).alias("timestamp"),
+                    ((ts.dt.ordinal_day() - 1 + day_frac) / 365).alias(
+                        "time_of_year"
+                    ),
+                    ((ts.dt.weekday() - 1 + day_frac) / 7).alias("time_of_week"),
+                    day_frac.alias("time_of_day"),
+                )
+                .with_columns(
+                    *to_sin_cos(pl.col("time_of_year"), 1),
+                    *to_sin_cos(pl.col("time_of_week"), 1),
+                    *to_sin_cos(pl.col("time_of_day"), 1),
+                )
+                .drop(
+                    "Year",
+                    "Month",
+                    "Day",
+                    "Hour",
+                    "Minute",
+                    "time_of_year",
+                    "time_of_week",
+                    "time_of_day",
+                )
+                .sort("timestamp", *loc_dir)
+                .to_dummies(["Direction"])
+            )
+            y = df["Volume"]
+            X = df.drop("Volume")
+
         case _:
             print(f"==== No custom pre-processing defined for {dataset.name} ====")
 
