@@ -1,4 +1,4 @@
-"""Plot results saved by `test-rmse` script."""
+"""Plot results saved by `compare-bart-packages` script."""
 
 import json
 import math
@@ -14,10 +14,10 @@ from matplotlib import pyplot as plt
 
 
 def load_results() -> list[dict]:
-    """Load results saved by `test-rmse`."""
+    """Load results saved by `compare-bart-packages`."""
     results_dir = Path("./results")
     all_results = []
-    for file in sorted(results_dir.glob("rmse*.json")):
+    for file in sorted(results_dir.glob("compare-bart-packages*.json")):
         with open(file) as f:
             data = json.load(f)
             all_results.extend(data)
@@ -68,7 +68,7 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
             2,
             2,
             figsize=[8.5, 8.5],
-            num="test-rmse-plot",
+            num="compare-bart-packages-plot",
             clear=True,
             layout="constrained",
             sharex=True,
@@ -82,7 +82,7 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
         for i in range(len(groups)):
             fig, ax = plt.subplots(
                 figsize=[4.5, 3.5],
-                num=f"test-rmse-plot-{i}",
+                num=f"compare-bart-packages-plot-{i}",
                 clear=True,
                 layout="constrained",
             )

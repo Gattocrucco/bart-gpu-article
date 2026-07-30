@@ -13,7 +13,7 @@ help:
 	@echo setup
 	@echo benchmark-cpu
 	@echo benchmark-gpu
-	@echo test-rmse
+	@echo compare-bart-packages
 	@echo fullbench-cpu
 	@echo fullbench-gpu
 
@@ -41,12 +41,12 @@ benchmark-gpu:
 	$(MAKE) benchmark-matrix ARGS='-d gpu -m xgboost'
 	$(MAKE) benchmark-matrix ARGS='-d gpu -m catboost'
 
-.PHONY: test-rmse
-test-rmse:
-	$(UV_RUN) test-rmse
-	$(UV_RUN) test-rmse -t
-	$(UV_RUN) test-rmse -p
-	$(UV_RUN) test-rmse -t -p
+.PHONY: compare-bart-packages
+compare-bart-packages:
+	$(UV_RUN) compare-bart-packages
+	$(UV_RUN) compare-bart-packages -t
+	$(UV_RUN) compare-bart-packages -p
+	$(UV_RUN) compare-bart-packages -t -p
 
 .PHONY: fullbench-cpu
 fullbench-cpu:
@@ -62,7 +62,7 @@ fullbench-gpu:
 
 .PHONY: copy-plots
 copy-plots:
-	cp plots/test-rmse-plot.pdf article/rmse-all.pdf
-	cp plots/test-rmse-plot-1.pdf article/rmse-single.pdf
+	cp plots/compare-bart-packages-plot.pdf article/rmse-all.pdf
+	cp plots/compare-bart-packages-plot-1.pdf article/rmse-single.pdf
 	cp plots/benchmark-plot.pdf article/time-all.pdf
 	cp plots/benchmark-plot-1.pdf article/time-single.pdf

@@ -504,7 +504,7 @@ def save_results(results: dict[str, dict[str, list]], cfg: Config):
         suffix += "-highp"
 
     # save list as json file
-    output_path = results_dir / f"rmse{suffix}.json"
+    output_path = results_dir / f"compare-bart-packages{suffix}.json"
     print(f"write {output_path}...")
     with open(output_path, "w") as f:
         json.dump(output_list, f, indent=4)

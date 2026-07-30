@@ -20,7 +20,7 @@ Other things can be run on any computer with at least 16 GB or RAM.
 
 ## R setup
 
-R is needed only to run benchmarks involving R packages, and in particular java is needed only for `bartMachine`, which is used only in the `test-rmse` command.
+R is needed only to run benchmarks involving R packages, and in particular java is needed only for `bartMachine`, which is used only in the `compare-bart-packages` command.
 
 Install:
 
@@ -63,8 +63,8 @@ The commands are available through `uv run`, all commands have command line opti
 ```sh
 uv run benchmark       # clock a few iterations of bartz/dbarts/xgboost/catboost
 uv run benchmark-plot  # plot the results of the above
-uv run test-rmse       # compare the RMSE of BART packages (~2 hours)
-uv run test-rmse-plot  # plot the results of the above
+uv run compare-bart-packages       # compare the RMSE of BART packages (~2 hours)
+uv run compare-bart-packages-plot  # plot the results of the above
 ```
 
 The plotting commands require results to be present for various combinations of options of the results-producing commands. For convenience, these `make` targets will run the commands for all configurations:
@@ -72,7 +72,7 @@ The plotting commands require results to be present for various combinations of 
 ```sh
 make benchmark-cpu  # repeat cpu benchmark for all configurations, ~2 hours
 make benchmark-gpu  # repeat gpu benchmark for all configurations, ~2 hours
-make test-rmse      # repeat bart packages comparison for all configurations, ~2 hours
+make compare-bart-packages  # repeat bart packages comparison for all configurations, ~2 hours
 ```
 
 Of these, only `make benchmark-gpu` requires a GPU.
