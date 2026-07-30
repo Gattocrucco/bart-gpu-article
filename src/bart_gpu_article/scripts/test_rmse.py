@@ -11,7 +11,7 @@ from subprocess import PIPE, TimeoutExpired, run
 from sys import argv, executable, stderr
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any
+from typing import Any, TypedDict, cast
 
 import bartz
 import numpy as np
@@ -22,6 +22,8 @@ from jax import block_until_ready, random
 from jaxtyping import Array, Float32, Float64, Key
 from rbartpackages import BART3, dbarts
 from rpy2 import robjects
+from scipy.special import logsumexp, ndtr
+from scipy.stats import norm
 from wurlitzer import pipes
 
 from bart_gpu_article.datasim import Data, make_data
@@ -59,18 +61,20 @@ def make_split_data(
     key: Key[Array, ""], n_train: int, n_test: int, p: int
 ) -> tuple[Data, Data]:
     """Generate training and test data."""
-    data = make_data(key, n_train + n_test, p, quantized_x=False)
+    data = make_data(key, n_train + n_test, p, quantized_x=False, keep_mu=True)
     train = replace(
         data,
         raw_X=data.raw_X[:, :n_train],
         quantized_X=None,
         y=data.y[:n_train],
+        mu=data.mu[:n_train],
     )
     test = replace(
         data,
         raw_X=data.raw_X[:, n_train:],
         quantized_X=None,
         y=data.y[n_train:],
+        mu=data.mu[n_train:],
     )
     return train, test
 
@@ -92,17 +96,16 @@ def get_bartz_kwargs(ntree: int, test: Data) -> Mapping[str, Any]:
 
 def run_bartz(
     key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
-) -> Float32[Array, "n_test"]:
+) -> tuple[Float32[Array, "ndpost n_test"], Float32[Array, " ndpost"]]:
     kw_bartz = dict(kwargs)
     kw_bartz.update(x_test=kwargs["x_test"].T)
     bart = bartz.BART.gbart(train.raw_X.T, train.y, **kw_bartz, seed=key)
-    pred = bart.yhat_test_mean
-    return pred.block_until_ready()
+    return block_until_ready((bart.yhat_test, bart.sigma_))
 
 
 def run_BART3(
     key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
-) -> Float64[np.ndarray, "n_test"]:
+) -> tuple[Float64[np.ndarray, "ndpost n_test"], Float64[np.ndarray, " ndpost"]]:
     kw_BART = dict(kwargs)
     kw_BART.update(
         x_test=kwargs["x_test"].T,
@@ -111,12 +114,12 @@ def run_BART3(
         seed=make_int_seed(key),
     )
     bart = BART3.mc_gbart(train.raw_X.T, train.y, **kw_BART)
-    return bart.yhat_test_mean
+    return bart.yhat_test, bart.sigma_
 
 
 def run_dbarts(
     key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
-) -> Float64[np.ndarray, "n_test"]:
+) -> tuple[Float64[np.ndarray, "ndpost n_test"], Float64[np.ndarray, " ndpost"]]:
     kw_dbarts = dict(kwargs)
     kw_dbarts.update(
         x_test=kwargs["x_test"].T,
@@ -125,12 +128,12 @@ def run_dbarts(
         keeptrees=False,
     )
     bart = dbarts.bart(train.raw_X.T, train.y, **kw_dbarts)
-    return bart.yhat_test_mean
+    return bart.yhat_test, bart.sigma
 
 
 def run_bartMachine(
     key: Key[Array, ""], train: Data, kwargs: Mapping[str, Any]
-) -> Float64[np.ndarray, "n_test"]:
+) -> tuple[Float64[np.ndarray, "ndpost n_test"], Float64[np.ndarray, " ndpost"]]:
     # importing the wrapper loads bartMachine's R namespace, which starts the
     # JVM, and the JVM reads its options only at startup, so set them first.
     # rbartpackages would default the heap limit to 5 GB, too little at large n.
@@ -156,7 +159,11 @@ def run_bartMachine(
         pl.Series(np.array(train.y)),
         **kw_bartMachine,
     )
-    return bart.predict(pl.DataFrame(np.array(kwargs["x_test"].T)))
+    post = bartMachine.bart_machine_get_posterior(
+        bart, pl.DataFrame(np.array(kwargs["x_test"].T)), verbose=False
+    )
+    sigsq = bartMachine.get_sigsqs(bart, verbose=False)
+    return post["y_hat_posterior_samples"].T, np.sqrt(sigsq)
 
 
 RUNNERS: Mapping[str, Callable] = MappingProxyType(
@@ -167,6 +174,129 @@ RUNNERS: Mapping[str, Callable] = MappingProxyType(
         bartMachine=run_bartMachine,
     )
 )
+
+
+def mixture_quantiles(
+    f_draws: Float64[np.ndarray, "ndpost n_test"],
+    sigma: Float64[np.ndarray, " ndpost"],
+    probs: Sequence[float],
+) -> Float64[np.ndarray, "probs n_test"]:
+    """Quantiles of Gaussian mixtures with means `f_draws` and sdevs `sigma`.
+
+    The mixture for test point i has equally weighted components
+    N(f_draws[j, i], sigma[j]^2), i.e., it is the posterior predictive
+    distribution of y_i. The quantiles are found by bisecting the CDF.
+    """
+    probs_arr = np.asarray(probs)[:, None]
+    shape = (len(probs), f_draws.shape[1])
+    lo = np.full(shape, f_draws.min() - 10 * sigma.max())
+    hi = np.full(shape, f_draws.max() + 10 * sigma.max())
+    for _ in range(30):
+        mid = (lo + hi) / 2
+        cdf = ndtr((mid[:, None, :] - f_draws) / sigma[:, None]).mean(axis=1)
+        lo = np.where(cdf < probs_arr, mid, lo)
+        hi = np.where(cdf < probs_arr, hi, mid)
+    return (lo + hi) / 2
+
+
+class PredStats(TypedDict):
+    """Prediction quality statistics computed from posterior draws.
+
+    All intervals are centered interquantile credible intervals: for y (the
+    posterior predictive distribution, evaluated against the observed test
+    outcomes) in the plain fields, and for the latent mean function (evaluated
+    against its true value) in the `*_truth` variants.
+    """
+
+    mse: float
+    """Mean squared error of the posterior mean w.r.t. the observed outcomes."""
+
+    mse_truth: float
+    """Mean squared error of the posterior mean w.r.t. the true latent mean."""
+
+    coverage_50: float
+    """Fraction of observed outcomes within the 50% interval for y."""
+
+    width_50: float
+    """Average width of the 50% interval for y."""
+
+    coverage_truth_50: float
+    """Fraction of true latent mean values within the 50% interval for the mean."""
+
+    width_truth_50: float
+    """Average width of the 50% interval for the latent mean."""
+
+    coverage_90: float
+    """Fraction of observed outcomes within the 90% interval for y."""
+
+    width_90: float
+    """Average width of the 90% interval for y."""
+
+    coverage_truth_90: float
+    """Fraction of true latent mean values within the 90% interval for the mean."""
+
+    width_truth_90: float
+    """Average width of the 90% interval for the latent mean."""
+
+    mlpd: float
+    """Mean over test points of the log posterior predictive density of y."""
+
+    sigma_mean: float
+    """Posterior mean of the error standard deviation."""
+
+
+def compute_pred_stats(
+    f_draws: Float64[np.ndarray, "ndpost n_test"] | Float32[Array, "ndpost n_test"],
+    sigma_draws: Float64[np.ndarray, " ndpost"] | Float32[Array, " ndpost"],
+    test: Data,
+) -> PredStats:
+    """Compute prediction quality statistics from posterior draws.
+
+    Parameters
+    ----------
+    f_draws
+        Posterior draws of the latent mean function at the test points.
+    sigma_draws
+        Posterior draws of the error sdev, paired with the rows of `f_draws`.
+    test
+        The test data.
+
+    Returns
+    -------
+    A `PredStats` dictionary of statistics.
+    """
+    f_draws = np.asarray(f_draws, dtype=np.float64)
+    sigma = np.asarray(sigma_draws, dtype=np.float64)
+    y = np.asarray(test.y, dtype=np.float64)
+    mu = np.asarray(test.mu, dtype=np.float64)
+    ndpost, n_test = f_draws.shape
+    assert sigma.shape == (ndpost,)
+    assert y.shape == mu.shape == (n_test,)
+
+    stats: dict[str, float] = {}
+
+    yhat = f_draws.mean(axis=0)
+    stats["mse"] = np.mean(np.square(yhat - y)).item()
+    stats["mse_truth"] = np.mean(np.square(yhat - mu)).item()
+
+    # interquantile credible intervals for y and for the latent mean
+    for coverage in (0.50, 0.90):
+        probs = ((1 - coverage) / 2, (1 + coverage) / 2)
+        level = round(100 * coverage)
+        for suffix, (lo, hi), target in [
+            ("", mixture_quantiles(f_draws, sigma, probs), y),
+            ("_truth", np.quantile(f_draws, probs, axis=0), mu),
+        ]:
+            covered = (lo <= target) & (target <= hi)
+            stats[f"coverage{suffix}_{level}"] = np.mean(covered).item()
+            stats[f"width{suffix}_{level}"] = np.mean(hi - lo).item()
+
+    # mean log predictive density: mean_i log(mean_j N(y_i | f_ij, sigma_j^2))
+    log_pdf = norm.logpdf(y, loc=f_draws, scale=sigma[:, None])
+    stats["mlpd"] = np.mean(logsumexp(log_pdf, axis=0) - np.log(ndpost)).item()
+
+    stats["sigma_mean"] = sigma.mean().item()
+    return cast(PredStats, stats)
 
 
 def run_slave(cfg: Config) -> None:
@@ -188,7 +318,7 @@ def run_slave(cfg: Config) -> None:
         print(f"run {cfg.method} {num} times...")
 
         times = []
-        mses = []
+        stats_list = []
         for i in range(num):
             print("generate data...")
             train, test = make_split_data(keys.pop(), n, cfg.n_test, p)
@@ -197,30 +327,50 @@ def run_slave(cfg: Config) -> None:
 
             print(f"run {cfg.method} ({i + 1}/{num})...")
             with Timer() as timer:
-                yhat_test_mean = runner(keys.pop(), train, bartz_kwargs)
+                f_draws, sigma_draws = runner(keys.pop(), train, bartz_kwargs)
 
-            # compute mse and store results
-            mse = np.mean(np.square(yhat_test_mean - test.y)).item()
+            # compute prediction stats and store results
             times.append(timer.time)
-            mses.append(mse)
+            stats_list.append(compute_pred_stats(f_draws, sigma_draws, test))
+            del f_draws, sigma_draws
 
             # free memory
             collect()
             robjects.r("gc()")
 
         time = np.mean(times).item()
-        rmse = np.sqrt(np.mean(mses)).item()
-        print(f"{cfg.method} time: {format_time(time)}, rmse: {rmse:.2f}")
+
+        # per-repetition values of each statistic, with rmses in place of mses
+        values = {k: np.asarray([s[k] for s in stats_list]) for k in stats_list[0]}
+        values["rmse"] = np.sqrt(values.pop("mse"))
+        values["rmse_truth"] = np.sqrt(values.pop("mse_truth"))
+
+        # means over the repetitions (pooling the rmse on the mse scale), and
+        # sdevs across repetitions for error estimation (null if num == 1)
+        means = {k: np.mean(v).item() for k, v in values.items()}
+        means["rmse"] = np.sqrt(np.mean(np.square(values["rmse"]))).item()
+        means["rmse_truth"] = np.sqrt(np.mean(np.square(values["rmse_truth"]))).item()
+        sdevs = {
+            f"{k}_sdev": np.std(v, ddof=1).item() if num > 1 else None
+            for k, v in values.items()
+        }
+
+        print(
+            f"{cfg.method} time: {format_time(time)}, rmse: {means['rmse']:.2f}, "
+            f"mlpd: {means['mlpd']:.2f}, cov50: {means['coverage_50']:.2f}"
+        )
 
         output = dict(
             n=n,
             p=p,
             ntree=ntree,
+            num_reps=num,
             prior_var=train.prior_var.item(),
             pop_var=train.pop_var.item(),
             eps_var=train.eps_var.item(),
             time=timer.time,
-            rmse=rmse,
+            **means,
+            **sdevs,
         )
 
     # print output as a json
@@ -315,7 +465,9 @@ def run_master(cfg: Config) -> dict[str, dict[str, list[int | float]]]:
                 continue
             print(
                 f"{method:12s}: time = {format_time(result['time'][-1]):>7s}, "
-                f"rmse = {result['rmse'][-1]:.2f}"
+                f"rmse = {result['rmse'][-1]:.2f}, "
+                f"mlpd = {result['mlpd'][-1]:.2f}, "
+                f"cov50 = {result['coverage_50'][-1]:.2f}"
             )
         print()
 
