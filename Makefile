@@ -62,7 +62,7 @@ fullbench-gpu:
 
 .PHONY: copy-plots
 copy-plots:
-	cp plots/compare-bart-packages-plot.pdf article/rmse-all.pdf
-	cp plots/compare-bart-packages-plot-1.pdf article/rmse-single.pdf
+	cp plots/compare-bart-packages-plot-mse.pdf article/rmse-all.pdf
+	cp plots/compare-bart-packages-plot-mse-1.pdf article/rmse-single.pdf
 	cp plots/benchmark-plot.pdf article/time-all.pdf
 	cp plots/benchmark-plot-1.pdf article/time-single.pdf

@@ -55,34 +55,34 @@ def results_to_df(results: list[dict]) -> pl.DataFrame:
     return df
 
 
-def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
+def make_figures(
+    num_groups: int, single_figure: bool, column: str
+) -> tuple[list[plt.Figure], list[plt.Axes]]:
+    """Create the figures and axes for the plotting functions."""
     # reset matplotlib
     plt.close("all")
     plt.rcdefaults()
-
-    keynames = ["n/ntree", "ntree", "n/p", "p"]
-    groups = list(df.group_by(keynames, maintain_order=True))
 
     if single_figure:
         fig, axs = plt.subplots(
             2,
             2,
             figsize=[8.5, 8.5],
-            num="compare-bart-packages-plot",
+            num=f"compare-bart-packages-plot-{column}",
             clear=True,
             layout="constrained",
             sharex=True,
             sharey=True,
         )
-        axs = axs.flat
+        axs = list(axs.flat)
         figs = [fig]
     else:
         axs = []
         figs = []
-        for i in range(len(groups)):
+        for i in range(num_groups):
             fig, ax = plt.subplots(
                 figsize=[4.5, 3.5],
-                num=f"compare-bart-packages-plot-{i}",
+                num=f"compare-bart-packages-plot-{column}-{i}",
                 clear=True,
                 layout="constrained",
             )
@@ -90,13 +90,31 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
             figs.append(fig)
     axs[1], axs[3] = axs[3], axs[1]
 
-    cycler = get_cycler()
+    return figs, axs
 
-    for ax, (keys, group) in zip(axs, groups):
+
+def make_groups(df: pl.DataFrame) -> dict[tuple, pl.DataFrame]:
+    """Split the dataframe by configuration, keyed by (name, value) pairs."""
+    keynames = ["n/ntree", "ntree", "n/p", "p"]
+    return {
+        tuple(zip(keynames, keys)): group
+        for keys, group in df.group_by(keynames, maintain_order=True)
+    }
+
+
+def plot_mse(
+    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str
+) -> list[plt.Figure]:
+    figs, axs = make_figures(len(groups), single_figure, column)
+
+    cycler = get_cycler()
+    all_n = pl.concat(list(groups.values()))["n"]
+
+    for ax, (keys, group) in zip(axs, groups.items()):
         # plot mse curves
         ax.set_prop_cycle(cycler)
         for (package,), data in group.group_by(["package"], maintain_order=True):
-            ax.plot(data["n"], data["mse"], markerfacecolor="none", label=package)
+            ax.plot(data["n"], data[column], markerfacecolor="none", label=package)
 
         # prepare data to plot variance references
         var_labels = {
@@ -122,7 +140,7 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
 
         # set plot properties that better be set before plotting labels
         ax.set_xscale("log")
-        ref_n = df["n"] if single_figure else vd["n"]
+        ref_n = all_n if single_figure else vd["n"]
         ax.set_xlim(
             10 ** math.floor(math.log10(ref_n.min())),
             10 ** math.ceil(math.log10(ref_n.max())),
@@ -140,9 +158,7 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
         # add legend; possibly abuse the legend as generic box with text
         ss = ax.get_subplotspec()
         legend_title = "\n".join(
-            f"{name}={value}"
-            for name, value in zip(keynames, keys)
-            if value is not None
+            f"{name}={value}" for name, value in keys if value is not None
         )
         legend_kw = dict(
             title=legend_title,
@@ -170,6 +186,89 @@ def plot(df: pl.DataFrame, single_figure: bool) -> list[plt.Figure]:
     return figs
 
 
+def plot_generic(
+    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str
+) -> list[plt.Figure]:
+    figs, axs = make_figures(len(groups), single_figure, column)
+
+    cycler = get_cycler()
+    all_n = pl.concat(list(groups.values()))["n"]
+
+    for ax, (keys, group) in zip(axs, groups.items()):
+        # plot curves
+        ax.set_prop_cycle(cycler)
+        for (package,), data in group.group_by(["package"], maintain_order=True):
+            ax.plot(data["n"], data[column], markerfacecolor="none", label=package)
+
+        # set log scale on n
+        ax.set_xscale("log")
+        ref_n = all_n if single_figure else group["n"]
+        ax.set_xlim(
+            10 ** math.floor(math.log10(ref_n.min())),
+            10 ** math.ceil(math.log10(ref_n.max())),
+        )
+
+        # add legend; possibly abuse the legend as generic box with text
+        ss = ax.get_subplotspec()
+        legend_title = "\n".join(
+            f"{name}={value}" for name, value in keys if value is not None
+        )
+        legend_kw = dict(
+            title=legend_title,
+        )
+        if single_figure:
+            legend_kw.update(loc="upper right")
+            if ss.is_first_row() and ss.is_first_col():
+                ax.legend(**legend_kw)
+            else:
+                ax.legend([], [], **legend_kw)
+        else:
+            ax.legend(loc="best", **legend_kw)
+
+        # add plot decorations
+        if ss.is_last_row():
+            ax.set_xlabel("n")
+        if ss.is_first_col():
+            ax.set_ylabel(column)
+        ax.grid(linestyle="--")
+        ax.grid(which="minor", linestyle=":")
+
+    return figs
+
+
+def plot_coverage(
+    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str
+) -> list[plt.Figure]:
+    figs = plot_generic(groups, single_figure, column)
+
+    level = int(column.rsplit("_", 1)[-1]) / 100
+    target = "latent mean" if "truth" in column else "data"
+    for fig in figs:
+        for ax in fig.axes:
+            # draw the target line over the full x range and label it at low n
+            xlim = ax.get_xlim()
+            (line,) = ax.plot(xlim, [level, level], "--k", label=f"{level:.0%}")
+            ax.set_xlim(xlim)
+            ax.set_ylim(0, 1)
+            xval = 10 ** (0.9 * math.log10(xlim[0]) + 0.1 * math.log10(xlim[1]))
+            labelLines(
+                [line], xvals=[xval], drop_label=True, outline_width=6, align=False
+            )
+            if ax.get_ylabel():
+                ax.set_ylabel(f"coverage of {level:.0%} intervals on {target}")
+
+    return figs
+
+
+PLOT_FUNCTIONS = {
+    "mse": plot_mse,
+    "coverage_50": plot_coverage,
+    "coverage_90": plot_coverage,
+    "coverage_truth_50": plot_coverage,
+    "coverage_truth_90": plot_coverage,
+}
+
+
 def save_figures(figs: list[plt.Figure]) -> None:
     outdir = Path("./plots")
     outdir.mkdir(exist_ok=True)
@@ -192,6 +291,12 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         dest="single_figure",
         help="combine all plots into a single figure",
     )
+    parser.add_argument(
+        "-w",
+        "--what",
+        default="mse",
+        help="the results column to plot",
+    )
     return parser.parse_args(argv)
 
 
@@ -200,7 +305,9 @@ def main(argv: Sequence[str] = argv[1:]) -> None:
     args = parse_args(argv)
     results = load_results()
     df = results_to_df(results)
-    figs = plot(df, args.single_figure)
+    groups = make_groups(df)
+    plot = PLOT_FUNCTIONS.get(args.what, plot_generic)
+    figs = plot(groups, args.single_figure, args.what)
     save_figures(figs)
     plt.show()
 
