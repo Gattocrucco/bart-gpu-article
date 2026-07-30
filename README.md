@@ -63,7 +63,7 @@ The commands are available through `uv run`, all commands have command line opti
 ```sh
 uv run benchmark       # clock a few iterations of bartz/dbarts/xgboost/catboost
 uv run benchmark-plot  # plot the results of the above
-uv run compare-bart-packages       # compare the RMSE of BART packages (~2 hours)
+uv run compare-bart-packages       # compare the RMSE of BART packages (~30 min)
 uv run compare-bart-packages-plot  # plot the results of the above
 ```
 
