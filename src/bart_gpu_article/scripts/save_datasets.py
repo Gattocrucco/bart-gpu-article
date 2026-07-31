@@ -17,10 +17,12 @@ from bart_gpu_article.scripts.explore_datasets import (
 )
 
 SELECTED_DATASETS = (
+    "Australian-Electricity-Demand",
     "Higgs",
     "Radar-Traffic-Data",
     "delays_zurich_transport",
     "poker",
+    "sf-police-incidents",
 )
 
 

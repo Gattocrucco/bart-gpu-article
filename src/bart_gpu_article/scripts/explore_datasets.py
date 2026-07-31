@@ -130,6 +130,30 @@ def to_sin_cos(expr: pl.Expr, period: Number | pl.Expr) -> tuple[pl.Expr, pl.Exp
     return t.sin().name.suffix("_sin"), t.cos().name.suffix("_cos")
 
 
+def temporal_encoding(ts: pl.Expr) -> tuple[pl.Expr, ...]:
+    """Encode a datetime into a trend term plus periodic terms.
+
+    Args:
+        ts: a datetime expression.
+
+    Return:
+        Seven expressions: an absolute timestamp in days (``timestamp``), and
+        sin/cos encodings of the year, week, and day periods
+        (``time_of_{year,week,day}_{sin,cos}``).
+    """
+    # cast: hour() is i8 and would overflow in hour * 60
+    day_frac = (ts.dt.hour().cast(pl.Int32) * 60 + ts.dt.minute()) / (24 * 60)
+    time_of_year = ((ts.dt.ordinal_day() - 1 + day_frac) / 365).alias("time_of_year")
+    time_of_week = ((ts.dt.weekday() - 1 + day_frac) / 7).alias("time_of_week")
+    time_of_day = day_frac.alias("time_of_day")
+    return (
+        (ts.dt.epoch("s") / 86_400).alias("timestamp"),
+        *to_sin_cos(time_of_year, 1),
+        *to_sin_cos(time_of_week, 1),
+        *to_sin_cos(time_of_day, 1),
+    )
+
+
 def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     datasets = read_datasets_list()
     datasets, interactive = parse_argv_and_filter_datasets(argv, datasets)
@@ -225,6 +249,20 @@ def custom_preprocessing(data: Data) -> Data:
                 "Quarter",  # already converted to periodic form
             )
 
+        case "Australian-Electricity-Demand":
+            # `id_series` (T1-T5) and `covariate_0` (the state) are two
+            # labels for the same 5 series: keep only the state.
+            # `time_step` is a per-series sample counter, redundant with
+            # `date`.
+            assert (
+                X.select(pl.struct("id_series", "covariate_0").n_unique()).item()
+                == 5
+            )
+            ts = pl.col("date").str.to_datetime("%Y-%m-%d %H:%M:%S")
+            X = X.select("covariate_0", *temporal_encoding(ts)).to_dummies(
+                ["covariate_0"]
+            )
+
         case "Covid19-us":
             X = X.drop(
                 "value_1",  # deaths
@@ -274,40 +312,52 @@ def custom_preprocessing(data: Data) -> Data:
             # periods, all computed from the full-resolution timestamp
             # rather than from coarser summaries of it.
             ts = pl.datetime("Year", "Month", "Day", "Hour", "Minute")
-            # cast: Hour is u8 and would overflow in Hour * 60
-            day_frac = (pl.col("Hour").cast(pl.Int32) * 60 + pl.col("Minute")) / (
-                24 * 60
-            )
             df = (
-                df.with_columns(
-                    (ts.dt.epoch("s") / 86_400).alias("timestamp"),
-                    ((ts.dt.ordinal_day() - 1 + day_frac) / 365).alias(
-                        "time_of_year"
-                    ),
-                    ((ts.dt.weekday() - 1 + day_frac) / 7).alias("time_of_week"),
-                    day_frac.alias("time_of_day"),
-                )
-                .with_columns(
-                    *to_sin_cos(pl.col("time_of_year"), 1),
-                    *to_sin_cos(pl.col("time_of_week"), 1),
-                    *to_sin_cos(pl.col("time_of_day"), 1),
-                )
-                .drop(
-                    "Year",
-                    "Month",
-                    "Day",
-                    "Hour",
-                    "Minute",
-                    "time_of_year",
-                    "time_of_week",
-                    "time_of_day",
-                )
+                df.select(*loc_dir, "Volume", *temporal_encoding(ts))
                 .sort("timestamp", *loc_dir)
                 .to_dummies(["Direction"])
             )
             # sqrt-transform because it's count data
             y = df["Volume"].sqrt()
             X = df.drop("Volume")
+
+        case "sf-police-incidents":
+            # Drop the few rows with the sentinel location used for unknown
+            # coordinates (X=-120.5, Y=90). `Address` has 25k levels whose
+            # information is carried by the coordinates: drop it. There is
+            # no day of the month, so the full timestamp can not be
+            # reconstructed: absolute monthly-resolution timestamp, plus
+            # sin/cos encodings of the month, week (through hour_of_week),
+            # and day periods.
+            df = (
+                X.with_columns(y)
+                .filter(pl.col("Y") < 50)
+                .with_columns(
+                    pl.col("Year", "Month", "DayOfWeek")
+                    .cast(pl.String)
+                    .str.to_integer()
+                )
+                .select(
+                    "PdDistrict",
+                    "X",
+                    "Y",
+                    (pl.col("Year") + (pl.col("Month") - 1) / 12).alias(
+                        "timestamp"
+                    ),
+                    *to_sin_cos(pl.col("Month"), 12),
+                    *to_sin_cos(
+                        ((pl.col("DayOfWeek") - 1) * 24 + pl.col("Hour")).alias(
+                            "hour_of_week"
+                        ),
+                        7 * 24,
+                    ),
+                    *to_sin_cos(pl.col("Hour"), 24),
+                    "ViolentCrime",
+                )
+                .to_dummies(["PdDistrict"])
+            )
+            y = df["ViolentCrime"]
+            X = df.drop("ViolentCrime")
 
         case _:
             print(f"==== No custom pre-processing defined for {dataset.name} ====")
