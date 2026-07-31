@@ -35,6 +35,7 @@ DATASET_TARGETS = MappingProxyType(
     }
 )
 
+
 def print_data_summary(x: pl.DataFrame, y: pl.Series) -> None:
     with pl.Config(
         fmt_str_lengths=100, tbl_cols=-1, tbl_width_chars=10_000, tbl_rows=-1
@@ -255,12 +256,14 @@ def custom_preprocessing(data: Data) -> Data:
             # `time_step` is a per-series sample counter, redundant with
             # `date`.
             assert (
-                X.select(pl.struct("id_series", "covariate_0").n_unique()).item()
-                == 5
+                X.select(pl.struct("id_series", "covariate_0").n_unique()).item() == 5
             )
             ts = pl.col("date").str.to_datetime("%Y-%m-%d %H:%M:%S")
-            X = X.select("covariate_0", *temporal_encoding(ts)).to_dummies(
-                ["covariate_0"]
+            X = (
+                X.select("covariate_0", *temporal_encoding(ts))
+                # drop timestamp because it makes prediction too easy (interpolation)
+                .drop("timestamp")
+                .to_dummies(["covariate_0"])
             )
 
         case "Covid19-us":
@@ -341,9 +344,7 @@ def custom_preprocessing(data: Data) -> Data:
                     "PdDistrict",
                     "X",
                     "Y",
-                    (pl.col("Year") + (pl.col("Month") - 1) / 12).alias(
-                        "timestamp"
-                    ),
+                    (pl.col("Year") + (pl.col("Month") - 1) / 12).alias("timestamp"),
                     *to_sin_cos(pl.col("Month"), 12),
                     *to_sin_cos(
                         ((pl.col("DayOfWeek") - 1) * 24 + pl.col("Hour")).alias(
@@ -365,9 +366,7 @@ def custom_preprocessing(data: Data) -> Data:
     return Data(dataset, X, y)
 
 
-def process_dataset(
-    meta: dict[str, Any], *, log: bool = False
-) -> tuple[Data, Data]:
+def process_dataset(meta: dict[str, Any], *, log: bool = False) -> tuple[Data, Data]:
     """Process a single dataset, `meta` is one row in the list of datasets.
 
     With ``log=True``, also print summaries of X and y and write the
@@ -413,6 +412,7 @@ def preprocess_y(y: pl.Series) -> YStuff:
         assert y_n_unique > 4
         assert y.dtype.is_numeric()
         y = y.cast(pl.Float64)
+        y = (y - y.mean()) / y.std()  # standardize
 
     return YStuff(y, y_n_unique, is_binary)
 

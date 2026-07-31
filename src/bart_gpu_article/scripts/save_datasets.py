@@ -22,8 +22,8 @@ SELECTED_DATASETS = (
     "Radar-Traffic-Data",
     "delays_zurich_transport",
     "poker",
-    "sf-police-incidents",
 )
+# no sf-police-incidents because it's too hard
 
 
 def parse_args(argv: Sequence[str]) -> Namespace:
