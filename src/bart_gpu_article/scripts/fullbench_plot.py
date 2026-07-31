@@ -124,7 +124,18 @@ def plot(agg: Agg) -> Figure:
             ax.axvline(0.5, color="black", linestyle="--")
             ax.legend(loc="upper right")
         if col == "relmse":
-            ax.set_xlim(0, 1)
+            # logit scale: differences represent MSE ratios on high SNR
+            # datasets, and explained variance ratios on noisy datasets
+            ax.set_xscale("logit")
+            lo = (agg.df["mean_relmse"] - agg.df["relmse_sdev"]).min()
+            hi = (agg.df["mean_relmse"] + agg.df["relmse_sdev"]).max()
+            ax.set_xlim(
+                10 ** np.floor(np.log10(lo)),
+                1 - 10 ** np.floor(np.log10(1 - hi)),
+            )
+            ax.xaxis.set_minor_formatter(plt.NullFormatter())
+            ax.yaxis.set_minor_locator(plt.NullLocator())
+            ax.grid(which="minor", linestyle=":")
 
     def _label(path: str) -> str:
         name = Path(path).name
