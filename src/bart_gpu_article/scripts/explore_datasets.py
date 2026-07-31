@@ -305,7 +305,8 @@ def custom_preprocessing(data: Data) -> Data:
                 .sort("timestamp", *loc_dir)
                 .to_dummies(["Direction"])
             )
-            y = df["Volume"]
+            # sqrt-transform because it's count data
+            y = df["Volume"].sqrt()
             X = df.drop("Volume")
 
         case _:
