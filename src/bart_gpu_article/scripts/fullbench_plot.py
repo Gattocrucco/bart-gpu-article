@@ -4,6 +4,8 @@ import json
 import re
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
+from itertools import chain
+from math import lcm
 from pathlib import Path
 from sys import argv
 from typing import NamedTuple
@@ -12,6 +14,15 @@ import numpy as np
 import polars as pl
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
+from matplotlib.layout_engine import TightLayoutEngine
+
+DEVICE_NICKNAMES = {
+    "NVIDIA_RTX_PRO_5000_Blackwell": "RTX PRO 5000",
+    "NVIDIA_GeForce_RTX_3060": "RTX 3060",
+    "Apple_M1_Pro": "M1 Pro",
+}
+
+METHOD_NICKNAMES = {"bartzadaptive": "bartz+"}
 
 METHOD_STYLES = (
     {"markerfacecolor": "black", "markeredgecolor": "none"},
@@ -20,8 +31,11 @@ METHOD_STYLES = (
 )
 
 MARKERSIZE = 6  # points
-DOT_SHIFT = 0.12  # vertical gap between dots of the same dataset, in data units,
+DOT_SHIFT = 0.138  # vertical gap between dots of the same dataset, in data units,
 # tuned by eye such that vertically aligned dots touch
+FIGSIZE = [8.5, 11.5]  # inches; tight layout is not adaptive, so this is set to
+# fill a page of the article: the width matches the other full-page figures, and
+# the height leaves room for a caption of about 8 lines
 
 
 def load_results(paths: Sequence[Path]) -> pl.DataFrame:
@@ -57,6 +71,12 @@ def aggregate(df: pl.DataFrame) -> Agg:
         time_train_sdev=pl.col("time_train").std(),
         mean_time_test=pl.col("time_test").mean(),
         time_test_sdev=pl.col("time_test").std(),
+        mean_num_trees=pl.col("num_trees").mean(),
+        num_trees_sdev=pl.col("num_trees").std(),
+        mean_move_acc=pl.col("move_acc").mean(),
+        move_acc_sdev=pl.col("move_acc").std(),
+        mean_mean_leaves=pl.col("mean_leaves").mean(),
+        mean_leaves_sdev=pl.col("mean_leaves").std(),
     )
 
     return Agg(
@@ -65,6 +85,12 @@ def aggregate(df: pl.DataFrame) -> Agg:
         agg.get_column("n_rounds").unique().item(),
         df.get_column("n_test").unique().item(),
     )
+
+
+def _minor_grid(ax: plt.Axes) -> None:
+    """Draw the minor grid on the x axis only, leaving the y axis alone."""
+    ax.yaxis.set_minor_locator(plt.NullLocator())
+    ax.grid(which="minor", linestyle=":")
 
 
 def plot(agg: Agg) -> Figure:
@@ -83,27 +109,45 @@ def plot(agg: Agg) -> Figure:
     methods = sorted(agg.df["method"].unique().to_list())
     offsets = (np.arange(len(methods)) - (len(methods) - 1) / 2) * DOT_SHIFT
 
-    panels = (
-        (f"MSE / test var\n(n_test={agg.n_test})", "relmse"),
-        ("log-loss\n(bayes. and class. only)", "logloss"),
-        ("50% coverage\n(bayes. regr. only)", "coverage_50"),
-        ("train time [s]", "time_train"),
-        ("predict time [s]", "time_test"),
+    # (xlabel, aggregated column, width ratio), one tuple per panel row
+    panel_rows = (
+        (
+            (f"MSE / test var\n(n_test={agg.n_test})", "relmse", 2),
+            ("log-loss\n(bayes. and class. only)", "logloss", 1),
+            ("50% coverage\n(bayes. regr. only)", "coverage_50", 1),
+        ),
+        (
+            ("train time [s]", "time_train", 2),
+            ("predict time [s]", "time_test", 1),
+        ),
+        (
+            ("number of trees", "num_trees", 1),
+            ("move acceptance", "move_acc", 1),
+            ("leaves per tree", "mean_leaves", 1),
+        ),
     )
 
-    width_ratios = [2 if col == "time_train" else 1 for _, col in panels]
-    fig, axes = plt.subplots(
-        1,
-        len(panels),
+    # lay the panels out on a grid with enough columns that each panel spans a
+    # whole number of them, proportional to its width ratio
+    ncols = lcm(*(sum(w for *_, w in row) for row in panel_rows))
+    mosaic = [
+        [col for _, col, w in row for _ in range(w * ncols // total)]
+        for row, total in ((row, sum(w for *_, w in row)) for row in panel_rows)
+    ]
+
+    fig, axd = plt.subplot_mosaic(
+        mosaic,
         sharey=True,
-        width_ratios=width_ratios,
-        figsize=[2 * sum(width_ratios), 0.7 * len(datasets) + 2.0],
+        figsize=FIGSIZE,
         num="fullbench-plot",
         clear=True,
-        layout="constrained",
+        # constrained layout gives up on a grid with this many columns, and
+        # tight layout does too unless the default padding is reduced
+        layout=TightLayoutEngine(pad=0.5),
     )
 
-    for ax, (xlabel, col) in zip(axes, panels):
+    for xlabel, col, _ in chain.from_iterable(panel_rows):
+        ax = axd[col]
         for method, dy, style in zip(methods, offsets, METHOD_STYLES):
             sub = agg.df.filter(pl.col("method") == method)
             ys = [y_pos[d] + dy for d in sub["dataset_path"]]
@@ -115,14 +159,13 @@ def plot(agg: Agg) -> Figure:
                 markersize=MARKERSIZE,
                 capsize=4,
                 color="black",
-                label=method,
+                label=METHOD_NICKNAMES.get(method, method),
                 **style,
             )
         ax.set_xlabel(xlabel)
         ax.grid(linestyle="--", axis="x")
-        if col == "coverage_50":
-            ax.axvline(0.5, color="black", linestyle="--")
-            ax.legend(loc="upper right")
+        ax.grid(axis="y", linestyle=":")
+
         if col == "relmse":
             # logit scale: differences represent MSE ratios on high SNR
             # datasets, and explained variance ratios on noisy datasets
@@ -134,8 +177,26 @@ def plot(agg: Agg) -> Figure:
                 1 - 10 ** np.floor(np.log10(1 - hi)),
             )
             ax.xaxis.set_minor_formatter(plt.NullFormatter())
-            ax.yaxis.set_minor_locator(plt.NullLocator())
-            ax.grid(which="minor", linestyle=":")
+            _minor_grid(ax)
+            # the legend title doubles as the info box of the whole figure
+            device = DEVICE_NICKNAMES.get(agg.device, agg.device.replace("_", " "))
+            ax.legend(
+                loc="upper right",
+                title=f"{device}\n$\\pm$ sdev {agg.rounds} rounds",
+                title_fontsize="medium",  # matches the legend entries
+            )
+        elif col == "coverage_50":
+            ax.axvline(0.5, color="black", linestyle="--")
+        elif col in ("time_train", "time_test"):
+            ax.set_xscale("log")
+            ax.minorticks_on()
+            _minor_grid(ax)
+        elif col == "num_trees":
+            ax.set_xlim(left=0)
+        elif col == "move_acc":
+            ax.set_xlim(0, 1)
+        elif col == "mean_leaves":
+            ax.set_xlim(1, 64)
 
     def _label(path: str) -> str:
         name = Path(path).name
@@ -143,24 +204,14 @@ def plot(agg: Agg) -> Figure:
             name = "<simulated>"
         else:
             name = name.removeprefix("dataset-").replace("_", " ")
-        return f"{name}\nn={info[path][0]:_}\np={info[path][1]:_}"
+        return f"{name}\nn={info[path][0]:_}, p={info[path][1]:_}"
 
-    axes[0].set_yticks(range(len(datasets)))
-    axes[0].set_yticklabels([_label(d) for d in datasets])
-    axes[0].set_ylim(-1, len(datasets) - 0.4)
-    axes[0].invert_yaxis()
-
-    for ax in axes:
-        ax.grid(axis="y", linestyle=":")
-
-    for ax in axes[3:]:
-        ax.set(xscale="log")
-        ax.minorticks_on()
-        ax.yaxis.set_minor_locator(plt.NullLocator())
-        ax.grid(which="minor", linestyle=":")
-
-    fig.suptitle(f"device: {agg.device.replace('_', ' ')}")
-    fig.supxlabel(f"+/– sdev over {agg.rounds} rounds", fontsize="medium")
+    # the y axis is shared, so this applies to all panels
+    ax = axd[panel_rows[0][0][1]]
+    ax.set_yticks(range(len(datasets)))
+    ax.set_yticklabels([_label(d) for d in datasets])
+    ax.set_ylim(-0.6, len(datasets) - 0.4)
+    ax.invert_yaxis()
 
     return fig
 
