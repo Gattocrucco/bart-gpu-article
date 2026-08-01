@@ -26,7 +26,7 @@ def load_results() -> list[dict]:
     return results
 
 
-def results_to_df(results: list[dict], filter: bool) -> pl.DataFrame:
+def results_to_df(results: list[dict], filter: bool, factor: int) -> pl.DataFrame:
     """Merge results into a dataframe."""
     tables = []
     for things in results:
@@ -65,6 +65,15 @@ def results_to_df(results: list[dict], filter: bool) -> pl.DataFrame:
             .not_(),
         )
 
+    if factor != 1:
+        # scale the bart methods; the labels stay plain, the y label says it
+        is_bart = pl.col("package").str.contains("(?i)bart")
+        df = df.with_columns(
+            time_per_iter=pl.when(is_bart)
+            .then(pl.col("time_per_iter") * factor)
+            .otherwise(pl.col("time_per_iter"))
+        )
+
     return df
 
 
@@ -91,7 +100,98 @@ def get_cycler() -> Cycler:
     )
 
 
-def plot(df: pl.DataFrame, single_figure: bool):
+# Hand-placed x position of each line label, per subplot of the --single-figure
+# layout, for the --filter selection. All the lines of a subplot must be listed,
+# otherwise the whole subplot falls back to automatic placement.
+HANDTUNED_XVALS = {
+    "top left": {
+        "bartz-P5000": 100_000,
+        "bartz-M1pro": 3500,
+        "dbarts-M1pro": 300,
+        "xgboost-P5000": 3000,
+        "xgboost-M1pro": 100,
+        "catboost-P5000": 100,
+    },
+    "top right": {
+        "bartz-P5000": 100,
+        "bartz-M1pro": 100,
+        "dbarts-M1pro": 200,
+        "xgboost-P5000": 1000,
+        "xgboost-M1pro": 1000,
+        "catboost-P5000": 100,
+    },
+    "bottom left": {
+        "bartz-P5000": 100,
+        "bartz-M1pro": 100,
+        "dbarts-M1pro": 200,
+        "xgboost-P5000": 1000,
+        "xgboost-M1pro": 6000,
+        "catboost-P5000": 100,
+    },
+    "bottom right": {
+        "bartz-P5000": 100,
+        "bartz-M1pro": 3500,
+        "dbarts-M1pro": 300,
+        "xgboost-P5000": 400,
+        "xgboost-M1pro": 6000,
+        "catboost-P5000": 100,
+    },
+}
+
+# Same, but for --factor: the bart lines move up, so they need their own tuning.
+# The positions depend on the factor, these are for --factor 1000.
+HANDTUNED_XVALS_SCALED = {
+    "top left": {
+        "bartz-P5000": 100_000,
+        "bartz-M1pro": 40_000,
+        "dbarts-M1pro": 5000,
+        "xgboost-P5000": 4000,
+        "xgboost-M1pro": 80,
+        "catboost-P5000": 150,
+    },
+    "top right": {
+        "bartz-P5000": 100,
+        "bartz-M1pro": 1_000_000,
+        "dbarts-M1pro": 50_000,
+        "xgboost-P5000": 150,
+        "xgboost-M1pro": 20_000,
+        "catboost-P5000": 20_000_000,
+    },
+    "bottom left": {
+        "bartz-P5000": 100,
+        "bartz-M1pro": 100,
+        "dbarts-M1pro": 100,
+        "xgboost-P5000": 100,
+        "xgboost-M1pro": 50_000,
+        "catboost-P5000": 10_000,
+    },
+    "bottom right": {
+        "bartz-P5000": None,
+        "bartz-M1pro": None,
+        "dbarts-M1pro": None,
+        "xgboost-P5000": None,
+        "xgboost-M1pro": None,
+        "catboost-P5000": None,
+    },
+}
+
+
+def subplot_name(keys: tuple) -> str:
+    """Name the subplot of the --single-figure layout holding a group."""
+    match keys:  # keys = (n/ntree, ntree, n/p, p)
+        case (_, None, _, None):
+            return "top left"
+        case (None, _, None, _):
+            return "top right"
+        case (None, _, _, None):
+            return "bottom left"
+        case (_, None, None, _):
+            return "bottom right"
+        case _:
+            return "unknown"
+
+
+def plot(df: pl.DataFrame, single_figure: bool, factor: int):
     """Generate speed benchmark plots."""
     # reset matplotlib
     plt.close("all")
@@ -100,12 +200,15 @@ def plot(df: pl.DataFrame, single_figure: bool):
     keynames = ["n/ntree", "ntree", "n/p", "p"]
     groups = list(df.group_by(keynames, maintain_order=True))
 
+    # mark the scaling in the file name to let the variants coexist
+    figsuffix = "" if factor == 1 else f"-{factor}"
+
     if single_figure:
         fig, axs = plt.subplots(
             2,
             2,
             figsize=[8.5, 8.5],
-            num="benchmark-plot",
+            num=f"benchmark-plot{figsuffix}",
             clear=True,
             layout="constrained",
             sharex=True,
@@ -119,7 +222,7 @@ def plot(df: pl.DataFrame, single_figure: bool):
         for i in range(len(groups)):
             fig, ax = plt.subplots(
                 figsize=[4.5, 4],
-                num=f"benchmark-plot-{i}",
+                num=f"benchmark-plot-{i}{figsuffix}",
                 clear=True,
                 layout="constrained",
             )
@@ -144,42 +247,33 @@ def plot(df: pl.DataFrame, single_figure: bool):
         if ss.is_last_row():
             ax.set_xlabel("n")
         if ss.is_first_col():
-            ax.set_ylabel("Time per iteration [s]")
+            if factor == 1:
+                ax.set_ylabel("Time per iteration [s]")
+            else:
+                ax.set_ylabel(
+                    "Time per 1 iteration (boosting) [s]\n"
+                    f"Time per {factor} iterations (BART) [s]"
+                )
 
         if not single_figure:
             ax.set(xscale="log", yscale="log")
             ax.set(xlim=(10, None))
+
+        table = HANDTUNED_XVALS if factor == 1 else HANDTUNED_XVALS_SCALED
+        name = subplot_name(keys)
+        positions = table.get(name, {})
+
+        lines = ax.get_lines()
+        labels = [line.get_label() for line in lines]
+        xvals = [positions.get(label) for label in labels]
+
+        if any(x is None for x in xvals):
+            # the positions only work as a set, tuned on the final selection
+            untuned = [label for label, x in zip(labels, xvals) if x is None]
+            print(f"{name}: no hand-tuned position for {', '.join(untuned)}, skip")
             xvals = None
 
-        handtuning_label_ordering = [
-            "bartz-P5000",
-            "bartz-M1pro",
-            "dbarts-M1pro",
-            "xgboost-P5000",
-            "xgboost-M1pro",
-            "catboost-P5000",
-        ]
-
-        match keys:
-            case (_, None, _, None):  # top left
-                xvals = [100_000, 3500, 300, 3000, 100, 100]
-            case (None, _, None, _):  # top right
-                xvals = [100, 100, 200, 1000, 1000, 100]
-            case (None, _, _, None):  # bottom left
-                xvals = [100, 100, 200, 1000, 6000, 100]
-            case (_, None, None, _):  # bottom right
-                xvals = [100, 3500, 300, 400, 6000, 100]
-
-        labels = [line.get_label() for line in ax.get_lines()]
-        if set(labels) != set(handtuning_label_ordering):
-            print("final selection not recognized, skip hand-tuning labels")
-            xvals = None
-        else:
-            # re-sort to match actual lines
-            xvals = dict(zip(handtuning_label_ordering, xvals))
-            xvals = [xvals[k] for k in labels]
-
-        labelLines(ax.get_lines(), xvals=xvals, outline_width=3)
+        labelLines(lines, xvals=xvals, outline_width=3)
 
         ax.grid(linestyle="--")
         ax.grid(which="minor", linestyle=":")
@@ -234,14 +328,20 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         action="store_true",
         help="keep only the selected data for the final plot",
     )
+    parser.add_argument(
+        "--factor",
+        type=int,
+        default=1,
+        help="multiply the times of the bart methods by this factor",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] = sys.argv[1:]):
     args = parse_args(argv)
     results = load_results()
-    df = results_to_df(results, args.filter)
-    plot(df, args.single_figure)
+    df = results_to_df(results, args.filter, args.factor)
+    plot(df, args.single_figure, args.factor)
 
 
 if __name__ == "__main__":
