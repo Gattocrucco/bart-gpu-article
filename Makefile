@@ -60,7 +60,7 @@ fullbench-data:
 .PHONY: fullbench-gpu
 fullbench-gpu:
 	$(UV_RUN) fullbench -d gpu -m bartz $(ARGS) $(DATASETS)
-	$(UV_RUN) fullbench -d gpu -m bartzadaptive $(ARGS) $(DATASETS)
+	$(UV_RUN) fullbench -d gpu -m bartz2000 $(ARGS) $(DATASETS)
 	$(UV_RUN) fullbench -d gpu -m xgboost $(ARGS) $(DATASETS)
 
 .PHONY: copy-plots

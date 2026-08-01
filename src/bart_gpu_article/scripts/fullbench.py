@@ -41,21 +41,6 @@ NONDEFAULT_BART_ARGS: Mapping = MappingProxyType(
     )
 )
 
-MOVE_ACC_THRESHOLD = 0.05
-"""Refit with twice the trees if the acceptance rate falls below this.
-
-With too few trees each one has to carry too much signal, so it grows against
-the depth cap and the grow/prune moves are all rejected: the tree structures
-freeze. Refitting with more trees is a poor man's substitute for inference on
-the number of trees, which bartz does not implement. The checks and the extra
-fits are inside the timed region on purpose, so the reported training time
-includes the cost of picking the number of trees.
-"""
-
-MAX_DOUBLINGS = 3
-"""How many times `BartzAdaptive` may double the number of trees."""
-
-
 class Config(Module):
     """Configuration for the fullbench script."""
 
@@ -106,10 +91,6 @@ class TreeStats(NamedTuple):
     mean_leaves: float
     move_acc: float | None
     """Fraction of accepted grow/prune moves, or `None` if not an MCMC method."""
-
-    move_acc_first: float | None = None
-    """`move_acc` of the initial fit, which differs only if it was redone with
-    more trees; compare with `num_trees` to see whether that happened."""
 
     frac_empty_trees: float | None = None
     """Fraction of trees with no splits, i.e., a single leaf, or `None` if the
@@ -167,16 +148,12 @@ class Benchmark(ABC):
 
 
 class Bartz(Benchmark):
-    """Bartz harness using the high-level `bartz.Bart` interface.
-
-    Fits once, with the bartz default number of trees.
-    """
+    """Bartz harness using the high-level `bartz.Bart` interface."""
 
     needs_jax = True
 
-    max_doublings = 0
-    """How many times `train` may double the number of trees to try to unstick
-    the tree MCMC. See `MOVE_ACC_THRESHOLD`."""
+    num_trees: int | None = None
+    """Number of trees, or `None` for the bartz default."""
 
     def setup(
         self,
@@ -186,7 +163,7 @@ class Bartz(Benchmark):
         x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        self._keys = split(key, 2 + self.max_doublings)  # one per fit, plus predict
+        self._keys = split(key)  # one for the fit, one for predict
         self._x_train = x_train
         self._y_train = y_train
         self._x_test = x_test
@@ -194,9 +171,9 @@ class Bartz(Benchmark):
         self._binary = cfg.binary
         self._outcome_type = "binary" if self._binary else "continuous"
 
-    def _fit(self, num_trees: int | None) -> Bart:
+    def train(self) -> None:
         # `num_trees=None` leaves the bartz default in place
-        extra = {} if num_trees is None else dict(num_trees=num_trees)
+        extra = {} if self.num_trees is None else dict(num_trees=self.num_trees)
         bart = Bart(
             x_train=self._x_train,
             y_train=self._y_train,
@@ -206,21 +183,7 @@ class Bartz(Benchmark):
             **NONDEFAULT_BART_ARGS,
             **extra,
         )
-        return block_until_ready(bart)
-
-    def train(self) -> None:
-        self._bart = self._fit(None)
-        # deciding whether to refit is part of the fitting cost, so it happens
-        # here rather than in `tree_stats`, inside the timed region
-        acc = move_acc(self._bart)
-        self._move_acc_first = acc
-        for _ in range(self.max_doublings):
-            if acc >= MOVE_ACC_THRESHOLD:
-                break
-            num_trees = 2 * self._bart.num_trees
-            del self._bart  # free the previous fit before allocating the next
-            self._bart = self._fit(num_trees)
-            acc = move_acc(self._bart)
+        self._bart = block_until_ready(bart)
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
         stuff = predict_stuff(
@@ -239,19 +202,18 @@ class Bartz(Benchmark):
             self._bart.num_trees,
             float(forest_mean_leaves(split_tree)),
             move_acc(self._bart),
-            self._move_acc_first,
             frac_empty_trees(split_tree),
         )
 
 
-class BartzAdaptive(Bartz):
-    """Bartz, refitting with twice the trees while the tree MCMC looks stuck.
+class Bartz2000(Bartz):
+    """Bartz with 2000 trees instead of the default 200.
 
     Runs as a separate method so that its results sit in their own file and can
     be compared against plain `Bartz` on the same plot.
     """
 
-    max_doublings = MAX_DOUBLINGS
+    num_trees = 2000
 
 
 class PredictStuff(Module):
@@ -373,7 +335,6 @@ EMPTY_ROW_KEYS = (
     "mean_leaves",
     "frac_empty_trees",
     "move_acc",
-    "move_acc_first",
 )
 
 
@@ -454,8 +415,6 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         print(f"frac_empty_trees: {stats.frac_empty_trees:.4f}")
     if stats.move_acc is not None:
         print(f"move_acc: {stats.move_acc:.4f}")
-    if stats.move_acc_first is not None:
-        print(f"move_acc_first: {stats.move_acc_first:.4f}")
 
     return dict(
         seed=cfg.round_seed,
@@ -476,7 +435,6 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         mean_leaves=stats.mean_leaves,
         frac_empty_trees=stats.frac_empty_trees,
         move_acc=stats.move_acc,
-        move_acc_first=stats.move_acc_first,
     )
 
 
@@ -513,7 +471,6 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         mean_leaves=None,
         frac_empty_trees=None,
         move_acc=None,
-        move_acc_first=None,
     )
 
 

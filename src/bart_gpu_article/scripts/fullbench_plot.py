@@ -24,7 +24,7 @@ DEVICE_NICKNAMES = {
     "Apple_M1_Pro": "M1 Pro",
 }
 
-METHOD_NICKNAMES = {"bartzadaptive": "bartz+"}
+METHOD_NICKNAMES = {"bartz2000": "bartz-2000"}
 
 OUTCOME_NICKNAMES = {"continuous": "regr.", "binary": "class."}
 
