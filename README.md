@@ -2,23 +2,48 @@
 
 # bart-gpu-article
 
-Code to reproduce the results in Petrillo (2024), "Very fast Bayesian Additive Regression Trees on GPU", [arXiv:2410.23244](https://arxiv.org/abs/2410.23244).
+Code to reproduce the results in Petrillo (2024), "Very fast Bayesian Additive Regression Trees on GPU", [arXiv:2410.23244](https://arxiv.org/abs/2410.23244). To run anything, first clone this repository to your computer, and make it the current working directory in a terminal.
 
 
-## Hardware setup
+## Partial reproduction (only regenerate the plots)
 
-Running the GPU benchmarks requires a NVIDIA GPU. Virtual machines with GPUs can be conveniently rented in places like https://cloud.vast.ai starting from about 0.10 $/hour.
-
-Other things can be run on any computer with at least 16 GB or RAM.
+The results used to generate the plots are saved in this repository so the plots can be re-generated without producing the results.
 
 
-## Files setup
+### Setup
 
-* Copy/clone the files to your computer
-* Set the working directory to `bart-gpu-article`
+Make sure `uv` (https://docs.astral.sh/uv/getting-started/installation/) is installed. It's a Python manager.
 
 
-## R setup
+### Generate the plots as they appear in the article
+
+```sh
+make article-plots
+make copy-plots  # this copies the plots to the article/ dir for the tex
+```
+
+
+### Generate arbitrary plots from the results
+
+Check out the help of these commands:
+
+```sh
+uv run benchmark-plot --help
+uv run compare-bart-packages-plot --help
+uv run fullbench-plot --help
+```
+
+
+## Full reproduction
+
+### Hardware setup
+
+Running the GPU benchmarks requires a NVIDIA GPU. Virtual machines with GPUs can be conveniently rented in places like https://cloud.vast.ai starting from about 0.10 $/hour. The GPU used in the article is an RTX PRO 5000 which currently costs about 0.70 $/hour and has 48 GiB RAM.
+
+Other things can be run on any computer with at least 16 GiB of RAM.
+
+
+### R setup
 
 R is needed only to run benchmarks involving R packages, and in particular java is needed only for `bartMachine`, which is used only in the `compare-bart-packages` command.
 
@@ -47,7 +72,7 @@ install_github('rsparapa/bnptools', ref='1b3e608fc5a0345115e147cc18cd6e31d0b986b
 Everything probably works with newer versions, but I've listed the ones I used to run the code myself for reproducibility.
 
 
-## Python setup
+### Python setup
 
 Install `uv` (https://docs.astral.sh/uv/getting-started/installation/), check if it's already available on your system first. Then do
 
@@ -56,30 +81,40 @@ make setup
 ```
 
 
-## How to run things
-
-The commands are available through `uv run`, all commands have command line options that can be shown with `uv run <command> -h`. The results are saved in `./results` and the plots in `./plots`.
+### Iteration timing
 
 ```sh
-uv run benchmark       # clock a few iterations of bartz/dbarts/xgboost/catboost
-uv run benchmark-plot  # plot the results of the above
-uv run compare-bart-packages       # compare the RMSE of BART packages (~30 min)
-uv run compare-bart-packages-plot  # plot the results of the above
+make benchmark-cpu  # ~2 hours
 ```
 
-The plotting commands require results to be present for various combinations of options of the results-producing commands. For convenience, these `make` targets will run the commands for all configurations:
+Then, on a machine with an nvidia gpu:
 
 ```sh
-make benchmark-cpu  # repeat cpu benchmark for all configurations, ~2 hours
-make benchmark-gpu  # repeat gpu benchmark for all configurations, ~2 hours
-make compare-bart-packages  # repeat bart packages comparison for all configurations, ~2 hours
-make fullbench-data  # prepare the datasets for `fullbench-gpu`
-make fullbench-gpu  # fit & predict bartz and xgboost on a few datasets
+make benchmark-gpu  # ~2 hours
 ```
 
-Of these, only `make benchmark-gpu` and `make fullbench-gpu` require a GPU.
+Copy all the result files to the same machine.
 
-`make fullbench-data` downloads a few OpenML datasets and generates a simulated one (4M observations x 1000 predictors); generating the simulated dataset takes about 65 GB of RAM and 20 GB of disk.
+
+### Comparison of BART packages
+
+GPU not needed for this one.
+
+```sh
+make compare-bart-packages  # ~2 hours
+```
+
+
+### End-to-end benchmark on datasets
+
+This requires a machine with at least ~64 GiB cpu ram, ~32 GiB gpu ram, and ~64 GiB disk.
+
+```sh
+make fullbench-data  # downloads data from OpenML
+make fullbench-gpu  # ~6 hours
+```
+
+This one does not have a cpu variant, it would be too slow.
 
 
 ## Troubleshooting

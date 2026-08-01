@@ -20,6 +20,8 @@ help:
 	@echo compare-bart-packages
 	@echo fullbench-data
 	@echo fullbench-gpu
+	@echo article-plots
+	@echo copy-plots
 
 .PHONY: setup
 setup:
@@ -63,9 +65,20 @@ fullbench-gpu:
 	$(UV_RUN) fullbench -d gpu -m bartz2000 $(ARGS) $(DATASETS)
 	$(UV_RUN) fullbench -d gpu -m xgboost $(ARGS) $(DATASETS)
 
+.PHONY: article-plots
+article-plots:
+	MPLBACKEND=agg $(UV_RUN) benchmark-plot --filter --single-figure
+	MPLBACKEND=agg $(UV_RUN) benchmark-plot --filter
+	MPLBACKEND=agg $(UV_RUN) benchmark-plot --filter --factor 1000
+	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what mse --single-figure
+	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what mse
+	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what coverage_truth_50
+
 .PHONY: copy-plots
 copy-plots:
-	cp plots/compare-bart-packages-plot-mse.pdf article/rmse-all.pdf
-	cp plots/compare-bart-packages-plot-mse-1.pdf article/rmse-single.pdf
 	cp plots/benchmark-plot.pdf article/time-all.pdf
 	cp plots/benchmark-plot-1.pdf article/time-single.pdf
+	cp plots/benchmark-plot-1-1000.pdf article/time-single-1000.pdf
+	cp plots/compare-bart-packages-plot-mse.pdf article/rmse-all.pdf
+	cp plots/compare-bart-packages-plot-mse-1.pdf article/rmse-single.pdf
+	cp plots/compare-bart-packages-plot-coverage_truth_50-1.pdf article/coverage-single.pdf
