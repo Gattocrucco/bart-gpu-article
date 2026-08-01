@@ -73,9 +73,13 @@ The plotting commands require results to be present for various combinations of 
 make benchmark-cpu  # repeat cpu benchmark for all configurations, ~2 hours
 make benchmark-gpu  # repeat gpu benchmark for all configurations, ~2 hours
 make compare-bart-packages  # repeat bart packages comparison for all configurations, ~2 hours
+make fullbench-data  # prepare the datasets for `fullbench-gpu`
+make fullbench-gpu  # fit & predict bartz and xgboost on a few datasets
 ```
 
-Of these, only `make benchmark-gpu` requires a GPU.
+Of these, only `make benchmark-gpu` and `make fullbench-gpu` require a GPU.
+
+`make fullbench-data` downloads a few OpenML datasets and generates a simulated one (4M observations x 1000 predictors); generating the simulated dataset takes about 65 GB of RAM and 20 GB of disk.
 
 
 ## Troubleshooting

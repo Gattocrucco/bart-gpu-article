@@ -4,8 +4,12 @@ CUDA_VERSION = $(shell nvidia-smi -q 2>/dev/null | grep -o 'CUDA[^:]*Version *: 
 EXTRAS = $(if $(filter 12 13,$(CUDA_VERSION)),--extra=cuda$(CUDA_VERSION),)
 UV_RUN = RPY2_CFFI_MODE=ABI uv run $(EXTRAS)
 
+# the simulated high-p dataset for fullbench, produced by `make fullbench-data`;
+# keep the directory name in sync with the savedata arguments in that target
+SIMDATASET = data/savedata-4000000-1000-32-continuous-peff100
+
 # datasets for fullbench; not data/* because that also matches list-datasets.csv
-DATASETS ?= $(wildcard data/dataset-*)
+DATASETS ?= $(wildcard data/dataset-*) $(SIMDATASET)
 
 .PHONY: help
 help:
@@ -14,7 +18,7 @@ help:
 	@echo benchmark-cpu
 	@echo benchmark-gpu
 	@echo compare-bart-packages
-	@echo fullbench-cpu
+	@echo fullbench-data
 	@echo fullbench-gpu
 
 .PHONY: setup
@@ -48,11 +52,10 @@ compare-bart-packages:
 	$(UV_RUN) compare-bart-packages -p
 	$(UV_RUN) compare-bart-packages -t -p
 
-.PHONY: fullbench-cpu
-fullbench-cpu:
-	$(UV_RUN) fullbench -d cpu -m bartz $(ARGS) $(DATASETS)
-	$(UV_RUN) fullbench -d cpu -m bartzadaptive $(ARGS) $(DATASETS)
-	$(UV_RUN) fullbench -d cpu -m xgboost $(ARGS) $(DATASETS)
+.PHONY: fullbench-data
+fullbench-data:
+	$(UV_RUN) save-datasets
+	test -d $(SIMDATASET) || $(UV_RUN) savedata -n 4000000 -p 1000 -q 32 --peff 100 -s 20260801
 
 .PHONY: fullbench-gpu
 fullbench-gpu:
