@@ -12,6 +12,8 @@ from typing import NamedTuple
 
 import numpy as np
 import polars as pl
+from labellines import labelLine
+from labellines.utils import normalize_xydata
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.layout_engine import TightLayoutEngine
@@ -23,6 +25,8 @@ DEVICE_NICKNAMES = {
 }
 
 METHOD_NICKNAMES = {"bartzadaptive": "bartz+"}
+
+OUTCOME_NICKNAMES = {"continuous": "regr.", "binary": "class."}
 
 METHOD_STYLES = (
     {"markerfacecolor": "black", "markeredgecolor": "none"},
@@ -60,6 +64,8 @@ def aggregate(df: pl.DataFrame) -> Agg:
     agg = df.group_by("method", "dataset_path", maintain_order=True).agg(
         n=pl.col("n_train").first(),
         p=pl.col("p").first(),
+        # failed runs are recorded as all-None rows, so skip the nulls
+        outcome_type=pl.col("outcome_type").drop_nulls().first(),
         n_rounds=pl.len(),
         mean_relmse=(pl.col("rmse") / pl.col("test_sdev")).pow(2).mean(),
         relmse_sdev=(pl.col("rmse") / pl.col("test_sdev")).pow(2).std(),
@@ -73,8 +79,10 @@ def aggregate(df: pl.DataFrame) -> Agg:
         time_test_sdev=pl.col("time_test").std(),
         mean_num_trees=pl.col("num_trees").mean(),
         num_trees_sdev=pl.col("num_trees").std(),
-        mean_move_acc=pl.col("move_acc").mean(),
-        move_acc_sdev=pl.col("move_acc").std(),
+        # the inverse of the acceptance is the mean number of proposals per
+        # accepted move, which spreads out the low-acceptance datasets
+        mean_inv_move_acc=(1 / pl.col("move_acc")).mean(),
+        inv_move_acc_sdev=(1 / pl.col("move_acc")).std(),
         mean_mean_leaves=pl.col("mean_leaves").mean(),
         mean_leaves_sdev=pl.col("mean_leaves").std(),
     )
@@ -102,6 +110,11 @@ def plot(agg: Agg) -> Figure:
         "dataset_path", "n", "p"
     )
     info = {d: (n, p) for d, n, p in info_df.iter_rows()}
+    outcome = dict(
+        agg.df.group_by("dataset_path")
+        .agg(pl.col("outcome_type").drop_nulls().first())
+        .iter_rows()
+    )
     datasets = list(info)
     datasets.sort(key=lambda d: (info[d], d))
     y_pos = {d: i for i, d in enumerate(datasets)}
@@ -112,9 +125,9 @@ def plot(agg: Agg) -> Figure:
     # (xlabel, aggregated column, width ratio), one tuple per panel row
     panel_rows = (
         (
-            (f"MSE / test var\n(n_test={agg.n_test})", "relmse", 2),
-            ("log-loss\n(bayes. and class. only)", "logloss", 1),
-            ("50% coverage\n(bayes. regr. only)", "coverage_50", 1),
+            (f"MSE / test var (n_test={agg.n_test:_})", "relmse", 2),
+            ("log-loss", "logloss", 1),
+            ("coverage", "coverage_50", 1),
         ),
         (
             ("train time [s]", "time_train", 2),
@@ -122,7 +135,7 @@ def plot(agg: Agg) -> Figure:
         ),
         (
             ("number of trees", "num_trees", 1),
-            ("move acceptance", "move_acc", 1),
+            ("1 / move acceptance", "inv_move_acc", 1),
             ("leaves per tree", "mean_leaves", 1),
         ),
     )
@@ -143,8 +156,10 @@ def plot(agg: Agg) -> Figure:
         clear=True,
         # constrained layout gives up on a grid with this many columns, and
         # tight layout does too unless the default padding is reduced
-        layout=TightLayoutEngine(pad=0.5),
+        layout=TightLayoutEngine(pad=0.5, w_pad=-1),
     )
+
+    ref_lines = []  # labelled after the axis limits are final
 
     for xlabel, col, _ in chain.from_iterable(panel_rows):
         ax = axd[col]
@@ -186,25 +201,38 @@ def plot(agg: Agg) -> Figure:
                 title_fontsize="medium",  # matches the legend entries
             )
         elif col == "coverage_50":
-            ax.axvline(0.5, color="black", linestyle="--")
+            ax.set_xlim(0, 1)
+            ref_lines.append(
+                ax.axvline(0.5, color="black", linestyle="--", label="target 50%")
+            )
         elif col in ("time_train", "time_test"):
             ax.set_xscale("log")
             ax.minorticks_on()
             _minor_grid(ax)
         elif col == "num_trees":
             ax.set_xlim(left=0)
-        elif col == "move_acc":
-            ax.set_xlim(0, 1)
+        elif col == "inv_move_acc":
+            # these two quantities are bounded below by 1, but the axes start at
+            # 0 to make distances along them read as ratios
+            ax.set_xlim(left=0)
         elif col == "mean_leaves":
-            ax.set_xlim(1, 64)
+            ax.set_xlim(left=0)
+            ref_lines += [
+                ax.axvline(32, color="black", linestyle="--", label="bartz max"),
+                ax.axvline(64, color="black", linestyle="--", label="xgboost max"),
+            ]
 
     def _label(path: str) -> str:
         name = Path(path).name
         if re.fullmatch(r"savedata(-[^-]+){4}", name):
             name = "<simulated>"
         else:
-            name = name.removeprefix("dataset-").replace("_", " ")
-        return f"{name}\nn={info[path][0]:_}, p={info[path][1]:_}"
+            # dataset names come in inconsistent flavors of Capitalized-Words
+            # and lower_case_words
+            name = name.removeprefix("dataset-")
+            name = name.replace("-", " ").replace("_", " ").lower()
+        kind = OUTCOME_NICKNAMES[outcome[path]]
+        return f"{name}\nn={info[path][0]:_}, p={info[path][1]:_}, {kind}"
 
     # the y axis is shared, so this applies to all panels
     ax = axd[panel_rows[0][0][1]]
@@ -212,6 +240,19 @@ def plot(agg: Agg) -> Figure:
     ax.set_yticklabels([_label(d) for d in datasets])
     ax.set_ylim(-0.6, len(datasets) - 0.4)
     ax.invert_yaxis()
+
+    # labelLine freezes the label position, so it must run last. It matches the
+    # requested x against the line coordinates put through a transform round
+    # trip, which for a vertical line is an exact comparison that the round trip
+    # breaks, so feed it the round-tripped value.
+    for line in ref_lines:
+        x, y = normalize_xydata(line)
+        # y[0] and y[1] are the bottom and top ends of the line; labelLine would
+        # put the label at their midpoint, so offset it up to the top edge. The
+        # y axis is inverted, so the aligned text reads downwards: anchor its
+        # start and it hangs from the top edge.
+        y_top = y[1] + 0.02 * (y[0] - y[1])
+        labelLine(line, x[0], yoffset=y_top - y.mean(), ha="left", outline_width=4)
 
     return fig
 
