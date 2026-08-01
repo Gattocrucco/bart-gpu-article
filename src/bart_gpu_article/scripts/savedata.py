@@ -53,6 +53,13 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         help="generate binary (probit) outcomes instead of continuous",
     )
     parser.add_argument(
+        "--peff",
+        type=int,
+        default=None,
+        help="effective number of active predictors (SpikeSlab importance"
+        " scales); default: all predictors equally important",
+    )
+    parser.add_argument(
         "-d",
         "--data-dir",
         type=Path,
@@ -74,11 +81,18 @@ def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     key = random.key(args.seed)
     data = block_until_ready(
         make_data(
-            key, args.n, args.p, quantized_x="both", q=args.q, binary=args.binary
+            key,
+            args.n,
+            args.p,
+            quantized_x="both",
+            q=args.q,
+            binary=args.binary,
+            peff=args.peff,
         )
     )
     outcome = "binary" if args.binary else "continuous"
-    target = args.data_dir / f"savedata-{args.n}-{args.p}-{int(data.q)}-{outcome}"
+    peff = "" if args.peff is None else f"-peff{args.peff}"
+    target = args.data_dir / f"savedata-{args.n}-{args.p}-{int(data.q)}-{outcome}{peff}"
     args.data_dir.mkdir(parents=True, exist_ok=True)
     print(f"save to {target}...")
     save_data(data, target, overwrite=args.overwrite)

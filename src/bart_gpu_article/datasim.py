@@ -8,7 +8,7 @@ from typing import Any, Literal
 import jax
 import numpy as np
 from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
-from bartz.testing import gen_data_from_params, gen_params
+from bartz.testing import Constant, SpikeSlab, gen_data_from_params, gen_params
 from equinox import Module
 from jax import jit, lax, tree
 from jax import numpy as jnp
@@ -33,7 +33,7 @@ class Data(Module):
     mu: Float32[Array, " n"] | None = None
 
 
-@partial(jit, static_argnums=(1, 2, 3, 4, 5, 6))
+@partial(jit, static_argnums=(1, 2, 3, 4, 5, 6, 7))
 def make_data(
     key: Key[Array, ""],
     n: int,
@@ -42,6 +42,7 @@ def make_data(
     q: int | None = None,
     binary: bool = False,
     keep_mu: bool = False,
+    peff: int | None = None,
 ) -> Data:
     """Generate data.
 
@@ -68,6 +69,11 @@ def make_data(
     keep_mu
         Whether to populate the `mu` field with the true latent mean function
         evaluated at `X` (equal to E[y|X] for continuous outcomes).
+    peff
+        Effective number of active predictors. When set, the per-predictor
+        importance scales are `bartz.testing.SpikeSlab`: `peff` predictors are
+        active on average, the others exactly inert (hard variable selection).
+        `None` (default) keeps all predictors equally important.
 
     Returns
     -------
@@ -83,6 +89,7 @@ def make_data(
         q = 2 if p > 2 else 0
 
     sigma2 = 1 / 3
+    s_distr = Constant() if peff is None else SpikeSlab.from_peff(peff, p)
     params = gen_params(
         keys.pop(),
         p=p,
@@ -91,6 +98,7 @@ def make_data(
         sigma2_lin=sigma2,
         sigma2_quad=sigma2,
         sigma2_eps=sigma2,
+        s_distr=s_distr,
         outcome_type="binary" if binary else "continuous",
     )
 
