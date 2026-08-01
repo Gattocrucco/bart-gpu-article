@@ -25,7 +25,7 @@ from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
 from jax.nn import logmeanexp
 from jax.scipy.stats import bernoulli, norm
-from jaxtyping import Array, Float, Float32, Key
+from jaxtyping import Array, Float, Float32, Key, UInt
 
 from bart_gpu_article.datasim import load_data
 from bart_gpu_article.scripts.benchmark import (
@@ -111,6 +111,10 @@ class TreeStats(NamedTuple):
     """`move_acc` of the initial fit, which differs only if it was redone with
     more trees; compare with `num_trees` to see whether that happened."""
 
+    frac_empty_trees: float | None = None
+    """Fraction of trees with no splits, i.e., a single leaf, or `None` if the
+    method does not report it."""
+
 
 def move_acc(bart: Bart) -> float:
     """Fraction of accepted grow/prune moves, averaged over the main trace."""
@@ -119,6 +123,13 @@ def move_acc(bart: Bart) -> float:
     # is the proposal count (see bartz.mcmcloop._callback)
     acc_count = trace.grow_acc_count + trace.prune_acc_count
     return float(jnp.mean(acc_count) / bart.num_trees)
+
+
+def frac_empty_trees(split_tree: UInt[Array, "*batch half_tree_size"]) -> float:
+    """Fraction of trees with no splits, averaged over the whole trace."""
+    # a tree is empty iff it has no internal nodes, i.e., no nonzero split
+    num_internal = jnp.count_nonzero(split_tree, axis=-1)
+    return float(jnp.mean(num_internal == 0))
 
 
 class Benchmark(ABC):
@@ -229,6 +240,7 @@ class Bartz(Benchmark):
             float(forest_mean_leaves(split_tree)),
             move_acc(self._bart),
             self._move_acc_first,
+            frac_empty_trees(split_tree),
         )
 
 
@@ -359,6 +371,7 @@ EMPTY_ROW_KEYS = (
     "logloss",
     "num_trees",
     "mean_leaves",
+    "frac_empty_trees",
     "move_acc",
     "move_acc_first",
 )
@@ -437,6 +450,8 @@ def run_slave(cfg: Config) -> dict[str, Any]:
     stats = bench.tree_stats()
     print(f"num_trees: {stats.num_trees}")
     print(f"mean_leaves: {stats.mean_leaves:.4f}")
+    if stats.frac_empty_trees is not None:
+        print(f"frac_empty_trees: {stats.frac_empty_trees:.4f}")
     if stats.move_acc is not None:
         print(f"move_acc: {stats.move_acc:.4f}")
     if stats.move_acc_first is not None:
@@ -459,6 +474,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         logloss=logloss,
         num_trees=stats.num_trees,
         mean_leaves=stats.mean_leaves,
+        frac_empty_trees=stats.frac_empty_trees,
         move_acc=stats.move_acc,
         move_acc_first=stats.move_acc_first,
     )
@@ -495,6 +511,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         logloss=None,
         num_trees=None,
         mean_leaves=None,
+        frac_empty_trees=None,
         move_acc=None,
         move_acc_first=None,
     )
