@@ -34,12 +34,10 @@ METHOD_STYLES = (
     {"markerfacecolor": "red", "markeredgecolor": "black"},
 )
 
-MARKERSIZE = 6  # points
-DOT_SHIFT = 0.138  # vertical gap between dots of the same dataset, in data units,
-# tuned by eye such that vertically aligned dots touch
-FIGSIZE = [8.5, 11.5]  # inches; tight layout is not adaptive, so this is set to
-# fill a page of the article: the width matches the other full-page figures, and
-# the height leaves room for a caption of about 8 lines
+MARKERSIZE = 6
+FIGSIZE = [8.5, 11.5]  # hand-tuned for the article
+DOT_SHIFT = 0.0287  # gap between dots of the same dataset = markersize in data units
+Y_MARGIN = 2 * DOT_SHIFT  # padding around the first/last dataset
 
 
 def load_results(paths: Sequence[Path]) -> pl.DataFrame:
@@ -117,7 +115,7 @@ def plot(agg: Agg) -> Figure:
     )
     datasets = list(info)
     datasets.sort(key=lambda d: (info[d], d))
-    y_pos = {d: i for i, d in enumerate(datasets)}
+    y_pos = dict(zip(datasets, np.linspace(0, 1, len(datasets))))
 
     methods = sorted(agg.df["method"].unique().to_list())
     offsets = (np.arange(len(methods)) - (len(methods) - 1) / 2) * DOT_SHIFT
@@ -219,7 +217,7 @@ def plot(agg: Agg) -> Figure:
             ax.set_xlim(left=0)
             ref_lines += [
                 ax.axvline(32, color="black", linestyle="--", label="bartz max"),
-                ax.axvline(64, color="black", linestyle="--", label="xgboost max"),
+                ax.axvline(64, color="black", linestyle="--", label="xgb max"),
             ]
 
     def _label(path: str) -> str:
@@ -236,9 +234,9 @@ def plot(agg: Agg) -> Figure:
 
     # the y axis is shared, so this applies to all panels
     ax = axd[panel_rows[0][0][1]]
-    ax.set_yticks(range(len(datasets)))
+    ax.set_yticks(list(y_pos.values()))
     ax.set_yticklabels([_label(d) for d in datasets])
-    ax.set_ylim(-0.6, len(datasets) - 0.4)
+    ax.set_ylim(-Y_MARGIN, 1 + Y_MARGIN)
     ax.invert_yaxis()
 
     # labelLine freezes the label position, so it must run last. It matches the
