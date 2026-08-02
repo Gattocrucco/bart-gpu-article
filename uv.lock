@@ -98,7 +98,7 @@ cuda13 = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bartz", git = "https://github.com/bartz-org/bartz.git?rev=neurips-2" },
+    { name = "bartz", git = "https://github.com/bartz-org/bartz.git?rev=7b3f44fbd309044d2ba669a91c78379bf9649242" },
     { name = "catboost", specifier = ">=1.2.10" },
     { name = "cupy-cuda12x", marker = "extra == 'cuda12'" },
     { name = "cupy-cuda13x", marker = "extra == 'cuda13'" },
@@ -123,8 +123,8 @@ provides-extras = ["cuda12", "cuda13"]
 
 [[package]]
 name = "bartz"
-version = "0.12.1.dev6+g9a473dc3f"
-source = { git = "https://github.com/bartz-org/bartz.git?rev=neurips-2#9a473dc3fa17871b3254a56d70be908ccdbf90bd" }
+version = "0.12.1.dev14+g7b3f44fbd"
+source = { git = "https://github.com/bartz-org/bartz.git?rev=7b3f44fbd309044d2ba669a91c78379bf9649242#7b3f44fbd309044d2ba669a91c78379bf9649242" }
 dependencies = [
     { name = "equinox" },
     { name = "jax" },

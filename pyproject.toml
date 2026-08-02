@@ -52,7 +52,7 @@ testpaths = ["tests"]
 exclude-newer = "1 week"
 
 [tool.uv.sources]
-bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "neurips-2" }
+bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "7b3f44fbd309044d2ba669a91c78379bf9649242" }
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
