@@ -277,7 +277,9 @@ class Bartz(Benchmark):
                 # xgboost, which at its default "maxdepth=6" will have one level
                 # more
                 p_nonterminal=make_p_nonterminal(6, 0.95, 2),
-                leaf_prior_cov_inv=jnp.float32(cfg.ntree),
+                leaf_prior_cov_inv=Wishart(
+                    nu=None, rate=None, value=jnp.float32(cfg.ntree)
+                ),
                 error_cov_inv=Wishart(nu=2.0, rate=2.0, value=1.0),
                 min_points_per_decision_node=10 if cfg.n > 10 else None,
             )
