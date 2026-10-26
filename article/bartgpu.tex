@@ -142,7 +142,7 @@ these positive factors, BART is a niche method compared to its non-Bayesian
 counterparts. According to the \citet[p.~35]{kaggle2021} survey, the most
 popular regression tool amongst the ones mentioned is XGBoost, used by half of
 the surveyed data scientists. From download counts, we estimate that BART is
-$O(1000)$ times less used that XGBoost.
+$O(1000)$ times less used than XGBoost.
 
 We hypothesize the following reasons for this gap, in decreasing order of
 importance: 1) Speed: a single BART run produces an ensemble of $\mathord{\sim}
@@ -151,7 +151,7 @@ $O(1000)$ times slower. The largest BART analysis we know of had
 $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features
 \citep{pratola2020}, while \texttt{XGBoost} boasts ``billions of examples'' on
 its home page. 2) Classification performance: the literature lacks a systematic
-investigation of the performance of BART with binary rather than continuos
+investigation of the performance of BART with binary rather than continuous
 outcomes; it could be that in this setting BART is not any better than popular
 methods. 3) Software ecosystem: even though \citet{he_stochastic_2023} showed
 how XBART is fast enough to be an alternative to non-Bayesian methods, the
@@ -211,7 +211,7 @@ A decision tree is a way to represent a stepwise function $\mathbb R^p \to \math
 using a binary tree. Each non-leaf node contains a \emph{decision rule}, consisting in a
 pair $(i, s)$ combining a splitting axis $i$ with a splitting point $s$ along such axis,
 partitioning the input space in two half-spaces along the plane $\{\mathbf x \in \mathbb
-	R^p: x_i = s\}$, orthogonal to axis $i$. Each half is assigned to a children of the node.
+	R^p: x_i = s\}$, orthogonal to axis $i$. Each half is assigned to a child of the node.
 Children nodes in turn further divide their space amongst their own children. Leaf nodes
 contain the constant function value to be associated to their whole assigned rectangular
 subregion. A minimal tree consisting of a single root leaf node represents a flat
@@ -383,7 +383,7 @@ the tree structures change at each iteration, with nodes added and removed, and
 the set and number of datapoints assigned to each node altered. To shoehorn this
 algorithm into JAX, we make two major deviations from other implementations:
 1)~we fix a maximum depth for the trees, and then write tree-traversing
-operations as if all trees were always maximal, with arithmetic that masks aways
+operations as if all trees were always maximal, with arithmetic that masks away
 operations on nodes that are not actually used; 2)~we always scan through all
 datapoints, even for operations that would require only the subset of datapoints
 associated with a given node. These sweeping de-optimizations are feasible
@@ -610,7 +610,7 @@ again: these figures do not include predictor quantization.)
 		training set size $n$, comparing \texttt{bartz} with the fastest BART
 		implementation (\texttt{dbarts}), \texttt{XGBoost}, and
 		\texttt{catboost}, on CPU (\texttt{-M1Pro}) and GPU (\texttt{-P5000}).
-		Keep into account that gradient boosting requires only one iteration to
+		Take into account that gradient boosting requires only one iteration to
 		produce a usable result, while BART requires $O(1000)$ iterations.
 		%
 		\textbf{Right panel:} Test set mean square error (MSE) vs.\
@@ -827,7 +827,7 @@ $p$-$n_\text{tree}$ settings are in Figures~\ref{fig:time-all} and~\ref{fig:rmse
 		\texttt{bartz} with the fastest BART implementation (\texttt{dbarts}),
 		\texttt{XGBoost}, and \texttt{catboost}, for various settings of number of
 		trees and number of predictors $p$, on CPU (\texttt{-M1pro}) and GPU
-		(\texttt{-P5000}). Keep into account that gradient boosting requires only
+		(\texttt{-P5000}). Take into account that gradient boosting requires only
 		one iteration to produce a usable result, while BART requires $O(1000)$
 		iterations.}
 \end{figure}
@@ -869,7 +869,7 @@ $\max(n, p)$.
 We look at our MSE measurements to get some empirical evidence that increasing
 the number of trees is useful. Consider the left column of panels in
 \autoref{fig:rmse-all}. They both have a ``high'' $p$ setting ($n = 20p$),
-while differring in the number of trees. In the bottom panel, at fixed
+while differing in the number of trees. In the bottom panel, at fixed
 $n_\text{tree}=200$, the MSE increases faster with $n$, reaching at some point
 the population variance, indicating useless predictions.
 
