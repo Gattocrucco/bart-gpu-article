@@ -169,7 +169,7 @@ def test_interrupted_save_is_not_loadable(keys, tmp_path: Path):
     # simulate a process killed while writing: the with block never exits
     writer = datasim._DataWriter(tmp_path / "ds", overwrite=False)
     writer.__enter__()
-    writer.array("raw_X", (3, 50), np.float32)[...] = 1
+    writer.array("raw_X", (3, 50), np.float32).write_columns(0, np.ones((3, 50)))
     assert not (tmp_path / "ds").exists()
     with pytest.raises(FileNotFoundError):
         load_data(tmp_path / "ds")

@@ -255,7 +255,7 @@ def save_generated_data(
             batch = gen_batch(batch_key, params, layout)
             for out, value in zip((raw_X, quant_X, y, mu), batch):
                 if out is not None:
-                    out[..., start:stop] = np.asarray(value)[..., : stop - start]
+                    out.write_columns(start, np.asarray(value)[..., : stop - start])
 
         for name, value in _scalar_fields(params, p, binary).items():
             writer.put(name, value)
@@ -324,52 +324,48 @@ class _DataWriter:
         tag = uuid.uuid4().hex[:8]
         self._tmp = self._path.with_name(f".{self._path.name}.tmp-{tag}")
         self._fields: dict[str, dict | None] = {}
-        self._memmaps: list[np.memmap] = []
+        self._files: list[_ArrayFile] = []
 
     def __enter__(self) -> Self:
         self._tmp.mkdir(parents=True)
         return self
 
     def __exit__(self, exc_type: type[BaseException] | None, *_: object) -> None:
+        for file in self._files:
+            file.close()
         if exc_type is not None:
             shutil.rmtree(self._tmp, ignore_errors=True)
             return
         self._commit()
 
-    def _record(self, name: str, info: dict | None) -> None:
+    def _record(self, name: str, shape: tuple[int, ...] | None, dtype: Any) -> Path:
         # the field name is the file name, so it must be filesystem-safe
         if not name.isidentifier() or name in self._fields:
             msg = f"invalid or duplicate field name {name!r}"
             raise ValueError(msg)
-        self._fields[name] = info
-
-    def array(self, name: str, shape: tuple[int, ...], dtype: Any) -> np.memmap:
-        """Create the file of an array field, and return it as a writable memmap."""
         file = f"{name}.npy"
-        out = np.lib.format.open_memmap(
-            self._tmp / file, mode="w+", dtype=dtype, shape=shape
+        self._fields[name] = (
+            None
+            if shape is None
+            else {"file": file, "shape": list(shape), "dtype": np.dtype(dtype).str}
         )
-        # reserve the disk space now, rather than crashing on a write to the
-        # map if the disk fills up
-        if hasattr(os, "posix_fallocate") and out.nbytes:
-            with open(self._tmp / file, "r+b") as f:
-                os.posix_fallocate(f.fileno(), 0, os.fstat(f.fileno()).st_size)
-        self._record(name, {"file": file, "shape": list(shape), "dtype": out.dtype.str})
-        self._memmaps.append(out)
-        return out
+        return self._tmp / file
+
+    def array(self, name: str, shape: tuple[int, ...], dtype: Any) -> _ArrayFile:
+        """Create the file of an array field, to be filled with `write_columns`."""
+        file = _ArrayFile(self._record(name, shape, dtype), shape, dtype)
+        self._files.append(file)
+        return file
 
     def put(self, name: str, value: Any) -> None:
         """Write a field whole, from an array or `None`."""
         if value is None:
-            self._record(name, None)
+            self._record(name, None, None)
             return
         value = np.asarray(value)
-        self.array(name, value.shape, value.dtype)[...] = value
+        np.save(self._record(name, value.shape, value.dtype), value)
 
     def _commit(self) -> None:
-        for out in self._memmaps:
-            out.flush()
-        self._memmaps.clear()
         meta = {"format": _FORMAT, "version": _FORMAT_VERSION, "fields": self._fields}
         with open(self._tmp / _METADATA, "w") as f:
             json.dump(meta, f, indent=4)
@@ -382,6 +378,49 @@ class _DataWriter:
             shutil.rmtree(old)
         else:
             self._tmp.rename(self._path)
+
+
+class _ArrayFile:
+    """A ``.npy`` file preallocated with its final shape, filled in by columns.
+
+    The data is written with plain file writes rather than through a memory
+    map, so the written pages do not stay mapped into the process, and its
+    resident memory does not grow with the size of the array.
+    """
+
+    def __init__(self, path: Path, shape: tuple[int, ...], dtype: Any) -> None:
+        # let numpy write the header and size the file, then drop the map
+        # before touching any data page
+        header = np.lib.format.open_memmap(path, mode="w+", dtype=dtype, shape=shape)
+        self._offset = header.offset
+        del header
+        self._shape = shape
+        self._dtype = np.dtype(dtype)
+        self._fd = os.open(path, os.O_WRONLY)
+        # reserve the disk space now, rather than failing late if the disk fills
+        if hasattr(os, "posix_fallocate"):
+            os.posix_fallocate(self._fd, 0, os.fstat(self._fd).st_size)
+
+    def write_columns(self, start: int, values: np.ndarray) -> None:
+        """Write `values` at ``array[..., start:start + values.shape[-1]]``."""
+        *rows, n = self._shape
+        if tuple(rows) != values.shape[:-1] or start + values.shape[-1] > n:
+            msg = f"can not write {values.shape} at column {start} of {self._shape}"
+            raise ValueError(msg)
+        values = np.ascontiguousarray(values, self._dtype).reshape(-1, values.shape[-1])
+        for i, row in enumerate(values):
+            pos = self._offset + (i * n + start) * self._dtype.itemsize
+            buf = memoryview(row).cast("B")
+            # pwrite may write less than asked, e.g., above 2 GiB on Linux
+            while buf:
+                written = os.pwrite(self._fd, buf, pos)
+                buf = buf[written:]
+                pos += written
+
+    def close(self) -> None:
+        if self._fd >= 0:
+            os.close(self._fd)
+            self._fd = -1
 
 
 def _quantize_uniform(x: Float[Array, "p n"]) -> UInt8[Array, "p n"]:
