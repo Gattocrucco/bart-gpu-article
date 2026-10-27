@@ -1,21 +1,28 @@
 """Simulated data generation helpers built on top of :mod:`bartz.testing`."""
 
+import json
+import os
+import shutil
+import uuid
 from dataclasses import fields
 from functools import partial
 from os import PathLike
-from typing import Any, Literal
+from pathlib import Path
+from typing import Any, Literal, NamedTuple, Self
 
-import jax
 import numpy as np
 from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
 from bartz.testing import Constant, SpikeSlab, gen_data_from_params, gen_params
 from equinox import Module
-from jax import jit, lax, tree
+from jax import jit, lax
 from jax import numpy as jnp
-from jax.experimental.array_serialization import pytree_serialization
 from jaxtyping import Array, Bool, Float, Float32, Integer, Key, UInt, UInt8
 
 _MAX_IO_NBYTES = 2**26
+
+_FORMAT = "bart-gpu-article-data"
+_FORMAT_VERSION = 1
+_METADATA = "metadata.json"
 
 
 class Data(Module):
@@ -79,19 +86,78 @@ def make_data(
     -------
     A `Data` object with the generated data.
     """
-    both = quantized_x == "both"
-    want_raw = both or not quantized_x
-    want_quant = both or quantized_x is True
-
+    layout = _Layout.make(n, p, quantized_x, keep_mu)
     keys = split(key)
+    params = _gen_params(keys.pop(), p, q, binary, peff)
 
+    def body(_, key):
+        return None, _gen_batch(key, params, layout)
+
+    _, batches = lax.scan(body, None, keys.pop(layout.num_batches))
+    raw_X, quant_X, y, mu = batches
+    total = layout.num_batches * layout.batch_size
+
+    def _finalize_x(x_batches):
+        return jnp.moveaxis(x_batches, 0, 1).reshape(p, total)[:, :n]
+
+    return Data(
+        raw_X=None if raw_X is None else _finalize_x(raw_X),
+        quantized_X=None if quant_X is None else _finalize_x(quant_X),
+        y=y.reshape(total)[:n],
+        mu=None if mu is None else mu.reshape(total)[:n],
+        **_scalar_fields(params, p, binary),
+    )
+
+
+def default_q(p: int) -> int:
+    """Number of quadratic terms `make_data` uses when `q` is `None`."""
+    return 2 if p > 2 else 0
+
+
+class _Layout(NamedTuple):
+    """Which arrays to generate, and how to batch the generation."""
+
+    n: int
+    p: int
+    want_raw: bool
+    want_quant: bool
+    keep_mu: bool
+    batch_size: int
+    num_batches: int
+
+    @classmethod
+    def make(
+        cls, n: int, p: int, quantized_x: bool | Literal["both"], keep_mu: bool
+    ) -> Self:
+        both = quantized_x == "both"
+        want_raw = both or not quantized_x
+        want_quant = both or quantized_x is True
+
+        # sizing for the batches: worst case is both forms materialised
+        raw_bytes = jnp.dtype(jnp.float32).itemsize if want_raw else 0
+        quant_bytes = jnp.dtype(jnp.uint8).itemsize if want_quant else 0
+        mu_bytes = jnp.dtype(jnp.float32).itemsize if keep_mu else 0
+        bytes_per_sample = (
+            jnp.dtype(jnp.float32).itemsize + mu_bytes + (raw_bytes + quant_bytes) * p
+        )
+
+        # n is rounded up to a multiple of batch_size so that all batches have
+        # the same shape, and the excess is dropped at the end
+        batch_size = max(1, min(n, _MAX_IO_NBYTES // bytes_per_sample))
+        num_batches = -(-n // batch_size)
+        return cls(n, p, want_raw, want_quant, keep_mu, batch_size, num_batches)
+
+
+def _gen_params(
+    key: Key[Array, ""], p: int, q: int | None, binary: bool, peff: int | None
+) -> Any:
+    """Draw the parameters of the data generating process."""
     if q is None:
-        q = 2 if p > 2 else 0
-
+        q = default_q(p)
     sigma2 = 1 / 3
     s_distr = Constant() if peff is None else SpikeSlab.from_peff(peff, p)
-    params = gen_params(
-        keys.pop(),
+    return gen_params(
+        key,
         p=p,
         k=None,
         q=q,
@@ -102,90 +168,220 @@ def make_data(
         outcome_type="binary" if binary else "continuous",
     )
 
-    # sizing for the scan: worst case is both forms materialised
-    raw_bytes = jnp.dtype(jnp.float32).itemsize if want_raw else 0
-    quant_bytes = jnp.dtype(jnp.uint8).itemsize if want_quant else 0
-    mu_bytes = jnp.dtype(jnp.float32).itemsize if keep_mu else 0
-    bytes_per_sample = (
-        jnp.dtype(jnp.float32).itemsize + mu_bytes + (raw_bytes + quant_bytes) * p
+
+def _gen_batch(
+    key: Key[Array, ""], params: Any, layout: _Layout
+) -> tuple[
+    Float32[Array, "p b"] | None,
+    UInt8[Array, "p b"] | None,
+    Float32[Array, " b"],
+    Float32[Array, " b"] | None,
+]:
+    """Generate one batch of `layout.batch_size` samples: raw x, quantized x, y, mu."""
+    dgp = gen_data_from_params(key, params, n=layout.batch_size)
+    return (
+        dgp.x if layout.want_raw else None,
+        _quantize_uniform(dgp.x) if layout.want_quant else None,
+        dgp.y,
+        dgp.mu if layout.keep_mu else None,
     )
 
-    # round n up to a multiple of batch_size so scan has a single body path
-    batch_size = max(1, min(n, _MAX_IO_NBYTES // bytes_per_sample))
-    num_batches = -(-n // batch_size)
-    total = num_batches * batch_size
 
-    def body(_, key):
-        dgp = gen_data_from_params(key, params, n=batch_size)
-        out: tuple = ()
-        if want_raw:
-            out += (dgp.x,)
-        if want_quant:
-            out += (_quantize_uniform(dgp.x),)
-        out += (dgp.y,)
-        if keep_mu:
-            out += (dgp.mu,)
-        return None, out
-
-    _, batches = lax.scan(body, None, keys.pop(num_batches))
-    if keep_mu:
-        *x_batches_list, y_batches, mu_batches = batches
-    else:
-        *x_batches_list, y_batches = batches
-
-    def _finalize_x(x_batches):
-        return jnp.moveaxis(x_batches, 0, 1).reshape(p, total)[:, :n]
-
-    raw_X = _finalize_x(x_batches_list[0]) if want_raw else None
-    quant_X = _finalize_x(x_batches_list[-1]) if want_quant else None
-    y = y_batches.reshape(total)[:n]
-    mu = mu_batches.reshape(total)[:n] if keep_mu else None
-
-    return Data(
-        raw_X=raw_X,
-        quantized_X=quant_X,
-        y=y,
-        mu=mu,
-        max_split=jnp.full((p,), 255, jnp.uint8),
-        prior_var=params.sigma2_pri,
-        pop_var=params.sigma2_pop,
-        eps_var=params.sigma2_eps,
-        q=params.q,
-        binary=jnp.asarray(binary, dtype=jnp.bool_),
-    )
+def _scalar_fields(params: Any, p: int, binary: bool) -> dict[str, Array]:
+    """The fields of `Data` that do not depend on the samples."""
+    return {
+        "max_split": jnp.full((p,), 255, jnp.uint8),
+        "prior_var": params.sigma2_pri,
+        "pop_var": params.sigma2_pop,
+        "eps_var": params.sigma2_eps,
+        "q": params.q,
+        "binary": jnp.asarray(binary, dtype=jnp.bool_),
+    }
 
 
 def save_data(
     data: Data, path: str | PathLike[str], *, overwrite: bool = False
 ) -> None:
-    """Save a `Data` pytree to `path` (a directory).
+    """Save a `Data` object to `path` (a directory), see `load_data`."""
+    with _DataWriter(path, overwrite=overwrite) as writer:
+        for f in fields(data):
+            writer.put(f.name, getattr(data, f.name))
 
-    The payload is written as a dict of fields so that
-    :mod:`jax.experimental.array_serialization`'s pytree serializer, which only
-    knows about built-in container types, does not need `Data` to be registered
-    as a custom pytree node.
+
+def save_generated_data(
+    path: str | PathLike[str],
+    key: Key[Array, ""],
+    n: int,
+    p: int,
+    quantized_x: bool | Literal["both"],
+    q: int | None = None,
+    binary: bool = False,
+    keep_mu: bool = False,
+    peff: int | None = None,
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Generate data like `make_data` and save it like `save_data`.
+
+    The data is generated one batch at a time and written directly into the
+    files on disk, so the memory usage does not depend on `n`. The arguments
+    are the same as `make_data`, and the result is the same as
+    ``save_data(make_data(...), path)``.
     """
-    payload = {f.name: getattr(data, f.name) for f in fields(data)}
-    pytree_serialization.save(payload, path, overwrite=overwrite)
+    layout = _Layout.make(n, p, quantized_x, keep_mu)
+    keys = split(key)
+    params = jit(_gen_params, static_argnums=(1, 2, 3, 4))(
+        keys.pop(), p, q, binary, peff
+    )
+    gen_batch = jit(_gen_batch, static_argnums=(2,))
+
+    with _DataWriter(path, overwrite=overwrite) as writer:
+        raw_X = writer.array("raw_X", (p, n), np.float32) if layout.want_raw else None
+        quant_X = (
+            writer.array("quantized_X", (p, n), np.uint8) if layout.want_quant else None
+        )
+        y = writer.array("y", (n,), np.float32)
+        mu = writer.array("mu", (n,), np.float32) if keep_mu else None
+        if raw_X is None:
+            writer.put("raw_X", None)
+        if quant_X is None:
+            writer.put("quantized_X", None)
+        if mu is None:
+            writer.put("mu", None)
+
+        for i, batch_key in enumerate(keys.pop(layout.num_batches)):
+            start = i * layout.batch_size
+            stop = min(n, start + layout.batch_size)
+            batch = gen_batch(batch_key, params, layout)
+            for out, value in zip((raw_X, quant_X, y, mu), batch):
+                if out is not None:
+                    out[..., start:stop] = np.asarray(value)[..., : stop - start]
+
+        for name, value in _scalar_fields(params, p, binary).items():
+            writer.put(name, value)
 
 
 def load_data(path: str | PathLike[str]) -> Data:
-    """Load a `Data` pytree previously written by :func:`save_data`."""
-    device = jax.devices("cpu")[0]
-    sharding = jax.sharding.SingleDeviceSharding(device)
-    payload = pytree_serialization.load(path, sharding)
+    """Load a `Data` object written by `save_data` or `save_generated_data`.
 
-    def alias_as_numpy_array(x: Array | Any) -> np.ndarray | Any:
-        if isinstance(x, Array):
-            y = np.asarray(x)
-            assert x.unsafe_buffer_pointer() == y.ctypes.data
-            assert not y.flags.writeable
-            return y
-        else:
-            return x
+    The dataset is a directory with one uncompressed ``.npy`` file per array
+    field, and a ``metadata.json`` listing the fields. The arrays are returned
+    as read-only numpy memory maps, so loading does not read the data from
+    disk until it is used.
 
-    payload = tree.map(alias_as_numpy_array, payload)
+    Raises
+    ------
+    FileNotFoundError
+        If `path` or its metadata do not exist. A dataset whose writing was
+        interrupted is never visible at `path`, so this is also the error for
+        that case.
+    ValueError
+        If the metadata does not match the files or the `Data` fields.
+    """
+    path = Path(path)
+    with open(path / _METADATA) as f:
+        meta = json.load(f)
+    if meta.get("format") != _FORMAT or meta.get("version") != _FORMAT_VERSION:
+        msg = f"{path} has format {meta.get('format')!r} {meta.get('version')!r}, expected {_FORMAT!r} {_FORMAT_VERSION!r}"
+        raise ValueError(msg)
+
+    expected = {f.name for f in fields(Data)}
+    if set(meta["fields"]) != expected:
+        msg = f"{path} has fields {sorted(meta['fields'])}, expected {sorted(expected)}"
+        raise ValueError(msg)
+
+    payload = {}
+    for name, info in meta["fields"].items():
+        if info is None:
+            payload[name] = None
+            continue
+        array = np.load(path / info["file"], mmap_mode="r")
+        if list(array.shape) != info["shape"] or array.dtype.str != info["dtype"]:
+            msg = (
+                f"{path / info['file']} has shape {array.shape} and dtype "
+                f"{array.dtype.str}, expected {info['shape']} and {info['dtype']}"
+            )
+            raise ValueError(msg)
+        payload[name] = array
     return Data(**payload)
+
+
+class _DataWriter:
+    """Write a dataset directory, making it visible only once complete.
+
+    The files are written into a temporary sibling directory, which is renamed
+    to the target path only if the ``with`` block completes without errors,
+    after writing the metadata. If the process dies midway, the target path is
+    left untouched (absent, or the previous dataset if overwriting), and the
+    temporary directory remains as debris.
+    """
+
+    def __init__(self, path: str | PathLike[str], *, overwrite: bool) -> None:
+        self._path = Path(path)
+        if self._path.exists() and not overwrite:
+            msg = f"{self._path} already exists"
+            raise FileExistsError(msg)
+        tag = uuid.uuid4().hex[:8]
+        self._tmp = self._path.with_name(f".{self._path.name}.tmp-{tag}")
+        self._fields: dict[str, dict | None] = {}
+        self._memmaps: list[np.memmap] = []
+
+    def __enter__(self) -> Self:
+        self._tmp.mkdir(parents=True)
+        return self
+
+    def __exit__(self, exc_type: type[BaseException] | None, *_: object) -> None:
+        if exc_type is not None:
+            shutil.rmtree(self._tmp, ignore_errors=True)
+            return
+        self._commit()
+
+    def _record(self, name: str, info: dict | None) -> None:
+        # the field name is the file name, so it must be filesystem-safe
+        if not name.isidentifier() or name in self._fields:
+            msg = f"invalid or duplicate field name {name!r}"
+            raise ValueError(msg)
+        self._fields[name] = info
+
+    def array(self, name: str, shape: tuple[int, ...], dtype: Any) -> np.memmap:
+        """Create the file of an array field, and return it as a writable memmap."""
+        file = f"{name}.npy"
+        out = np.lib.format.open_memmap(
+            self._tmp / file, mode="w+", dtype=dtype, shape=shape
+        )
+        # reserve the disk space now, rather than crashing on a write to the
+        # map if the disk fills up
+        if hasattr(os, "posix_fallocate") and out.nbytes:
+            with open(self._tmp / file, "r+b") as f:
+                os.posix_fallocate(f.fileno(), 0, os.fstat(f.fileno()).st_size)
+        self._record(name, {"file": file, "shape": list(shape), "dtype": out.dtype.str})
+        self._memmaps.append(out)
+        return out
+
+    def put(self, name: str, value: Any) -> None:
+        """Write a field whole, from an array or `None`."""
+        if value is None:
+            self._record(name, None)
+            return
+        value = np.asarray(value)
+        self.array(name, value.shape, value.dtype)[...] = value
+
+    def _commit(self) -> None:
+        for out in self._memmaps:
+            out.flush()
+        self._memmaps.clear()
+        meta = {"format": _FORMAT, "version": _FORMAT_VERSION, "fields": self._fields}
+        with open(self._tmp / _METADATA, "w") as f:
+            json.dump(meta, f, indent=4)
+        if self._path.exists():
+            # a directory can not be renamed over a non-empty one, so move the
+            # old one out of the way first
+            old = self._tmp.with_name(self._tmp.name + "-old")
+            self._path.rename(old)
+            self._tmp.rename(self._path)
+            shutil.rmtree(old)
+        else:
+            self._tmp.rename(self._path)
 
 
 def _quantize_uniform(x: Float[Array, "p n"]) -> UInt8[Array, "p n"]:

@@ -3,11 +3,19 @@
 from dataclasses import fields
 from pathlib import Path
 
+import numpy as np
 import pytest
 from jax import numpy as jnp
 from numpy.testing import assert_array_equal
 
-from bart_gpu_article.datasim import _MAX_IO_NBYTES, load_data, make_data, save_data
+from bart_gpu_article import datasim
+from bart_gpu_article.datasim import (
+    _MAX_IO_NBYTES,
+    load_data,
+    make_data,
+    save_data,
+    save_generated_data,
+)
 
 
 def test_shapes_raw(keys):
@@ -105,8 +113,71 @@ def test_save_overwrite(keys, tmp_path: Path):
     data = make_data(keys.pop(), n=50, p=3, quantized_x="both")
     target = tmp_path / "ds"
     save_data(data, target)
-    with pytest.raises(Exception):
+    with pytest.raises(FileExistsError):
         save_data(data, target, overwrite=False)
     save_data(data, target, overwrite=True)
     loaded = load_data(target)
     _assert_data_equal(loaded, data)
+
+
+@pytest.mark.parametrize("quantized_x", [False, True, "both"])
+@pytest.mark.parametrize(("binary", "keep_mu"), [(False, False), (True, True)])
+def test_save_generated_matches_make_data(
+    keys, tmp_path: Path, monkeypatch, quantized_x, binary, keep_mu
+):
+    # small batches, so the generation runs in several batches with a partial
+    # last one; n is unique to this test, so the jit cache of make_data does not
+    # hold a trace with the default batch size
+    monkeypatch.setattr(datasim, "_MAX_IO_NBYTES", 2**12)
+    n, p = 1237, 7
+    key = keys.pop()
+    expected = make_data(
+        key, n, p, quantized_x, q=4, binary=binary, keep_mu=keep_mu, peff=4
+    )
+    save_generated_data(
+        tmp_path / "ds",
+        key,
+        n,
+        p,
+        quantized_x,
+        q=4,
+        binary=binary,
+        keep_mu=keep_mu,
+        peff=4,
+    )
+    _assert_data_equal(load_data(tmp_path / "ds"), expected)
+
+
+def test_loaded_arrays_are_read_only(keys, tmp_path: Path):
+    save_data(make_data(keys.pop(), n=50, p=3, quantized_x="both"), tmp_path / "ds")
+    loaded = load_data(tmp_path / "ds")
+    assert isinstance(loaded.raw_X, np.memmap)
+    assert not loaded.raw_X.flags.writeable
+
+
+def test_failed_save_leaves_nothing(keys, tmp_path: Path, monkeypatch):
+    def fail(*_):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(datasim, "_gen_batch", fail)
+    with pytest.raises(RuntimeError, match="boom"):
+        save_generated_data(tmp_path / "ds", keys.pop(), 50, 3, "both")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_interrupted_save_is_not_loadable(keys, tmp_path: Path):
+    # simulate a process killed while writing: the with block never exits
+    writer = datasim._DataWriter(tmp_path / "ds", overwrite=False)
+    writer.__enter__()
+    writer.array("raw_X", (3, 50), np.float32)[...] = 1
+    assert not (tmp_path / "ds").exists()
+    with pytest.raises(FileNotFoundError):
+        load_data(tmp_path / "ds")
+
+
+def test_load_rejects_mismatched_file(keys, tmp_path: Path):
+    target = tmp_path / "ds"
+    save_data(make_data(keys.pop(), n=50, p=3, quantized_x=False), target)
+    np.save(target / "y.npy", np.zeros(49, np.float32))
+    with pytest.raises(ValueError, match="y.npy"):
+        load_data(target)

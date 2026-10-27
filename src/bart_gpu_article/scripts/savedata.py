@@ -5,9 +5,9 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
 from pathlib import Path
 
-from jax import block_until_ready, config, random
+from jax import config, random
 
-from bart_gpu_article.datasim import make_data, save_data
+from bart_gpu_article.datasim import default_q, save_generated_data
 
 
 def parse_args(argv: Sequence[str]) -> Namespace:
@@ -79,23 +79,22 @@ def main(argv: Sequence[str] = sys.argv[1:]) -> None:
     config.update("jax_platforms", "cpu")
     args = parse_args(argv)
     key = random.key(args.seed)
-    data = block_until_ready(
-        make_data(
-            key,
-            args.n,
-            args.p,
-            quantized_x="both",
-            q=args.q,
-            binary=args.binary,
-            peff=args.peff,
-        )
-    )
+    q = default_q(args.p) if args.q is None else args.q
     outcome = "binary" if args.binary else "continuous"
     peff = "" if args.peff is None else f"-peff{args.peff}"
-    target = args.data_dir / f"savedata-{args.n}-{args.p}-{int(data.q)}-{outcome}{peff}"
-    args.data_dir.mkdir(parents=True, exist_ok=True)
-    print(f"save to {target}...")
-    save_data(data, target, overwrite=args.overwrite)
+    target = args.data_dir / f"savedata-{args.n}-{args.p}-{q}-{outcome}{peff}"
+    print(f"generate and save to {target}...")
+    save_generated_data(
+        target,
+        key,
+        args.n,
+        args.p,
+        quantized_x="both",
+        q=q,
+        binary=args.binary,
+        peff=args.peff,
+        overwrite=args.overwrite,
+    )
 
 
 if __name__ == "__main__":

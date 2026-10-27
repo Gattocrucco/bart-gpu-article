@@ -11,8 +11,9 @@ SIMDATASET = data/savedata-4000000-1000-32-continuous-peff100
 # the fullbench results tabulated in the article, in column order
 FULLBENCH_RESULTS = $(foreach m,xgboost bartz bartz2000,results/fullbench-$(m)-NVIDIA_RTX_PRO_5000_Blackwell.json)
 
-# datasets for fullbench; not data/* because that also matches list-datasets.csv
-DATASETS ?= $(wildcard data/dataset-*) $(SIMDATASET)
+# datasets for fullbench: the complete ones, i.e., with the metadata that is
+# written last; not data/dataset-* because that also matches backup copies
+DATASETS ?= $(sort $(patsubst %/metadata.json,%,$(wildcard data/dataset-*/metadata.json))) $(SIMDATASET)
 
 .PHONY: help
 help:
@@ -60,7 +61,7 @@ compare-bart-packages:
 .PHONY: fullbench-data
 fullbench-data:
 	$(UV_RUN) save-datasets
-	test -d $(SIMDATASET) || $(UV_RUN) savedata -n 4000000 -p 1000 -q 32 --peff 100 -s 20260801
+	test -f $(SIMDATASET)/metadata.json || $(UV_RUN) savedata -n 4000000 -p 1000 -q 32 --peff 100 -s 20260801
 
 .PHONY: fullbench-gpu
 fullbench-gpu:
