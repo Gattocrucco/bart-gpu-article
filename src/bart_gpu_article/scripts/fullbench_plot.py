@@ -47,7 +47,9 @@ def load_results(paths: Sequence[Path]) -> pl.DataFrame:
         print(f"read {path}...")
         with open(path) as f:
             tables.append(pl.DataFrame(json.load(f)))
-    return pl.concat(tables, how="vertical")
+    # files written by older versions of fullbench may lack or have extra
+    # columns, so fill the missing ones with nulls
+    return pl.concat(tables, how="diagonal_relaxed")
 
 
 class Agg(NamedTuple):
@@ -91,6 +93,17 @@ def aggregate(df: pl.DataFrame) -> Agg:
         agg.get_column("n_rounds").unique().item(),
         df.get_column("n_test").unique().item(),
     )
+
+
+def dataset_name(path: str, simulated: str) -> str:
+    """Human-readable name of a fullbench dataset, `simulated` for savedata."""
+    name = Path(path).name
+    if re.match(r"savedata-", name):
+        return simulated
+    # dataset names come in inconsistent flavors of Capitalized-Words and
+    # lower_case_words
+    name = name.removeprefix("dataset-")
+    return name.replace("-", " ").replace("_", " ").lower()
 
 
 def _minor_grid(ax: plt.Axes) -> None:
@@ -221,14 +234,7 @@ def plot(agg: Agg) -> Figure:
             ]
 
     def _label(path: str) -> str:
-        name = Path(path).name
-        if re.fullmatch(r"savedata(-[^-]+){4}", name):
-            name = "<simulated>"
-        else:
-            # dataset names come in inconsistent flavors of Capitalized-Words
-            # and lower_case_words
-            name = name.removeprefix("dataset-")
-            name = name.replace("-", " ").replace("_", " ").lower()
+        name = dataset_name(path, "<simulated>")
         kind = OUTCOME_NICKNAMES[outcome[path]]
         return f"{name}\nn={info[path][0]:_}, p={info[path][1]:_}, {kind}"
 
