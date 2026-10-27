@@ -8,6 +8,9 @@ UV_RUN = RPY2_CFFI_MODE=ABI uv run $(EXTRAS)
 # keep the directory name in sync with the savedata arguments in that target
 SIMDATASET = data/savedata-4000000-1000-32-continuous-peff100
 
+# the methods run by fullbench-gpu, e.g., `make fullbench-gpu FULLBENCH_METHODS=xgboost`
+FULLBENCH_METHODS ?= bartz bartz2000 xgboost
+
 # the fullbench results tabulated in the article, in column order
 FULLBENCH_RESULTS = $(foreach m,xgboost bartz bartz2000,results/fullbench-$(m)-NVIDIA_RTX_PRO_5000_Blackwell.json)
 
@@ -59,15 +62,23 @@ compare-bart-packages:
 	$(UV_RUN) compare-bart-packages -t -p
 
 .PHONY: fullbench-data
-fullbench-data:
+fullbench-data: fullbench-data-sim
 	$(UV_RUN) save-datasets
+
+# only the simulated dataset, for machines where the OpenML ones are copied
+.PHONY: fullbench-data-sim
+fullbench-data-sim:
 	test -f $(SIMDATASET)/metadata.json || $(UV_RUN) savedata -n 4000000 -p 1000 -q 32 --peff 100 -s 20260801
+
+.PHONY: print-datasets
+print-datasets:
+	@echo $(DATASETS)
 
 .PHONY: fullbench-gpu
 fullbench-gpu:
-	$(UV_RUN) fullbench -d gpu -m bartz $(ARGS) $(DATASETS)
-	$(UV_RUN) fullbench -d gpu -m bartz2000 $(ARGS) $(DATASETS)
-	$(UV_RUN) fullbench -d gpu -m xgboost $(ARGS) $(DATASETS)
+	for m in $(FULLBENCH_METHODS); do \
+		$(UV_RUN) fullbench -d gpu -m $$m $(ARGS) $(DATASETS) || exit 1; \
+	done
 
 .PHONY: article-plots
 article-plots:
