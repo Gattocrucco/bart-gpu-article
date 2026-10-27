@@ -166,12 +166,12 @@ HANDTUNED_XVALS_SCALED = {
         "catboost-P5000": 10_000,
     },
     "bottom right": {
-        "bartz-P5000": None,
-        "bartz-M1pro": None,
-        "dbarts-M1pro": None,
-        "xgboost-P5000": None,
-        "xgboost-M1pro": None,
-        "catboost-P5000": None,
+        "bartz-P5000": 300_000,
+        "bartz-M1pro": 20_000,
+        "dbarts-M1pro": 70,
+        "xgboost-P5000": 8000,
+        "xgboost-M1pro": 40_000,
+        "catboost-P5000": 200,
     },
 }
 
