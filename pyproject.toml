@@ -53,7 +53,7 @@ testpaths = ["tests"]
 exclude-newer = "1 week"
 
 [tool.uv.sources]
-bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "188a23c89a2c074f4e814ba3f5967ea74dfcb325" }
+bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "264649f0af92428d62feb46f1b9889eaaeb43ce6" }
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
