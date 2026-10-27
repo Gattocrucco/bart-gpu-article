@@ -12,6 +12,8 @@ from cycler import Cycler
 from labellines import labelLines
 from matplotlib import pyplot as plt
 
+from bart_gpu_article.scripts.benchmark_plot import grid_axes
+
 
 def load_results() -> list[dict]:
     """Load results saved by `compare-bart-packages`."""
@@ -56,40 +58,38 @@ def results_to_df(results: list[dict]) -> pl.DataFrame:
 
 
 def make_figures(
-    num_groups: int, single_figure: bool, column: str
+    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str
 ) -> tuple[list[plt.Figure], list[plt.Axes]]:
-    """Create the figures and axes for the plotting functions."""
+    """Create the figures, and the axes of each group in the order of `groups`."""
     # reset matplotlib
     plt.close("all")
     plt.rcdefaults()
 
-    if single_figure:
-        fig, axs = plt.subplots(
-            2,
-            2,
-            figsize=[8.5, 8.5],
-            num=f"compare-bart-packages-plot-{column}",
-            clear=True,
-            layout="constrained",
-            sharex=True,
-            sharey=True,
-        )
-        axs = list(axs.flat)
-        figs = [fig]
-    else:
-        axs = []
-        figs = []
-        for i in range(num_groups):
-            fig, ax = plt.subplots(
-                figsize=[4.5, 3.5],
-                num=f"compare-bart-packages-plot-{column}-{i}",
+    def make_figure(position: int) -> plt.Axes:
+        if single_figure:
+            _, axs = plt.subplots(
+                2,
+                2,
+                figsize=[8.5, 8.5],
+                num=f"compare-bart-packages-plot-{column}",
                 clear=True,
                 layout="constrained",
+                sharex=True,
+                sharey=True,
             )
-            axs.append(ax)
-            figs.append(fig)
-    axs[1], axs[3] = axs[3], axs[1]
+            return axs[0, 0]
+        _, ax = plt.subplots(
+            figsize=[4.5, 3.5],
+            num=f"compare-bart-packages-plot-{column}-{position}",
+            clear=True,
+            layout="constrained",
+        )
+        return ax
 
+    # the keys are ((name, value), ...) pairs, grid_axes wants the values
+    keys = [tuple(value for _, value in k) for k in groups]
+    axs = grid_axes(keys, single_figure, make_figure)
+    figs = list({id(ax.get_figure()): ax.get_figure() for ax in axs}.values())
     return figs, axs
 
 
@@ -124,7 +124,7 @@ def add_legend(ax: plt.Axes, keys: tuple, single_figure: bool, legend: bool) -> 
 def plot_mse(
     groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str, legend: bool
 ) -> list[plt.Figure]:
-    figs, axs = make_figures(len(groups), single_figure, column)
+    figs, axs = make_figures(groups, single_figure, column)
 
     cycler = get_cycler()
     all_n = pl.concat(list(groups.values()))["n"]
@@ -194,7 +194,7 @@ def plot_mse(
 def plot_generic(
     groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str, legend: bool
 ) -> list[plt.Figure]:
-    figs, axs = make_figures(len(groups), single_figure, column)
+    figs, axs = make_figures(groups, single_figure, column)
 
     cycler = get_cycler()
     all_n = pl.concat(list(groups.values()))["n"]

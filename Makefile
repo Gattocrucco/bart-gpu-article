@@ -96,10 +96,10 @@ article-plots:
 copy-plots:
 	cp plots/benchmark-plot.pdf article/time-all.pdf
 	cp plots/benchmark-plot-1000.pdf article/time-all-1000.pdf
-	cp plots/benchmark-plot-1.pdf article/time-single.pdf
-	cp plots/benchmark-plot-1-1000.pdf article/time-single-1000.pdf
+	cp plots/benchmark-plot-3.pdf article/time-single.pdf
+	cp plots/benchmark-plot-3-1000.pdf article/time-single-1000.pdf
 	cp plots/compare-bart-packages-plot-mse.pdf article/rmse-all.pdf
 	cp plots/compare-bart-packages-plot-coverage_truth_50.pdf article/coverage-all.pdf
-	cp plots/compare-bart-packages-plot-mse-1.pdf article/rmse-single.pdf
-	cp plots/compare-bart-packages-plot-coverage_truth_50-1.pdf article/coverage-single.pdf
+	cp plots/compare-bart-packages-plot-mse-3.pdf article/rmse-single.pdf
+	cp plots/compare-bart-packages-plot-coverage_truth_50-3.pdf article/coverage-single.pdf
 	cp plots/fullbench-table.tex article/fullbench-table.tex

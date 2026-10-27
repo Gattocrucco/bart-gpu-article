@@ -3,6 +3,7 @@
 import json
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from collections.abc import Callable
 from pathlib import Path
 from typing import Sequence
 
@@ -10,6 +11,7 @@ import polars as pl
 from cycler import Cycler
 from labellines import labelLines
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from bart_gpu_article.textbox import textbox
@@ -114,10 +116,10 @@ HANDTUNED_XVALS = {
     },
     "top right": {
         "bartz-P5000": 100,
-        "bartz-M1pro": 100,
-        "dbarts-M1pro": 200,
-        "xgboost-P5000": 1000,
-        "xgboost-M1pro": 1000,
+        "bartz-M1pro": 3500,
+        "dbarts-M1pro": 300,
+        "xgboost-P5000": 400,
+        "xgboost-M1pro": 6000,
         "catboost-P5000": 100,
     },
     "bottom left": {
@@ -130,10 +132,10 @@ HANDTUNED_XVALS = {
     },
     "bottom right": {
         "bartz-P5000": 100,
-        "bartz-M1pro": 3500,
-        "dbarts-M1pro": 300,
-        "xgboost-P5000": 400,
-        "xgboost-M1pro": 6000,
+        "bartz-M1pro": 100,
+        "dbarts-M1pro": 200,
+        "xgboost-P5000": 1000,
+        "xgboost-M1pro": 1000,
         "catboost-P5000": 100,
     },
 }
@@ -150,12 +152,12 @@ HANDTUNED_XVALS_SCALED = {
         "catboost-P5000": 150,
     },
     "top right": {
-        "bartz-P5000": 100,
-        "bartz-M1pro": 1_000_000,
-        "dbarts-M1pro": 50_000,
-        "xgboost-P5000": 150,
-        "xgboost-M1pro": 20_000,
-        "catboost-P5000": 20_000_000,
+        "bartz-P5000": 300_000,
+        "bartz-M1pro": 20_000,
+        "dbarts-M1pro": 70,
+        "xgboost-P5000": 8000,
+        "xgboost-M1pro": 40_000,
+        "catboost-P5000": 200,
     },
     "bottom left": {
         "bartz-P5000": 100,
@@ -166,29 +168,58 @@ HANDTUNED_XVALS_SCALED = {
         "catboost-P5000": 10_000,
     },
     "bottom right": {
-        "bartz-P5000": 300_000,
-        "bartz-M1pro": 20_000,
-        "dbarts-M1pro": 70,
-        "xgboost-P5000": 8000,
-        "xgboost-M1pro": 40_000,
-        "catboost-P5000": 200,
+        "bartz-P5000": 100,
+        "bartz-M1pro": 1_000_000,
+        "dbarts-M1pro": 50_000,
+        "xgboost-P5000": 150,
+        "xgboost-M1pro": 20_000,
+        "catboost-P5000": 20_000_000,
     },
 }
 
 
+GRID_NAMES = ("top left", "top right", "bottom left", "bottom right")
+
+
+def grid_position(keys: tuple) -> int:
+    """Index of the panel holding a group in the 2x2 layout, in reading order.
+
+    The layout is a table: the rows are the number of trees and the columns the
+    number of predictors, in each case first the setting that scales with n.
+
+    Parameters
+    ----------
+    keys
+        The settings of the group, ``(n/ntree, ntree, n/p, p)``, where exactly
+        one of each pair is not `None`.
+    """
+    n_over_ntree, _, n_over_p, _ = keys
+    row = 0 if n_over_ntree is not None else 1
+    col = 0 if n_over_p is not None else 1
+    return 2 * row + col
+
+
+def grid_axes(
+    keys: list[tuple], single_figure: bool, make_figure: Callable[[int], Axes]
+) -> list[Axes]:
+    """Pick the axes of each group, placing the groups with `grid_position`.
+
+    If not `single_figure`, call ``make_figure(position)`` to create a separate
+    figure for each group, numbered by position.
+    """
+    positions = [grid_position(k) for k in keys]
+    if len(set(positions)) != len(positions):
+        msg = f"two groups in the same panel: {keys}"
+        raise ValueError(msg)
+    if single_figure:
+        grid = make_figure(-1).get_figure().axes
+        return [grid[i] for i in positions]
+    return [make_figure(i) for i in positions]
+
+
 def subplot_name(keys: tuple) -> str:
     """Name the subplot of the --single-figure layout holding a group."""
-    match keys:  # keys = (n/ntree, ntree, n/p, p)
-        case (_, None, _, None):
-            return "top left"
-        case (None, _, None, _):
-            return "top right"
-        case (None, _, _, None):
-            return "bottom left"
-        case (_, None, None, _):
-            return "bottom right"
-        case _:
-            return "unknown"
+    return GRID_NAMES[grid_position(keys)]
 
 
 def plot(df: pl.DataFrame, single_figure: bool, factor: int):
@@ -203,37 +234,34 @@ def plot(df: pl.DataFrame, single_figure: bool, factor: int):
     # mark the scaling in the file name to let the variants coexist
     figsuffix = "" if factor == 1 else f"-{factor}"
 
-    if single_figure:
-        fig, axs = plt.subplots(
-            2,
-            2,
-            figsize=[8.5, 8.5],
-            num=f"benchmark-plot{figsuffix}",
-            clear=True,
-            layout="constrained",
-            sharex=True,
-            sharey=True,
-        )
-        axs = axs.flat
-        figs = [fig]
-    else:
-        axs = []
-        figs = []
-        for i in range(len(groups)):
-            fig, ax = plt.subplots(
-                figsize=[4.5, 4],
-                num=f"benchmark-plot-{i}{figsuffix}",
+    def make_figure(position: int) -> Axes:
+        if single_figure:
+            _, axs = plt.subplots(
+                2,
+                2,
+                figsize=[8.5, 8.5],
+                num=f"benchmark-plot{figsuffix}",
                 clear=True,
                 layout="constrained",
+                sharex=True,
+                sharey=True,
             )
-            axs.append(ax)
-            figs.append(fig)
-    axs[1], axs[3] = axs[3], axs[1]
+            return axs[0, 0]
+        _, ax = plt.subplots(
+            figsize=[4.5, 4],
+            num=f"benchmark-plot-{position}{figsuffix}",
+            clear=True,
+            layout="constrained",
+        )
+        return ax
+
+    axs = grid_axes([keys for keys, _ in groups], single_figure, make_figure)
+    figs = list({id(ax.get_figure()): ax.get_figure() for ax in axs}.values())
 
     cycler = get_cycler()
 
     if single_figure:
-        ax = axs[0]
+        ax = axs[0]  # the axes are shared, so any one does
         # set log scale before plotting to allow labelLines correct auto positioning
         ax.set(xscale="log", yscale="log")
 
