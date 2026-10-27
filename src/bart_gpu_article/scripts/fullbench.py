@@ -96,6 +96,15 @@ class TreeStats(NamedTuple):
     """Fraction of trees with no splits, i.e., a single leaf, or `None` if the
     method does not report it."""
 
+    tree_life: float | None = None
+    """Number of MCMC steps since each tree was last pruned to a lone root (or
+    since the start), at the end of the chain, averaged over trees and chains;
+    `None` if not an MCMC method."""
+
+    mcmc_steps: int | None = None
+    """Total number of MCMC steps run, the upper bound of `tree_life`; `None`
+    if not an MCMC method."""
+
 
 def move_acc(bart: Bart) -> float:
     """Fraction of accepted grow/prune moves, averaged over the main trace."""
@@ -198,11 +207,14 @@ class Bartz(Benchmark):
     def tree_stats(self) -> TreeStats:
         # average over trees and mcmc samples (and chains, if any)
         split_tree = self._bart._main_trace.split_tree  # noqa: SLF001
+        state = self._bart._mcmc_state  # noqa: SLF001
         return TreeStats(
             self._bart.num_trees,
             float(forest_mean_leaves(split_tree)),
             move_acc(self._bart),
             frac_empty_trees(split_tree),
+            float(jnp.mean(state.forest.tree_life)),
+            int(state.config.steps_done),
         )
 
 
@@ -335,6 +347,8 @@ EMPTY_ROW_KEYS = (
     "mean_leaves",
     "frac_empty_trees",
     "move_acc",
+    "tree_life",
+    "mcmc_steps",
 )
 
 
@@ -415,6 +429,8 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         print(f"frac_empty_trees: {stats.frac_empty_trees:.4f}")
     if stats.move_acc is not None:
         print(f"move_acc: {stats.move_acc:.4f}")
+    if stats.tree_life is not None:
+        print(f"tree_life: {stats.tree_life:.0f}/{stats.mcmc_steps}")
 
     return dict(
         seed=cfg.round_seed,
@@ -435,6 +451,8 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         mean_leaves=stats.mean_leaves,
         frac_empty_trees=stats.frac_empty_trees,
         move_acc=stats.move_acc,
+        tree_life=stats.tree_life,
+        mcmc_steps=stats.mcmc_steps,
     )
 
 
@@ -471,6 +489,8 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         mean_leaves=None,
         frac_empty_trees=None,
         move_acc=None,
+        tree_life=None,
+        mcmc_steps=None,
     )
 
 
