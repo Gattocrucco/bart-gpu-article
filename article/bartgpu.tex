@@ -1,6 +1,6 @@
 \documentclass{article}
 
-\usepackage[nonatbib]{neurips_2026}
+\usepackage[nonatbib,final,main]{neurips_2026}
 
 % math
 \usepackage{amsmath}
@@ -44,6 +44,9 @@
 % links and pdf index
 \usepackage{hyperref}
 \renewcommand{\subsectionautorefname}{section}
+
+% tables
+\usepackage{booktabs}
 
 % images
 \usepackage{graphicx}
@@ -586,10 +589,10 @@ gradient boosting one iteration, though more runs are common to cross validate
 or estimate uncertainty. We do not pre-multiply the results by a correction
 factor because it would reduce precision of exposition, since the number of
 iterations is not fixed for any method; the reader will have to keep into
-account these factors to interpret the results.
+account these factors to interpret the results.\marginpar{FIX}
 
 The results with the ``low-low'' settings $p=100$, $n_\text{tree}=200$ are shown
-in \autoref{fig:single}, left panel (complete results in \autoref{fig:time-all}
+in \autoref{fig:single}, left panel\marginpar{FIX} (complete results in \autoref{fig:time-all}
 in the appendix). On CPU, \texttt{dbarts} is 3--4 times faster than
 \texttt{bartz} at low training set size $n$, then \texttt{bartz} takes over at
 $n\approx \num{10000}$ and maintains a 2x advantage. On GPU, \texttt{bartz}
@@ -600,19 +603,24 @@ requires parallelization along $n$ discussed in \autoref{sec:impl}. At high $n$,
 (Notably, XGBoost is only 20x faster than itself on GPU vs.{} CPU.) Considering
 a BART run with 2000 MCMC iterations, it would then be 20x slower than a single
 XGBoost run GPU vs.{} GPU, while on CPU vs.{} CPU it would be 100x slower. (Note
-again: these figures do not include predictor quantization.)
+again: these figures do not include predictor quantization.)\marginpar{FIX}
 
 \begin{figure}
 	\centering
-	\widecenter{\includempl{time-single}\includempl{rmse-single}}
+	\widecenter{\includempl{time-single}\includempl{time-single-1000}}
 	\caption{\label{fig:single}
 		\textbf{Left panel:} Time to run an iteration of the algorithm vs.\
 		training set size $n$, comparing \texttt{bartz} with the fastest BART
 		implementation (\texttt{dbarts}), \texttt{XGBoost}, and
 		\texttt{catboost}, on CPU (\texttt{-M1Pro}) and GPU (\texttt{-P5000}).
 		Take into account that gradient boosting requires only one iteration to
-		produce a usable result, while BART requires $O(1000)$ iterations.
-		%
+		produce a usable result, while BART requires $O(1000)$ iterations.}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\widecenter{\includempl{rmse-single}\includempl{coverage-single}}
+	\caption{\label{fig:accuracy-single}
 		\textbf{Right panel:} Test set mean square error (MSE) vs.\
 		training set size, comparing \texttt{bartz} with the most popular
 		implementations of BART, to check they yield the same accuracy. The test
@@ -626,9 +634,19 @@ not include a thorough assessment of the predictive performance of BART
 \citep[see instead][]{linero2018b,he_stochastic_2023}. To show some evidence
 that our implementation is correct, we compare the out-of-sample prediction
 error between our package \texttt{bartz} and the 3 most popular BART
-implementations. The result at ``low-low'' settings is in \autoref{fig:single}
+implementations. The result at ``low-low'' settings is in \autoref{fig:accuracy-single}
 (complete results in \autoref{fig:rmse-all} in the appendix); the MSEs shake
-out similar to each other as expected.
+out similar to each other as expected.\marginpar{FIX}
+
+\begin{table}
+	\centering
+	\caption{\label{tab:fullbench}}
+	\small\sffamily
+	% typeset the numbers as text, in the current font family
+	\sisetup{mode=text, reset-text-family=false}
+	\setlength{\tabcolsep}{3pt}
+	\input{fullbench-table}
+\end{table}
 
 \section{Conclusions}
 \label{sec:conclusions}
@@ -818,7 +836,7 @@ the implementation.
 \label{sec:gpumem}
 
 The speed benchmarks and out-of-sample MSE tests for all combinations of
-$p$-$n_\text{tree}$ settings are in Figures~\ref{fig:time-all} and~\ref{fig:rmse-all}.
+$p$-$n_\text{tree}$ settings are in Figures~\ref{fig:time-all} and~\ref{fig:rmse-all}.\marginpar{FIX}
 
 \begin{figure}
 	\widecenter{\includempl{time-all}}
@@ -830,6 +848,11 @@ $p$-$n_\text{tree}$ settings are in Figures~\ref{fig:time-all} and~\ref{fig:rmse
 		(\texttt{-P5000}). Take into account that gradient boosting requires only
 		one iteration to produce a usable result, while BART requires $O(1000)$
 		iterations.}
+\end{figure}
+
+\begin{figure}
+	\widecenter{\includempl{time-all-1000}}
+	\caption{\label{fig:time-all-1000}}
 \end{figure}
 
 \paragraph{Effect of limited GPU memory}
@@ -853,6 +876,12 @@ most about 20x rather than the asymptotic 100x.
 		implementations of BART, to check they yield the same predictive
 		performance, for various settings of number of trees and number of
 		predictors $p$. The test set size is always 1000.}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\widecenter{\includempl{coverage-all}}
+	\caption{\label{fig:coverage-all}}
 \end{figure}
 
 \paragraph{On increasing the number of trees}
