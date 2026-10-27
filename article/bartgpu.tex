@@ -56,10 +56,10 @@
 \newcommand{\widecenter}[1]{\noindent\hspace{-\textwidth}\makebox[3\textwidth][c]{#1}}
 
 % smaller margin notes
-\let\oldmarginpar\marginpar
-\renewcommand{\marginpar}[1]{\oldmarginpar{\sffamily\scriptsize #1}}
-\setlength{\marginparwidth}{3.5cm}
-\renewcommand{\marginpar}[1]{\relax} % hide marginpars
+% \let\oldmarginpar\marginpar
+% \renewcommand{\marginpar}[1]{\oldmarginpar{\sffamily\scriptsize #1}}
+% \setlength{\marginparwidth}{3.5cm}
+% \renewcommand{\marginpar}[1]{\relax} % hide marginpars
 
 % Todonotes is useful during development; simply uncomment the next line
 %    and comment out the line below the next line to turn off comments
@@ -536,11 +536,16 @@ devices), multivariate outcomes, and heteroskedasticity with fixed weights.
 \section{Performance measurements}
 \label{sec:perf}
 
-We measure the running time and the prediction error of our implementation
-together with existing packages, on simulated data. We run the benchmarks on
-synthetic data to conveniently set training set size $n$ and number of
-predictors $p$ while also controlling the signal-to-noise ratio. The data
-generating process (DGP) is the following sparse quadratic model:
+We measure the running time and the prediction accuracy of our BART
+implementation \texttt{bartz} together with other BART packages and
+gradient-boosting packages, on real and simulated data.
+
+\paragraph{Data generating process}
+
+We run some of the benchmarks on synthetic data to conveniently set training
+set size $n$ and number of predictors $p$ to arbitrary values while also
+controlling the signal-to-noise ratio. The data generating process (DGP) is the
+following sparse quadratic model:
 %
 \begin{align}
 	X_{ij}                               & \overset{\mathrm{i.i.d.}}\sim U(-\sqrt 3, \sqrt 3), \quad i = 1, \ldots, n, \quad j = 1, \ldots, p,               \\
@@ -549,95 +554,123 @@ generating process (DGP) is the following sparse quadratic model:
 		                                         1 & \min(|j-j'|,p-|j-j'|) \le q/2, \\
 		                                         0 & \text{otherwise,}
 	                                         \end{cases}, \quad q \bmod 2 = 0, \quad q < p,                                                                  \\
-	A_{jj'}                              & \sim P_{jj'} N(0, \sigma^2_\text{quad} / (p (4/5 + q))),                                                          \\
-	Y_i                                  & \sim N\left(\sum_j \beta_j X_{ij} + \sum_{jj'} A_{jj'} X_{ij} X_{ij'}, \sigma^2_\text{eps}\right), \label{eq:dgp} \\
-	E[\operatorname{Var}[Y_i|X,\beta,A]] & = \sigma^2_\text{lin} + \sigma^2_\text{quad} + \sigma^2_\text{eps}, \quad \text{(expected population variance)}   \\
-	\operatorname{Var}[Y_i]              & = E[\operatorname{Var}[Y_i|X,\beta,A]] + \sigma^2_\text{quad} / (4/5 + q), \quad \text{(prior variance)}          \\
+	A_{jj'}                              & \overset{\mathrm{i.i.d.}}\sim N(0, \sigma^2_\text{quad} / (p (4/5 + q))),                                                          \\
+	Y_i\mid X_{i\cdot},\beta,A           & \sim N\left(\sum_j \beta_j X_{ij} + \sum_{jj'} P_{jj'} A_{jj'} X_{ij} X_{ij'}, \sigma^2_\text{eps}\right). \label{eq:dgp}
+\end{align}
+%
+The model definition is chosen to yield these convenient moment relationships:
+\begin{align}
+	E[\operatorname{Var}[Y_i|\beta,A]] & = \sigma^2_\text{lin} + \sigma^2_\text{quad} + \sigma^2_\text{eps}, \quad \text{(expected population variance)}   \\
+	\operatorname{Var}[Y_i]              & = E[\operatorname{Var}[Y_i|\beta,A]] + \sigma^2_\text{quad} / (4/5 + q), \quad \text{(prior variance)}
+\end{align}
+%
+and we set the the hyperparameters as follows:
+%
+\begin{align}
 	\sigma^2_\text{lin}                  & = \sigma^2_\text{quad} = \sigma^2_\text{eps} = 1/3, \quad q = 2.
 \end{align}
 
-\paragraph{Hyperparameter matrix}
+\paragraph{Matrix of dataset and model sizes}
 
-The number of predictors and the number of trees influence running time and
-memory usage, so we repeat the benchmark on a $2\times 2$ grid of settings:
-low/high p $\times$ low/high number of trees. As ``low'' settings we use $p=100$
-or $p=50$, $n_\text{tree} = 200$, while as ``high'' we make the parameters grow
-proportionally to $n$ with $n/p = 10$ or $20$ and $n/n_\text{tree}=8$. The
-number of trees being proportional to $n$ is an unusually high setting. These
-combinations are not optimal for inference, they are simple extreme cases to
-explore the computational complexity of the algorithms. The ``low-low'' setting
-is the one closer to common usage.
+The running time and memory usage are mostly determined by $n$, $p$ and the
+number of trees, so we repeat most benchmarks on a power-of-2 scan of $n$ by a
+$2\times 2$ grid of settings: low/high p $\times$ low/high number of trees. As
+``low'' settings we use $p=100$ or $p=50$, $n_\text{tree} = 200$, while as
+``high'' we make the parameters grow proportionally to $n$ with $n/p = 10$ or
+$20$ and $n/n_\text{tree}=8$. The number of trees being proportional to $n$ is
+an unusually high setting. These combinations are not optimal for inference,
+they are simple extreme cases to explore the computational complexity of the
+algorithms. The ``low-low'' setting is the one closer to common usage.
 
-\paragraph{Timing measurements}
+\paragraph{Single-iteration timing measurements}
 
 We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
-(the fastest BART implementation), \texttt{XGBoost}, and \texttt{catboost}. Our
-CPU is an Apple M1 Pro with 16 GB RAM, while the GPU is a Nvidia RTX Pro 5000
-Blackwell with 48 GB RAM. All methods that support it are allowed to use up to 6
-cores on CPU. For all software packages, we run their setup and pre-processing
-step separately, before starting the timer. This includes data pre-processing,
-and XLA compilation for \texttt{bartz} specifically. The configurations are
-mostly left to their default values. We clock a full iteration (a sweep through
-all trees), taking the best of three runs. For BART packages, we repeat the run
-starting from the final state of the previous run. For gradient boosting
-packages, each run starts fresh. While \texttt{bartz} is branchless,
-\texttt{dbarts} is not, and given the state dependence, \texttt{dbarts} timing
-is less reliable. Since we take best of three, the bias should be in the
-conservative direction of making \texttt{dbarts} appear faster.
+(the previous fastest BART implementation), \texttt{XGBoost}, and
+\texttt{catboost} on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
+Pro with 16 GB RAM, while the GPU is a Nvidia RTX Pro 5000 Blackwell with 48 GB
+RAM. All methods that support it are allowed to use up to 6 cores on CPU. For
+all software packages, we run their setup and pre-processing step separately,
+before starting the timer. This includes data pre-processing, and XLA
+compilation for \texttt{bartz} specifically. The configurations are mostly left
+to their default values. We clock a full iteration (a sweep through all trees),
+taking the best of three runs. For BART packages, we repeat the run starting
+from the final state of the previous run. For gradient boosting packages, each
+run starts fresh. While \texttt{bartz} is branchless, \texttt{dbarts} is not,
+and given the state dependence, \texttt{dbarts} timing is less reliable. Since
+we take best of three, the bias should be in the conservative direction of
+making \texttt{dbarts} appear faster.
 
-Note that BART requires 1000--2000 iterations to produce a result, while
-gradient boosting one iteration, though more runs are common to cross validate
-or estimate uncertainty. We do not pre-multiply the results by a correction
-factor because it would reduce precision of exposition, since the number of
-iterations is not fixed for any method; the reader will have to keep into
-account these factors to interpret the results.\marginpar{FIX}
+The results with the ``low-low'' settings $p=100$, $n_\text{tree}=200$ are
+shown in \autoref{fig:single} (complete results in \autoref{fig:time-all} in
+the appendix). On CPU, \texttt{dbarts} is 3--4 times faster than \texttt{bartz}
+at low training set size $n$, then \texttt{bartz} takes over in the range
+$n=\num{1000}\text{--} \num{10000}$ and reaches a 4--5x advantage at large $n$.
+On GPU, \texttt{bartz} switches from a constant to a linear regime around $n =
+\num{1000000}$, highlighting the tree-serial bottleneck that requires
+parallelization along $n$ discussed in \autoref{sec:impl}. At high $n$,
+\texttt{bartz} on GPU is 100x faster than itself on CPU, and 200x faster than
+XGBoost on GPU. Notably, XGBoost is only 20x faster than itself on GPU vs.{}
+CPU, and our CPU runtime beats the previous state of the art by 5x, so the
+comparison is not artificially inflated by a slow CPU version. Considering a
+BART run with 2000 MCMC iterations, it would then be 10x slower than a single
+XGBoost run GPU vs.{} GPU, while on CPU vs.{} CPU it would be 60x slower. (Note
+again: these figures do not include predictor quantization.)
 
-The results with the ``low-low'' settings $p=100$, $n_\text{tree}=200$ are shown
-in \autoref{fig:single}, left panel\marginpar{FIX} (complete results in \autoref{fig:time-all}
-in the appendix). On CPU, \texttt{dbarts} is 3--4 times faster than
-\texttt{bartz} at low training set size $n$, then \texttt{bartz} takes over at
-$n\approx \num{10000}$ and maintains a 2x advantage. On GPU, \texttt{bartz}
-switches from a constant to a linear regime around $n \approx
-	\numrange{100000}{1000000}$, highlighting the tree-serial bottleneck that
-requires parallelization along $n$ discussed in \autoref{sec:impl}. At high $n$,
-\texttt{bartz} on GPU is 100x faster than both itself on CPU and XGBoost on GPU.
-(Notably, XGBoost is only 20x faster than itself on GPU vs.{} CPU.) Considering
-a BART run with 2000 MCMC iterations, it would then be 20x slower than a single
-XGBoost run GPU vs.{} GPU, while on CPU vs.{} CPU it would be 100x slower. (Note
-again: these figures do not include predictor quantization.)\marginpar{FIX}
+BART requires 1000--2000 (traditionally 1100) iterations to produce a result,
+while gradient boosting one iteration, so comparing per-iteration timings
+across the methods requires to multiply by some factor. However this factor is
+not precisely defined because it's common to cross-validate gradient boosting
+methods, and it's also common to run BART longer to be sure the MCMC is
+converging. So in \autoref{fig:single} we show side-by-side the actual
+iteration time, and iteration time scaled by 1000 on BART methods, where 1000
+is an arbitrary factor chosen to align well with the logarithmic scale of the
+plot. Another reason it's hard to interpret these timings precisely is that the
+running time of XGBoost and catboost scales with $p$, while BART doesn't (it's
+implicitly amortized in the MCMC iterations).
 
 \begin{figure}
 	\centering
 	\widecenter{\includempl{time-single}\includempl{time-single-1000}}
 	\caption{\label{fig:single}
-		\textbf{Left panel:} Time to run an iteration of the algorithm vs.\
-		training set size $n$, comparing \texttt{bartz} with the fastest BART
-		implementation (\texttt{dbarts}), \texttt{XGBoost}, and
-		\texttt{catboost}, on CPU (\texttt{-M1Pro}) and GPU (\texttt{-P5000}).
-		Take into account that gradient boosting requires only one iteration to
-		produce a usable result, while BART requires $O(1000)$ iterations.}
+		\textbf{Left panel:} Time to run an iteration of the algorithm
+		vs.\ training set size $n$, comparing \texttt{bartz} with the
+		fastest BART implementation (\texttt{dbarts}),
+		\texttt{XGBoost}, and \texttt{catboost}, on CPU
+		(\texttt{-M1Pro}) and GPU (\texttt{-P5000}). Gradient boosting
+		requires only one iteration to produce a usable result, while
+		BART requires $O(1000)$ iterations, so the \textbf{right panel}
+		shows the same data but with BART timings multiplied by an
+		arbitrary factor 1000 to aid visual comparison of the lines.}
 \end{figure}
 
 \begin{figure}
 	\centering
 	\widecenter{\includempl{rmse-single}\includempl{coverage-single}}
 	\caption{\label{fig:accuracy-single}
-		\textbf{Right panel:} Test set mean square error (MSE) vs.\
-		training set size, comparing \texttt{bartz} with the most popular
-		implementations of BART, to check they yield the same accuracy. The test
-		set size is always 1000.}
+		Test set mean square error (MSE) (\textbf{left panel}) and coverage of
+		\SI{50}\% intervals on the latent mean (\textbf{right panel}) vs.\
+		training set size, comparing \texttt{bartz} with the most
+		popular implementations of BART, to check they yield similar
+		results. The test set size is always 1000.}
 \end{figure}
 
-\paragraph{Predictive accuracy measurement}
+\paragraph{Predictive accuracy comparison with other BART packages}
 
-Since we re-implemented a well-known method without substantial changes, we do
-not include a thorough assessment of the predictive performance of BART
-\citep[see instead][]{linero2018b,he_stochastic_2023}. To show some evidence
-that our implementation is correct, we compare the out-of-sample prediction
-error between our package \texttt{bartz} and the 3 most popular BART
-implementations. The result at ``low-low'' settings is in \autoref{fig:accuracy-single}
-(complete results in \autoref{fig:rmse-all} in the appendix); the MSEs shake
-out similar to each other as expected.\marginpar{FIX}
+Since we re-implemented the well-known BART MCMC without substantial changes,
+we do not include a thorough assessment of the predictive performance of BART
+\citep[see instead][]{linero2018b,he_stochastic_2023}. To show at least some
+evidence here that our implementation is correct, we compare the out-of-sample
+prediction accuracy between our package \texttt{bartz} and the 3 most popular
+BART implementations, on data generated as \autoref{eq:dgp}. The result at
+``low-low'' settings is in \autoref{fig:accuracy-single} (complete results in
+\autoref{fig:rmse-all} in the appendix); mean squared error and coverage shake
+out similar across packages as expected.
+
+In \autoref{fig:accuracy-single} we show coverage of credible intervals for
+prediction of the latent mean (which we can compute using the true mean because
+the data is simulated) rather than intervals for prediction of the outcome,
+because targeting a confidence level on exchangeable data is too easy and so it
+would not have discriminative power.
 
 \begin{table}
 	\centering
