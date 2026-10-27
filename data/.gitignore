@@ -1,2 +1,5 @@
-pytreedef.json
-**/array_store/
+# datasets in any format, with their temporary and backup copies; only the
+# dataset list is tracked
+*
+!.gitignore
+!list-datasets.csv
