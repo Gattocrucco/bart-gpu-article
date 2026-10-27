@@ -102,8 +102,27 @@ def make_groups(df: pl.DataFrame) -> dict[tuple, pl.DataFrame]:
     }
 
 
+def add_legend(ax: plt.Axes, keys: tuple, single_figure: bool, legend: bool) -> None:
+    """Add the legend, abusing it as a box with the settings of the subplot.
+
+    The package entries go only in the first subplot of the single figure, or
+    nowhere if `legend` is `False`; the settings box is always there.
+    """
+    title = "\n".join(f"{name}={value}" for name, value in keys if value is not None)
+    if single_figure:
+        ss = ax.get_subplotspec()
+        legend = legend and ss.is_first_row() and ss.is_first_col()
+        loc = "upper right"
+    else:
+        loc = "best"
+    if legend:
+        ax.legend(loc=loc, title=title)
+    else:
+        ax.legend([], [], loc=loc, title=title)
+
+
 def plot_mse(
-    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str
+    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str, legend: bool
 ) -> list[plt.Figure]:
     figs, axs = make_figures(len(groups), single_figure, column)
 
@@ -155,22 +174,8 @@ def plot_mse(
             align=False,
         )
 
-        # add legend; possibly abuse the legend as generic box with text
+        add_legend(ax, keys, single_figure, legend)
         ss = ax.get_subplotspec()
-        legend_title = "\n".join(
-            f"{name}={value}" for name, value in keys if value is not None
-        )
-        legend_kw = dict(
-            title=legend_title,
-        )
-        if single_figure:
-            legend_kw.update(loc="upper right")
-            if ss.is_first_row() and ss.is_first_col():
-                ax.legend(**legend_kw)
-            else:
-                ax.legend([], [], **legend_kw)
-        else:
-            ax.legend(loc="best", **legend_kw)
 
         # add plot decorations
         if ss.is_last_row():
@@ -187,7 +192,7 @@ def plot_mse(
 
 
 def plot_generic(
-    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str
+    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str, legend: bool
 ) -> list[plt.Figure]:
     figs, axs = make_figures(len(groups), single_figure, column)
 
@@ -208,22 +213,8 @@ def plot_generic(
             10 ** math.ceil(math.log10(ref_n.max())),
         )
 
-        # add legend; possibly abuse the legend as generic box with text
+        add_legend(ax, keys, single_figure, legend)
         ss = ax.get_subplotspec()
-        legend_title = "\n".join(
-            f"{name}={value}" for name, value in keys if value is not None
-        )
-        legend_kw = dict(
-            title=legend_title,
-        )
-        if single_figure:
-            legend_kw.update(loc="upper right")
-            if ss.is_first_row() and ss.is_first_col():
-                ax.legend(**legend_kw)
-            else:
-                ax.legend([], [], **legend_kw)
-        else:
-            ax.legend(loc="best", **legend_kw)
 
         # add plot decorations
         if ss.is_last_row():
@@ -237,9 +228,9 @@ def plot_generic(
 
 
 def plot_coverage(
-    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str
+    groups: dict[tuple, pl.DataFrame], single_figure: bool, column: str, legend: bool
 ) -> list[plt.Figure]:
-    figs = plot_generic(groups, single_figure, column)
+    figs = plot_generic(groups, single_figure, column, legend)
 
     level = int(column.rsplit("_", 1)[-1]) / 100
     target = "latent mean" if "truth" in column else "data"
@@ -292,6 +283,12 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         help="combine all plots into a single figure",
     )
     parser.add_argument(
+        "--no-legend",
+        action="store_false",
+        dest="legend",
+        help="omit the package entries from the legend, keep the settings box",
+    )
+    parser.add_argument(
         "-w",
         "--what",
         default="mse",
@@ -307,7 +304,7 @@ def main(argv: Sequence[str] = argv[1:]) -> None:
     df = results_to_df(results)
     groups = make_groups(df)
     plot = PLOT_FUNCTIONS.get(args.what, plot_generic)
-    figs = plot(groups, args.single_figure, args.what)
+    figs = plot(groups, args.single_figure, args.what, args.legend)
     save_figures(figs)
     plt.show()
 

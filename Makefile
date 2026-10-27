@@ -8,6 +8,9 @@ UV_RUN = RPY2_CFFI_MODE=ABI uv run $(EXTRAS)
 # keep the directory name in sync with the savedata arguments in that target
 SIMDATASET = data/savedata-4000000-1000-32-continuous-peff100
 
+# the fullbench results tabulated in the article, in column order
+FULLBENCH_RESULTS = $(foreach m,xgboost bartz bartz2000,results/fullbench-$(m)-NVIDIA_RTX_PRO_5000_Blackwell.json)
+
 # datasets for fullbench; not data/* because that also matches list-datasets.csv
 DATASETS ?= $(wildcard data/dataset-*) $(SIMDATASET)
 
@@ -69,16 +72,22 @@ fullbench-gpu:
 article-plots:
 	MPLBACKEND=agg $(UV_RUN) benchmark-plot --filter --single-figure
 	MPLBACKEND=agg $(UV_RUN) benchmark-plot --filter
+	MPLBACKEND=agg $(UV_RUN) benchmark-plot --filter --single-figure --factor 1000
 	MPLBACKEND=agg $(UV_RUN) benchmark-plot --filter --factor 1000
 	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what mse --single-figure
-	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what mse
+	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what mse --no-legend
+	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what coverage_truth_50 --single-figure
 	MPLBACKEND=agg $(UV_RUN) compare-bart-packages-plot --what coverage_truth_50
+	$(UV_RUN) fullbench-table $(FULLBENCH_RESULTS)
 
 .PHONY: copy-plots
 copy-plots:
 	cp plots/benchmark-plot.pdf article/time-all.pdf
+	cp plots/benchmark-plot-1000.pdf article/time-all-1000.pdf
 	cp plots/benchmark-plot-1.pdf article/time-single.pdf
 	cp plots/benchmark-plot-1-1000.pdf article/time-single-1000.pdf
 	cp plots/compare-bart-packages-plot-mse.pdf article/rmse-all.pdf
+	cp plots/compare-bart-packages-plot-coverage_truth_50.pdf article/coverage-all.pdf
 	cp plots/compare-bart-packages-plot-mse-1.pdf article/rmse-single.pdf
 	cp plots/compare-bart-packages-plot-coverage_truth_50-1.pdf article/coverage-single.pdf
+	cp plots/fullbench-table.tex article/fullbench-table.tex
