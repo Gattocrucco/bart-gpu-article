@@ -57,8 +57,14 @@ def aggregate(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def format_uncertain(mean: float | None, sdev: float | None) -> str:
-    """Format as `mean(sdev)` with one significant digit on `sdev`."""
+def format_uncertain(
+    mean: float | None, sdev: float | None, max_decimals: int | None = None
+) -> str:
+    """Format as `mean(sdev)` with one significant digit on `sdev`.
+
+    If the sdev would need more than `max_decimals` decimals, show only the
+    mean, with `max_decimals` decimals.
+    """
     if mean is None:
         return "---"
     if sdev is None or not isfinite(sdev) or sdev == 0:
@@ -70,6 +76,8 @@ def format_uncertain(mean: float | None, sdev: float | None) -> str:
     if sdev_digits == 10:  # rounding carried over to the next digit
         decimals = max(0, decimals - 1)
         sdev_digits = round(sdev * 10**decimals)
+    if max_decimals is not None and decimals > max_decimals:
+        return f"\\num{{{mean:.{max_decimals}f}}}"
     return f"\\num{{{mean:.{decimals}f}({sdev_digits})}}"
 
 
@@ -125,7 +133,10 @@ def make_table(agg: pl.DataFrame) -> str:
                 elif c == "time_train":
                     cells.append(f"\\num{{{mean:.{TIME_DECIMALS.get(m, 1)}f}}}")
                 else:
-                    cells.append(format_uncertain(mean, row[f"{c}_sdev"]))
+                    # the tree life is a number of steps, so no decimals
+                    max_decimals = 0 if c == "tree_life" else None
+                    sdev = row[f"{c}_sdev"]
+                    cells.append(format_uncertain(mean, sdev, max_decimals))
         lines.append(" & ".join(cells) + " \\\\")
 
     lines += ["\\bottomrule", "\\end{tabular}"]
