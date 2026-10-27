@@ -291,10 +291,10 @@ class Bartz(Benchmark):
 
         @partial(jit, donate_argnums=(1,))
         def run_bart(key: Key[Array, ""], bart: State) -> State:
-            bart, _, _ = run_mcmc(
+            result = run_mcmc(
                 key, bart, cfg.steps_per_rep, callback=ProgressDotCallback()
             )
-            return bart
+            return result.final_state
 
         self.run_bart = run_bart.lower(key, self.state).compile()
 
