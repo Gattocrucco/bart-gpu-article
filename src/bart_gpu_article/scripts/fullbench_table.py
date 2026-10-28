@@ -38,6 +38,10 @@ without its spread across rounds, which is negligible, to save width."""
 
 def aggregate(df: pl.DataFrame) -> pl.DataFrame:
     """Mean and sdev across rounds per (method, dataset)."""
+    # show the tree life as a fraction of its maximum
+    df = df.with_columns(
+        pl.col("tree_life").cast(pl.Float64) / pl.col("mcmc_steps").cast(pl.Float64)
+    )
     stats = [
         expr
         for col in MCMC_COLUMNS
@@ -57,14 +61,8 @@ def aggregate(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def format_uncertain(
-    mean: float | None, sdev: float | None, max_decimals: int | None = None
-) -> str:
-    """Format as `mean(sdev)` with one significant digit on `sdev`.
-
-    If the sdev would need more than `max_decimals` decimals, show only the
-    mean, with `max_decimals` decimals.
-    """
+def format_uncertain(mean: float | None, sdev: float | None) -> str:
+    """Format as `mean(sdev)` with one significant digit on `sdev`."""
     if mean is None:
         return "---"
     if sdev is None or not isfinite(sdev) or sdev == 0:
@@ -76,8 +74,6 @@ def format_uncertain(
     if sdev_digits == 10:  # rounding carried over to the next digit
         decimals = max(0, decimals - 1)
         sdev_digits = round(sdev * 10**decimals)
-    if max_decimals is not None and decimals > max_decimals:
-        return f"\\num{{{mean:.{max_decimals}f}}}"
     return f"\\num{{{mean:.{decimals}f}({sdev_digits})}}"
 
 
@@ -132,11 +128,10 @@ def make_table(agg: pl.DataFrame) -> str:
                     cells.append("---")
                 elif c == "time_train":
                     cells.append(f"\\num{{{mean:.{TIME_DECIMALS.get(m, 1)}f}}}")
+                elif c == "tree_life":
+                    cells.append(f"\\num{{{mean:.2f}}}")
                 else:
-                    # the tree life is a number of steps, so no decimals
-                    max_decimals = 0 if c == "tree_life" else None
-                    sdev = row[f"{c}_sdev"]
-                    cells.append(format_uncertain(mean, sdev, max_decimals))
+                    cells.append(format_uncertain(mean, row[f"{c}_sdev"]))
         lines.append(" & ".join(cells) + " \\\\")
 
     lines += ["\\bottomrule", "\\end{tabular}"]
