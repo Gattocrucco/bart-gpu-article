@@ -1,0 +1,53 @@
+\begin{tabular}{llrrrrrr}
+\toprule
+ &  & electricity & higgs & \begin{tabular}[b]{@{}r@{}}radar \\ traffic\end{tabular} & \begin{tabular}[b]{@{}r@{}}zurich \\ delays\end{tabular} & poker & \begin{tabular}[b]{@{}r@{}}simulated \\ (\autoref{eq:dgp})\end{tabular} \\
+\midrule
+OpenML id &  & \href{https://www.openml.org/d/46237}{46237} & \href{https://www.openml.org/d/45570}{45570} & \href{https://www.openml.org/d/43354}{43354} & \href{https://www.openml.org/d/45045}{45045} & \href{https://www.openml.org/d/43955}{43955} & --- \\
+\textit{n} &  & \num{1145264} & \num{10990000} & \num{1958768} & \num{5455575} & \num{1012616} & \num{3990000} \\
+\textit{p} &  & \num{11} & \num{28} & \num{14} & \num{20} & \num{5} & \num{1000} \\
+task &  & regr. & class. & regr. & regr. & class. & regr. \\
+simulated &  & no & yes & no & no & yes & yes \\
+time series &  & yes & no & yes & yes & no & no \\
+test sdev &  & \num{0.998(4)} & \num{0.4993(2)} & \num{1.002(3)} & \num{0.997(7)} & \num{0.49998(2)} & \num{1.047(4)} \\
+\midrule
+RMSE & xgboost & \num{0.136(2)} & \num{0.414(2)} & \num{0.257(4)} & \num{0.945(7)} & \num{0.32(1)} & \num{0.709(4)} \\
+ & bartz & \num{0.138(2)} & \num{0.417(3)} & \num{0.271(3)} & \num{0.946(6)} & \num{0.113(9)} & \num{0.791(5)} \\
+ & bartz-2000 & \num{0.131(2)} & \num{0.403(2)} & \num{0.227(3)} & \num{0.944(7)} & \num{0.076(3)} & \num{0.601(4)} \\
+\addlinespace
+MSE/test var & xgboost & \num{0.0185(5)} & \num{0.687(8)} & \num{0.066(2)} & \num{0.900(2)} & \num{0.42(3)} & \num{0.459(5)} \\
+ & bartz & \num{0.0192(5)} & \num{0.697(9)} & \num{0.073(1)} & \num{0.900(2)} & \num{0.051(7)} & \num{0.570(9)} \\
+ & bartz-2000 & \num{0.0172(5)} & \num{0.651(7)} & \num{0.051(1)} & \num{0.897(2)} & \num{0.023(2)} & \num{0.329(4)} \\
+\addlinespace
+log loss & xgboost & --- & \num{0.513(5)} & --- & --- & \num{0.35(2)} & --- \\
+ & bartz & \num{-0.56(1)} & \num{0.519(5)} & \num{0.11(1)} & \num{1.363(7)} & \num{0.071(7)} & \num{1.184(6)} \\
+ & bartz-2000 & \num{-0.62(2)} & \num{0.490(5)} & \num{-0.07(1)} & \num{1.361(7)} & \num{0.047(2)} & \num{0.910(6)} \\
+\addlinespace
+50\% coverage & bartz & \num{0.684(4)} & --- & \num{0.656(2)} & \num{0.462(7)} & --- & \num{0.504(4)} \\
+ & bartz-2000 & \num{0.682(4)} & --- & \num{0.687(3)} & \num{0.462(8)} & --- & \num{0.504(6)} \\
+\addlinespace
+train time (s) & xgboost & \num{0.9(1)} & \num{8.0(6)} & \num{1.2(2)} & \num{2.4(2)} & \num{0.66(7)} & \num{84(2)} \\
+(incl. xla) & bartz & \num{36.2(4)} & \num{92.1(5)} & \num{42.2(7)} & \num{74.4(8)} & \num{36.0(6)} & \num{70(1)} \\
+(incl. xla) & bartz-2000 & \num{119(1)} & \num{550(2)} & \num{156(1)} & \num{331.3(8)} & \num{115(1)} & \num{242(2)} \\
+\addlinespace
+predict time (s) & xgboost & \num{0.2(2)} & \num{0.10(1)} & \num{0.11(1)} & \num{0.11(2)} & \num{0.11(2)} & \num{0.14(2)} \\
+(incl. xla) & bartz & \num{3.6(3)} & \num{2.7(1)} & \num{3.7(3)} & \num{3.9(4)} & \num{3.2(3)} & \num{4.1(3)} \\
+(incl. xla) & bartz-2000 & \num{2.8(4)} & \num{3.1(4)} & \num{2.6(2)} & \num{2.8(4)} & \num{3.0(4)} & \num{4.7(5)} \\
+\addlinespace
+trees & xgboost & \num{100} & \num{100} & \num{100} & \num{100} & \num{100} & \num{100} \\
+ & bartz & \num{200} & \num{200} & \num{200} & \num{200} & \num{200} & \num{200} \\
+ & bartz-2000 & \num{2000} & \num{2000} & \num{2000} & \num{2000} & \num{2000} & \num{2000} \\
+\addlinespace
+leaves/64 & xgboost & \num{0.995(1)} & \num{0.998(1)} & \num{0.9989(5)} & \num{0.967(5)} & \num{0.80(5)} & \num{1.00} \\
+\phantom{leaves}/32 & bartz & \num{0.508(6)} & \num{0.896(4)} & \num{0.931(7)} & \num{0.355(4)} & \num{0.490(7)} & \num{0.56(1)} \\
+\phantom{leaves}/32 & bartz-2000 & \num{0.166(1)} & \num{0.320(2)} & \num{0.307(2)} & \num{0.1155(8)} & \num{0.204(1)} & \num{0.0989(7)} \\
+\addlinespace
+empty trees/0.05 & bartz & \num{0.01(1)} & \num{0} & \num{0} & \num{0.04(2)} & \num{0} & \num{0} \\
+ & bartz-2000 & \num{0.77(4)} & \num{0.06(1)} & \num{0.073(8)} & \num{0.73(2)} & \num{0.067(6)} & \num{0.61(5)} \\
+\addlinespace
+acceptance & bartz & \num{0.0275(8)} & \num{0.0125(5)} & \num{0.0116(9)} & \num{0.054(2)} & \num{0.0062(2)} & \num{0.0217(3)} \\
+ & bartz-2000 & \num{0.0638(9)} & \num{0.0525(5)} & \num{0.0459(9)} & \num{0.125(1)} & \num{0.0419(7)} & \num{0.0403(7)} \\
+\addlinespace
+tree life/2000 & bartz & \num{0.997(3)} & \num{0.99980(5)} & \num{0.99990(3)} & \num{0.982(6)} & \num{0.9992(1)} & \num{0.9961(7)} \\
+ & bartz-2000 & \num{0.798(7)} & \num{0.949(7)} & \num{0.965(4)} & \num{0.574(7)} & \num{0.919(7)} & \num{0.754(9)} \\
+\bottomrule
+\end{tabular}

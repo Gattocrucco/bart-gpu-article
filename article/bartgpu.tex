@@ -918,6 +918,26 @@ most about 20x rather than the asymptotic 100x.
 	\caption{\label{fig:coverage-all}}
 \end{figure}
 
+\begin{table}
+	\centering
+	\caption{\label{tab:fullbench-full} Extended version of
+		\autoref{tab:fullbench}. Comparison of \texttt{bartz} against
+		\texttt{XGBoost} on various large datasets, at default
+		settings, on a Nvidia RTX PRO 5000 GPU. Test set size is
+		\num{10000}. Each run is repeated 5 times over different
+		train/test splits and with different random seeds. The standard
+		deviation across repetitions is reported as a digit in
+		parentheses. ``Tree life'' is the number of iterations since
+		each tree was last pruned back to a root, averaged over trees
+		at the end of the MCMC, and divided by the total number of MCMC
+	iterations.}
+	\small\sffamily
+	% typeset the numbers as text, in the current font family
+	\sisetup{mode=text, reset-text-family=false}
+	\setlength{\tabcolsep}{3pt}
+	\widecenter{\input{fullbench-table-full}}
+\end{table}
+
 \paragraph{On increasing the number of trees}
 
 Next, we discuss how the speed of this implementation allows to run BART with
