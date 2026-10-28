@@ -1,4 +1,5 @@
-"""Make a LaTeX table from results saved by the `fullbench` script."""
+"""Make LaTeX tables from results saved by the `fullbench` script: a short one
+with the datasets as rows, and a full one with the datasets as columns."""
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
@@ -19,7 +20,78 @@ METHOD_ORDER = ("xgboost", "bartz", "bartz2000")
 """Order of the method column groups; unknown methods go last."""
 
 MCMC_COLUMNS = ("rmse", "time_train", "tree_life")
-"""Columns shown for MCMC methods; the others get only the first two."""
+"""Columns shown for MCMC methods in the short table; the others get only the
+first two."""
+
+MAX_LEAVES = {"xgboost": 64, "bartz": 32, "bartz2000": 32}
+"""Maximum number of leaves per tree at the default depth limit, the unit of
+the leaves in the full table."""
+
+EMPTY_TREES_PRIOR = 0.05
+"""Prior probability of an empty tree in bartz, the unit of the fraction of
+empty trees in the full table."""
+
+FULL_ROWS = {
+    "rmse": "RMSE",
+    "relmse": "MSE/test var",
+    "logloss": "log loss",
+    "coverage_50": "50\\% coverage",
+    "time_train": "train time (s)",
+    "time_test": "predict time (s)",
+    "num_trees": "trees",
+    "mean_leaves": "leaves",
+    "frac_empty_trees": f"empty trees/{EMPTY_TREES_PRIOR}",
+    "move_acc": "acceptance",
+    "tree_life": "tree life/{steps}",
+}
+"""Per-method fields of the full table, in order, with their labels. Methods
+that lack a field throughout are left out of its rows."""
+
+JIT_METHODS = ("bartz", "bartz2000")
+"""Methods whose times include the jax compilation, since each round runs in a
+fresh process without a warm-up call."""
+
+STAT_COLUMNS = (*FULL_ROWS, "test_sdev")
+"""Columns that get a mean and sdev across rounds."""
+
+SIMULATED = {
+    "australian electricity demand": False,
+    # "The data has been produced using Monte Carlo simulations" (OpenML 45570)
+    "higgs": True,
+    "radar traffic data": False,
+    "delays zurich transport": False,
+    # UCI poker hand: random draws from a deck, labeled by the poker rules
+    "poker": True,
+    # savedata
+    "simulated": True,
+}
+"""Whether each dataset is simulated, keyed on `dataset_name`. From the OpenML
+descriptions; a new dataset must be added by hand."""
+
+TIME_SERIES = {
+    # half-hourly demand of 5 Australian states
+    "australian electricity demand": True,
+    "higgs": False,
+    # traffic counts from radar sensors in Austin over time
+    "radar traffic data": True,
+    # delays of the Zurich public transport over a month
+    "delays zurich transport": True,
+    "poker": False,
+    "simulated": False,
+}
+"""Whether each dataset is a time series, keyed on `dataset_name`. The train/test
+split is random, so on these the test points sit between training points in
+time."""
+
+OPENML_IDS = {
+    "australian electricity demand": 46237,
+    "higgs": 45570,
+    "radar traffic data": 43354,
+    "delays zurich transport": 45045,
+    "poker": 43955,
+}
+"""OpenML ids of the real datasets, keyed on `dataset_name`, as found in the
+list written by `list_datasets` that `save_datasets` picks from."""
 
 # the table is tight on width, so shorten the longest dataset names
 DATASET_NICKNAMES = {
@@ -40,11 +112,16 @@ def aggregate(df: pl.DataFrame) -> pl.DataFrame:
     """Mean and sdev across rounds per (method, dataset)."""
     # show the tree life as a fraction of its maximum
     df = df.with_columns(
-        pl.col("tree_life").cast(pl.Float64) / pl.col("mcmc_steps").cast(pl.Float64)
+        pl.col("tree_life").cast(pl.Float64) / pl.col("mcmc_steps").cast(pl.Float64),
+        pl.col("mean_leaves").cast(pl.Float64)
+        / pl.col("method").replace_strict(MAX_LEAVES, default=None),
+        pl.col("frac_empty_trees").cast(pl.Float64) / EMPTY_TREES_PRIOR,
+        # the mse relative to predicting the test mean, as in fullbench-plot
+        relmse=(pl.col("rmse") / pl.col("test_sdev")).pow(2),
     )
     stats = [
         expr
-        for col in MCMC_COLUMNS
+        for col in STAT_COLUMNS
         for expr in (
             # all-null columns come out of the concat with the null dtype
             pl.col(col).cast(pl.Float64).mean().alias(f"mean_{col}"),
@@ -54,6 +131,7 @@ def aggregate(df: pl.DataFrame) -> pl.DataFrame:
     return df.group_by("method", "dataset_path", maintain_order=True).agg(
         *stats,
         n=pl.col("n_train").drop_nulls().first(),
+        mcmc_steps=pl.col("mcmc_steps").drop_nulls().first(),
         p=pl.col("p").drop_nulls().first(),
         # failed runs are recorded as all-None rows, so skip the nulls
         outcome_type=pl.col("outcome_type").drop_nulls().first(),
@@ -138,6 +216,101 @@ def make_table(agg: pl.DataFrame) -> str:
     return "\n".join(lines) + "\n"
 
 
+def make_full_table(agg: pl.DataFrame) -> str:
+    """Render the aggregated results as a LaTeX tabular with the datasets as
+    columns and one row per (field, method)."""
+    methods = agg.get_column("method").unique(maintain_order=True).to_list()
+    methods.sort(key=lambda m: METHOD_ORDER.index(m) if m in METHOD_ORDER else 99)
+    rows = {(r["method"], r["dataset_path"]): r for r in agg.iter_rows(named=True)}
+    datasets = agg.unique("dataset_path", maintain_order=True).to_dicts()
+    paths = [d["dataset_path"] for d in datasets]
+
+    lines = [f"\\begin{{tabular}}{{ll{'r' * len(datasets)}}}", "\\toprule"]
+    names = [dataset_name(d["dataset_path"], "simulated") for d in datasets]
+    names = [DATASET_NICKNAMES.get(name, name) for name in names]
+    # the names are wider than the numbers, so put one word per line
+    names = [name.split(" ") for name in names]
+    for words in names:
+        if words == ["simulated"]:
+            words.append("(\\autoref{eq:dgp})")
+    names = [
+        f"\\begin{{tabular}}[b]{{@{{}}r@{{}}}}{' \\\\ '.join(words)}\\end{{tabular}}"
+        if len(words) > 1
+        else words[0]
+        for words in names
+    ]
+    lines += [" & ".join(["", "", *names]) + " \\\\", "\\midrule"]
+
+    # per-dataset info, the same for all methods
+    ids = [
+        OPENML_IDS.get(dataset_name(d["dataset_path"], "simulated")) for d in datasets
+    ]
+    info = {
+        # not \\num, the ids are not quantities to group by thousands
+        "OpenML id": [
+            "---" if i is None else f"\\href{{https://www.openml.org/d/{i}}}{{{i}}}"
+            for i in ids
+        ],
+        "\\textit{n}": [f"\\num{{{d['n']}}}" for d in datasets],
+        "\\textit{p}": [f"\\num{{{d['p']}}}" for d in datasets],
+        "task": [OUTCOME_NICKNAMES[d["outcome_type"]] for d in datasets],
+        "simulated": [
+            "yes" if SIMULATED[dataset_name(d["dataset_path"], "simulated")] else "no"
+            for d in datasets
+        ],
+        "time series": [
+            "yes" if TIME_SERIES[dataset_name(d["dataset_path"], "simulated")] else "no"
+            for d in datasets
+        ],
+        # the test set is the same across methods for a given round
+        "test sdev": [
+            format_uncertain(d["mean_test_sdev"], d["test_sdev_sdev"]) for d in datasets
+        ],
+    }
+    lines += [
+        " & ".join([label, "", *cells]) + " \\\\" for label, cells in info.items()
+    ]
+    lines.append("\\midrule")
+
+    # the tree life is divided by the number of steps, so it must be the same
+    steps = agg.get_column("mcmc_steps").drop_nulls().unique().item()
+
+    groups = []
+    for col, label in FULL_ROWS.items():
+        label = label.format(steps=steps)
+        group = []
+        for m in methods:
+            cells = []
+            for path in paths:
+                row = rows.get((m, path))
+                mean = None if row is None else row[f"mean_{col}"]
+                sdev = None if row is None else row[f"{col}_sdev"]
+                cells.append(format_uncertain(mean, sdev))
+            if any(c != "---" for c in cells):
+                group.append((m, cells))
+        rows_ = []
+        for i, (m, cells) in enumerate(group):
+            line = label if i == 0 else ""
+            if col == "mean_leaves":
+                # the unit differs by method, so put it on each line
+                line = (label if i == 0 else f"\\phantom{{{label}}}") + (
+                    f"/{MAX_LEAVES[m]}"
+                )
+            if col.startswith("time_") and m in JIT_METHODS:
+                line = f"{line} (incl. xla)" if line else "(incl. xla)"
+            name = METHOD_NICKNAMES.get(m, m)
+            rows_.append(" & ".join([line, name, *cells]) + " \\\\")
+        if rows_:
+            groups.append(rows_)
+    for i, group in enumerate(groups):
+        if i:
+            lines.append("\\addlinespace")
+        lines += group
+
+    lines += ["\\bottomrule", "\\end{tabular}"]
+    return "\n".join(lines) + "\n"
+
+
 def describe(df: pl.DataFrame) -> None:
     """Print the facts the caption needs to state."""
     for col in ("device", "n_test", "mcmc_steps"):
@@ -147,11 +320,11 @@ def describe(df: pl.DataFrame) -> None:
     print(f"rounds: {rounds.to_list()}")
 
 
-def save_table(table: str) -> None:
+def save_table(table: str, name: str) -> None:
     """Save the table under ./plots."""
     outdir = Path("./plots")
     outdir.mkdir(exist_ok=True)
-    file = outdir / "fullbench-table.tex"
+    file = outdir / f"{name}.tex"
     print(f"write {file}...")
     file.write_text(table)
 
@@ -175,14 +348,19 @@ def main(argv: Sequence[str] = argv[1:]) -> None:
     """Entry point of the script."""
     args = parse_args(argv)
     df = load_results(args.files)
-    # files from before tree_life was recorded
-    for col in ("tree_life", "mcmc_steps"):
+    # files from before these columns were recorded
+    for col in (*STAT_COLUMNS, "mcmc_steps"):
         if col not in df.columns:
             df = df.with_columns(pl.lit(None, pl.Float64).alias(col))
     describe(df)
-    table = make_table(aggregate(df))
-    print(table)
-    save_table(table)
+    agg = aggregate(df)
+    for make, name in [
+        (make_table, "fullbench-table"),
+        (make_full_table, "fullbench-table-full"),
+    ]:
+        table = make(agg)
+        print(table)
+        save_table(table, name)
 
 
 if __name__ == "__main__":

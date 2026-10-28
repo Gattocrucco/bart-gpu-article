@@ -103,3 +103,4 @@ copy-plots:
 	cp plots/compare-bart-packages-plot-mse-3.pdf article/rmse-single.pdf
 	cp plots/compare-bart-packages-plot-coverage_truth_50-3.pdf article/coverage-single.pdf
 	cp plots/fullbench-table.tex article/fullbench-table.tex
+	cp plots/fullbench-table-full.tex article/fullbench-table-full.tex
