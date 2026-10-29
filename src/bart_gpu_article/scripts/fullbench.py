@@ -21,7 +21,7 @@ from bartz import Bart
 from bartz._jaxext import split  # noqa: PLC2701  (jaxext went private in bartz 0.12)
 from bartz.grove import forest_mean_leaves
 from equinox import Module
-from jax import block_until_ready, config, jit, random
+from jax import block_until_ready, config, devices, jit, random
 from jax import numpy as jnp
 from jax.errors import JaxRuntimeError
 from jax.nn import logmeanexp
@@ -136,6 +136,21 @@ class GpuMemoryMonitor:
         self._thread.join()
         # nvidia-smi reports MiB
         self.peak = (self._peak - self._baseline) * 2**20
+
+
+def peak_jax_memory() -> int | None:
+    """Peak bytes of jax arrays alive at the same time on the gpu, or `None`
+    if jax is not on the gpu.
+
+    Unlike `GpuMemoryMonitor`, this excludes the memory that the jax allocator
+    holds without using it, so the two together tell apart what the method
+    needs from the overhead of the allocator.
+    """
+    (device, *_) = devices()
+    if device.platform != "gpu":
+        return None
+    stats = device.memory_stats()
+    return None if stats is None else stats["peak_bytes_in_use"]
 
 
 class TreeStats(NamedTuple):
@@ -505,6 +520,7 @@ EMPTY_ROW_KEYS = (
     "tree_life",
     "mcmc_steps",
     "peak_gpu_memory",
+    "peak_jax_memory",
 )
 
 
@@ -596,6 +612,9 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         print(f"move_acc: {stats.move_acc:.4f}")
     if stats.tree_life is not None:
         print(f"tree_life: {stats.tree_life:.0f}/{stats.mcmc_steps}")
+    jax_memory = peak_jax_memory()
+    if jax_memory is not None:
+        print(f"peak jax memory: {format_mem(jax_memory)}")
 
     return dict(
         seed=cfg.round_seed,
@@ -620,6 +639,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         move_acc=stats.move_acc,
         tree_life=stats.tree_life,
         mcmc_steps=stats.mcmc_steps,
+        peak_jax_memory=jax_memory,
     )
 
 
@@ -661,6 +681,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         tree_life=None,
         mcmc_steps=None,
         peak_gpu_memory=None,
+        peak_jax_memory=None,
     )
 
 
