@@ -279,7 +279,16 @@ def predict_stuff(
 
 
 class Xgboost(Benchmark):
-    """Xgboost harness."""
+    """Xgboost harness, using the native interface as in the xgboost python
+    guide (https://xgboost.readthedocs.io/en/stable/python/python_intro.html).
+
+    The data stays on cpu also with ``--device gpu``: xgboost moves it to the
+    gpu by itself, following ``device`` in the parameters.
+    """
+
+    num_boost_round: int = 100
+    """Number of boosting rounds, the default of the xgboost sklearn interface
+    (`xgboost.train` defaults to 10)."""
 
     def setup(
         self,
@@ -289,45 +298,52 @@ class Xgboost(Benchmark):
         x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        from xgboost import XGBClassifier, XGBRegressor
+        # import here rather than in `train`, so that loading the library (and
+        # its cuda dependencies) stays out of the training time
+        import xgboost
 
+        self._xgb = xgboost
         self._X_train = x_train.T
         self._y_train = y_train
         self._X_test = x_test.T
         self._binary = cfg.binary
-        self._platform = cfg.platform
-        cls = XGBClassifier if self._binary else XGBRegressor
-        self._model = cls(random_state=make_int_seed(key), device=self._platform)
+        # the parameters the sklearn interface sets by default, plus the device
+        self._params = {
+            "objective": "binary:logistic" if self._binary else "reg:squarederror",
+            "tree_method": "hist",
+            "device": {"cpu": "cpu", "gpu": "cuda"}[cfg.platform],
+            "seed": make_int_seed(key),
+        }
 
     def train(self) -> None:
-        self._model.fit(self._X_train, self._y_train)
+        xgb = self._xgb
+        # the quantile binning happens here, like bartz's in its own train
+        dtrain = xgb.QuantileDMatrix(self._X_train, label=self._y_train)
+        self._booster = xgb.train(self._params, dtrain, self.num_boost_round)
+        self._rounds = self.num_boost_round
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
-        x_test = self._X_test
-        if self._platform == "gpu":
-            import cupy
-
-            x_test = cupy.asarray(self._X_test)
+        # a DMatrix rather than `inplace_predict`, which on a cuda booster wants
+        # the data already on the gpu and otherwise falls back to a DMatrix
+        dtest = self._xgb.DMatrix(self._X_test)
+        yhat = self._booster.predict(dtest, iteration_range=(0, self._rounds))
         if self._binary:
-            yhat = self._model.predict_proba(x_test)[:, 1]
+            # binary:logistic predicts the probability of class 1
             p_hat = np.clip(yhat, 1e-7, 1 - 1e-7)
             logloss = -np.mean(
                 y_test * np.log(p_hat) + (1 - y_test) * np.log(1 - p_hat)
             )
         else:
-            yhat = self._model.predict(x_test)
             logloss = None
 
         rmse = np.sqrt(np.mean(np.square(yhat - y_test)))
         return PredictStuff(rmse, None, logloss)
 
-    def _booster(self) -> Any:
-        """The trees that `predict` uses."""
-        return self._model.get_booster()
-
     def tree_stats(self) -> TreeStats:
+        # count only the trees that `predict` uses
+        booster = self._booster[: self._rounds]
         # each dumped tree is a text listing of its nodes, one "leaf=" per leaf
-        dumps = self._booster().get_dump()
+        dumps = booster.get_dump()
         leaves = [tree.count("leaf=") for tree in dumps]
         return TreeStats(len(dumps), float(np.mean(leaves)), None)
 
@@ -359,10 +375,6 @@ class XgboostES(Xgboost):
     ) -> None:
         keys = split(key)
         super().setup(keys.pop(), x_train, y_train, x_test, cfg)
-        self._model.set_params(
-            n_estimators=self.max_rounds,
-            early_stopping_rounds=self.early_stopping_rounds,
-        )
 
         # hold out the validation set from the training set, not the test set
         n_train = len(self._y_train)
@@ -376,17 +388,21 @@ class XgboostES(Xgboost):
         self._y_train = self._y_train[train_idx]
 
     def train(self) -> None:
-        self._model.fit(
-            self._X_train,
-            self._y_train,
-            eval_set=[(self._X_val, self._y_val)],
-            verbose=100,
+        xgb = self._xgb
+        dtrain = xgb.QuantileDMatrix(self._X_train, label=self._y_train)
+        # `ref` makes the validation set reuse the training quantile bins
+        dval = xgb.QuantileDMatrix(self._X_val, label=self._y_val, ref=dtrain)
+        self._booster = xgb.train(
+            self._params,
+            dtrain,
+            self.max_rounds,
+            evals=[(dval, "validation")],
+            early_stopping_rounds=self.early_stopping_rounds,
+            verbose_eval=100,
         )
-
-    def _booster(self) -> Any:
-        # training goes on `early_stopping_rounds` past the best round, but
-        # `predict` stops there, so drop the trailing trees
-        return super()._booster()[: self._model.best_iteration + 1]
+        # `train` returns the booster at the last round, which is
+        # `early_stopping_rounds` past the best one: use only up to the best
+        self._rounds = self._booster.best_iteration + 1
 
 
 EMPTY_ROW_KEYS = (
