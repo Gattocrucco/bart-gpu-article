@@ -145,7 +145,9 @@ class Benchmark(ABC):
     def train(self) -> None: ...
 
     @abstractmethod
-    def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff: ...
+    def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
+        """Called twice, to time it cold and warm, so it must compute the same
+        thing at every call."""
 
     @abstractmethod
     def tree_stats(self) -> TreeStats: ...
@@ -172,7 +174,10 @@ class Bartz(Benchmark):
         x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        self._keys = split(key)  # one for the fit, one for predict
+        keys = split(key)
+        self._fit_key = keys.pop()
+        # the same key at every predict call, so that the calls compute the same
+        self._predict_key = keys.pop()
         self._x_train = x_train
         self._y_train = y_train
         self._x_test = x_test
@@ -186,7 +191,7 @@ class Bartz(Benchmark):
         bart = Bart(
             x_train=self._x_train,
             y_train=self._y_train,
-            seed=self._keys.pop(),
+            seed=self._fit_key,
             devices=self._platform,
             outcome_type=self._outcome_type,
             **NONDEFAULT_BART_ARGS,
@@ -196,7 +201,7 @@ class Bartz(Benchmark):
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
         stuff = predict_stuff(
-            self._keys.pop(),
+            self._predict_key,
             self._bart,
             self._x_test,
             y_test,
@@ -417,6 +422,7 @@ EMPTY_ROW_KEYS = (
     "test_sdev",
     "time_train",
     "time_test",
+    "time_test_warm",
     "rmse",
     "coverage_50",
     "logloss",
@@ -485,10 +491,16 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         bench.train()
     print(f"train time: {format_time(t_train.time)}")
 
-    print("predict...")
+    # predict twice: the first, cold call includes one-time costs, e.g., the
+    # jax compilation, while the second, warm call is the prediction alone
+    print("predict (cold)...")
     with Timer() as t_test:
         stuff = bench.predict(y_test)
-    print(f"predict time: {format_time(t_test.time)}")
+    print(f"predict time (cold): {format_time(t_test.time)}")
+    print("predict (warm)...")
+    with Timer() as t_test_warm:
+        bench.predict(y_test)
+    print(f"predict time (warm): {format_time(t_test_warm.time)}")
 
     rmse = float(stuff.rmse)
     coverage_50 = None if stuff.coverage_50 is None else float(stuff.coverage_50)
@@ -521,6 +533,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         test_sdev=test_sdev,
         time_train=t_train.time,
         time_test=t_test.time,
+        time_test_warm=t_test_warm.time,
         rmse=rmse,
         coverage_50=coverage_50,
         logloss=logloss,
@@ -559,6 +572,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         test_sdev=None,
         time_train=None,
         time_test=None,
+        time_test_warm=None,
         rmse=None,
         coverage_50=None,
         logloss=None,
