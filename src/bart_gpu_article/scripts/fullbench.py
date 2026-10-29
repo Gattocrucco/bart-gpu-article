@@ -7,10 +7,11 @@ import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections.abc import Sequence
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from functools import partial
 from pathlib import Path
-from subprocess import PIPE, TimeoutExpired, run
+from subprocess import PIPE, Popen, TimeoutExpired, run
+from threading import Thread
 from time import perf_counter
 from types import MappingProxyType
 from typing import Any, Mapping, NamedTuple
@@ -30,6 +31,7 @@ from jaxtyping import Array, Float, Float32, Key, UInt
 from bart_gpu_article.datasim import load_data
 from bart_gpu_article.scripts.benchmark import (
     EXIT_OUT_OF_MEMORY,
+    format_mem,
     format_time,
     make_int_seed,
 )
@@ -82,6 +84,55 @@ class Timer:
 
     def __exit__(self, *_: object) -> None:
         self.time = perf_counter() - self._start
+
+
+class GpuMemoryMonitor:
+    """Context manager to measure the peak gpu memory used inside it.
+
+    Streams the memory in use on gpu 0 from nvidia-smi, and subtracts the
+    reading taken on entry. The reading is for the whole gpu, so this assumes
+    nothing else starts using it meanwhile. Spikes shorter than the polling
+    interval may be missed, but the jax allocator never gives memory back, so
+    for jax this misses nothing (with the preallocation off, see
+    `setup_device`).
+    """
+
+    interval_ms: int = 100
+
+    peak: int
+    """Peak memory in bytes, set on exit."""
+
+    @staticmethod
+    def _command(*args: str) -> list[str]:
+        return [
+            "nvidia-smi",
+            "--id=0",
+            "--query-gpu=memory.used",
+            "--format=csv,noheader,nounits",
+            *args,
+        ]
+
+    def __enter__(self) -> GpuMemoryMonitor:
+        proc = run(self._command(), stdout=PIPE, text=True, check=True)
+        self._baseline = self._peak = int(proc.stdout)
+        self._proc = Popen(
+            self._command(f"--loop-ms={self.interval_ms}"), stdout=PIPE, text=True
+        )
+        self._thread = Thread(target=self._read, daemon=True)
+        self._thread.start()
+        return self
+
+    def _read(self) -> None:
+        assert self._proc.stdout is not None
+        for line in self._proc.stdout:
+            self._peak = max(self._peak, int(line))
+
+    def __exit__(self, *_: object) -> None:
+        self._proc.terminate()
+        self._proc.wait()
+        self._thread.join()
+        # nvidia-smi reports MiB
+        self.peak = (self._peak - self._baseline) * 2**20
 
 
 class TreeStats(NamedTuple):
@@ -450,6 +501,7 @@ EMPTY_ROW_KEYS = (
     "move_acc",
     "tree_life",
     "mcmc_steps",
+    "peak_gpu_memory",
 )
 
 
@@ -605,6 +657,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         move_acc=None,
         tree_life=None,
         mcmc_steps=None,
+        peak_gpu_memory=None,
     )
 
 
@@ -645,14 +698,22 @@ def run_master(cfg: Config) -> dict[str, list]:
             )
 
             row: dict[str, Any]
+            # measure the memory from outside the slave, so that it is the same
+            # measure for all methods, whatever library allocates the memory
+            mem = GpuMemoryMonitor() if cfg.platform == "gpu" else nullcontext()
             try:
-                proc = run(cmd, stdout=PIPE, text=True, timeout=cfg.timeout)
+                with mem:
+                    proc = run(cmd, stdout=PIPE, text=True, timeout=cfg.timeout)
             except TimeoutExpired:
                 print(f"timeout after {cfg.timeout}s")
                 row = _null_row(cfg.method, ds_path, round_seed, cfg.device_kind)
             else:
                 if proc.returncode == 0:
                     row = json.loads(proc.stdout.strip())
+                    row["peak_gpu_memory"] = None
+                    if isinstance(mem, GpuMemoryMonitor):
+                        row["peak_gpu_memory"] = mem.peak
+                        print(f"peak gpu memory: {format_mem(mem.peak)}")
                 elif proc.returncode == EXIT_OUT_OF_MEMORY:
                     print("out of memory")
                     row = _null_row(cfg.method, ds_path, round_seed, cfg.device_kind)
@@ -804,8 +865,11 @@ def setup_device(cfg: Config) -> None:
         config.update("jax_num_cpu_devices", 4)
         # 4 cpu devices because bartz uses 4 chains by default
     elif cfg.platform == "gpu":
-        # claim almost all the gpu memory instead of the default 75%
+        # allow almost all the gpu memory instead of the default 75%
         os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.95"
+        # but allocate it as needed instead of all upfront, so that the master
+        # can measure the memory used; this does not change the speed
+        os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
         # jax would do the same, but by setting it explicitly, we are
         # forcing an error if there's no gpu
