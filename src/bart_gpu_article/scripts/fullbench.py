@@ -321,11 +321,72 @@ class Xgboost(Benchmark):
         rmse = np.sqrt(np.mean(np.square(yhat - y_test)))
         return PredictStuff(rmse, None, logloss)
 
+    def _booster(self) -> Any:
+        """The trees that `predict` uses."""
+        return self._model.get_booster()
+
     def tree_stats(self) -> TreeStats:
         # each dumped tree is a text listing of its nodes, one "leaf=" per leaf
-        dumps = self._model.get_booster().get_dump()
+        dumps = self._booster().get_dump()
         leaves = [tree.count("leaf=") for tree in dumps]
         return TreeStats(len(dumps), float(np.mean(leaves)), None)
+
+
+class XgboostES(Xgboost):
+    """Xgboost with the number of rounds set by early stopping.
+
+    The default 100 rounds are a placeholder, and the xgboost docs pick the
+    number of rounds with early stopping on a validation set. This changes only
+    the number of rounds, like `Bartz2000` changes only the number of trees.
+    """
+
+    max_rounds: int = 10_000
+    """Upper bound on the boosting rounds, meant to be never reached."""
+
+    early_stopping_rounds: int = 50
+    """Stop after this many rounds without improvement on the validation set."""
+
+    val_fraction: float = 0.1
+    """Fraction of the training set held out for early stopping."""
+
+    def setup(
+        self,
+        key: Key[Array, ""],
+        x_train: Float[np.ndarray, "p n_train"],
+        y_train: Float[np.ndarray, " n_train"],
+        x_test: Float[np.ndarray, "p n_test"],
+        cfg: Config,
+    ) -> None:
+        keys = split(key)
+        super().setup(keys.pop(), x_train, y_train, x_test, cfg)
+        self._model.set_params(
+            n_estimators=self.max_rounds,
+            early_stopping_rounds=self.early_stopping_rounds,
+        )
+
+        # hold out the validation set from the training set, not the test set
+        n_train = len(self._y_train)
+        n_val = round(self.val_fraction * n_train)
+        perm = np.asarray(random.permutation(keys.pop(), n_train))
+        val_idx = perm[:n_val]
+        train_idx = perm[n_val:]
+        self._X_val = self._X_train[val_idx, :]
+        self._y_val = self._y_train[val_idx]
+        self._X_train = self._X_train[train_idx, :]
+        self._y_train = self._y_train[train_idx]
+
+    def train(self) -> None:
+        self._model.fit(
+            self._X_train,
+            self._y_train,
+            eval_set=[(self._X_val, self._y_val)],
+            verbose=100,
+        )
+
+    def _booster(self) -> Any:
+        # training goes on `early_stopping_rounds` past the best round, but
+        # `predict` stops there, so drop the trailing trees
+        return super()._booster()[: self._model.best_iteration + 1]
 
 
 EMPTY_ROW_KEYS = (

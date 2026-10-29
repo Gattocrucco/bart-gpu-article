@@ -9,7 +9,7 @@ UV_RUN = RPY2_CFFI_MODE=ABI uv run $(EXTRAS)
 SIMDATASET = data/savedata-4000000-1000-32-continuous-peff100
 
 # the methods run by fullbench-gpu, e.g., `make fullbench-gpu FULLBENCH_METHODS=xgboost`
-FULLBENCH_METHODS ?= bartz bartz2000 xgboost
+FULLBENCH_METHODS ?= bartz bartz2000 xgboost xgboostes
 
 # the fullbench results tabulated in the article, in column order
 FULLBENCH_RESULTS = $(foreach m,xgboost bartz bartz2000,results/fullbench-$(m)-NVIDIA_RTX_PRO_5000_Blackwell.json)

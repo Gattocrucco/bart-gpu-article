@@ -24,7 +24,7 @@ DEVICE_NICKNAMES = {
     "Apple_M1_Pro": "M1 Pro",
 }
 
-METHOD_NICKNAMES = {"bartz2000": "bartz-2000"}
+METHOD_NICKNAMES = {"bartz2000": "bartz-2000", "xgboostes": "xgboost-es"}
 
 OUTCOME_NICKNAMES = {"continuous": "regr.", "binary": "class."}
 
@@ -32,6 +32,7 @@ METHOD_STYLES = (
     {"markerfacecolor": "black", "markeredgecolor": "none"},
     {"markerfacecolor": "white", "markeredgecolor": "black"},
     {"markerfacecolor": "red", "markeredgecolor": "black"},
+    {"markerfacecolor": "gray", "markeredgecolor": "black"},
 )
 
 MARKERSIZE = 6

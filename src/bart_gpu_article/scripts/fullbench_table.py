@@ -16,14 +16,14 @@ from bart_gpu_article.scripts.fullbench_plot import (
     load_results,
 )
 
-METHOD_ORDER = ("xgboost", "bartz", "bartz2000")
+METHOD_ORDER = ("xgboost", "xgboostes", "bartz", "bartz2000")
 """Order of the method column groups; unknown methods go last."""
 
 MCMC_COLUMNS = ("rmse", "time_train", "tree_life")
 """Columns shown for MCMC methods in the short table; the others get only the
 first two."""
 
-MAX_LEAVES = {"xgboost": 64, "bartz": 32, "bartz2000": 32}
+MAX_LEAVES = {"xgboost": 64, "xgboostes": 64, "bartz": 32, "bartz2000": 32}
 """Maximum number of leaves per tree at the default depth limit, the unit of
 the leaves in the full table."""
 
