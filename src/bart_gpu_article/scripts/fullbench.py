@@ -97,7 +97,10 @@ class GpuMemoryMonitor:
     `setup_device`).
     """
 
-    interval_ms: int = 100
+    interval_ms: int = 10
+    """Polling interval. On the RTX PRO 5000, polling every 10 ms or 1 ms
+    catches the same xgboost peaks, while 100 ms reads them up to ~1% lower,
+    and none of these intervals slows down the methods measurably."""
 
     peak: int
     """Peak memory in bytes, set on exit."""
