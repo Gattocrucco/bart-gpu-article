@@ -152,6 +152,12 @@ class Benchmark(ABC):
     @abstractmethod
     def tree_stats(self) -> TreeStats: ...
 
+    @abstractmethod
+    def error_sdev(self) -> float | None:
+        """The model's own estimate of the error standard deviation, or `None`
+        if the model does not make one (computing it from the residuals does
+        not count)."""
+
     subclasses: dict[str, type[Benchmark]] = {}
 
     def __init_subclass__(cls) -> None:
@@ -221,6 +227,13 @@ class Bartz(Benchmark):
             float(jnp.mean(state.forest.tree_life)),
             int(state.config.steps_done),
         )
+
+    def error_sdev(self) -> float | None:
+        if self._binary:
+            # the probit model has no error sdev, bartz returns nan
+            return None
+        # the root of the error variance averaged over the posterior samples
+        return float(self._bart.get_error_sdev(mean=True))
 
 
 class Bartz2000(Bartz):
@@ -352,6 +365,10 @@ class Xgboost(Benchmark):
         leaves = [tree.count("leaf=") for tree in dumps]
         return TreeStats(len(dumps), float(np.mean(leaves)), None)
 
+    def error_sdev(self) -> float | None:
+        # reg:squarederror fits only the mean, xgboost estimates no error scale
+        return None
+
 
 class XgboostES(Xgboost):
     """Xgboost with the number of rounds set by early stopping.
@@ -426,6 +443,7 @@ EMPTY_ROW_KEYS = (
     "rmse",
     "coverage_50",
     "logloss",
+    "error_sdev",
     "num_trees",
     "mean_leaves",
     "frac_empty_trees",
@@ -510,6 +528,9 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         print(f"coverage_50: {coverage_50:.4f}")
     if logloss is not None:
         print(f"logloss: {logloss:.4f}")
+    error_sdev = bench.error_sdev()
+    if error_sdev is not None:
+        print(f"error_sdev: {error_sdev:.4f}")
 
     stats = bench.tree_stats()
     print(f"num_trees: {stats.num_trees}")
@@ -537,6 +558,7 @@ def run_slave(cfg: Config) -> dict[str, Any]:
         rmse=rmse,
         coverage_50=coverage_50,
         logloss=logloss,
+        error_sdev=error_sdev,
         num_trees=stats.num_trees,
         mean_leaves=stats.mean_leaves,
         frac_empty_trees=stats.frac_empty_trees,
@@ -576,6 +598,7 @@ def _null_row(method: str, dataset: str, seed: int, device_kind: str) -> dict[st
         rmse=None,
         coverage_50=None,
         logloss=None,
+        error_sdev=None,
         num_trees=None,
         mean_leaves=None,
         frac_empty_trees=None,
