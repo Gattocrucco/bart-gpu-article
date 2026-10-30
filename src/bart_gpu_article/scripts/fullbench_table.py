@@ -16,7 +16,7 @@ from bart_gpu_article.scripts.fullbench_plot import (
     load_results,
 )
 
-METHOD_ORDER = ("xgboost", "xgboostes", "bartz", "bartz2000")
+METHOD_ORDER = ("xgboost", "bartz", "xgboostes", "bartz2000")
 """Order of the method column groups; unknown methods go last."""
 
 MCMC_COLUMNS = ("rmse", "time_train", "tree_life")
@@ -33,11 +33,14 @@ empty trees in the full table."""
 
 FULL_ROWS = {
     "rmse": "RMSE",
+    "error_sdev": "error sdev",
     "relmse": "MSE/test var",
     "logloss": "log loss",
     "coverage_50": "50\\% coverage",
     "time_train": "train time (s)",
-    "time_test": "predict time (s)",
+    "time_test": "cold predict (s)",
+    "time_test_warm": "warm predict (s)",
+    "peak_memory": "peak gpu mem.\n(GB)",
     "num_trees": "trees",
     "mean_leaves": "leaves",
     "frac_empty_trees": f"empty trees/{EMPTY_TREES_PRIOR}",
@@ -45,11 +48,15 @@ FULL_ROWS = {
     "tree_life": "tree life/{steps}",
 }
 """Per-method fields of the full table, in order, with their labels. Methods
-that lack a field throughout are left out of its rows."""
+that lack a field throughout are left out of its rows. A label with newlines
+goes one line per row of its group."""
 
 JIT_METHODS = ("bartz", "bartz2000")
 """Methods whose times include the jax compilation, since each round runs in a
 fresh process without a warm-up call."""
+
+JIT_COLUMNS = ("time_train", "time_test")
+"""The times that include the compilation, i.e., not the warm predict."""
 
 STAT_COLUMNS = (*FULL_ROWS, "test_sdev")
 """Columns that get a mean and sdev across rounds."""
@@ -110,14 +117,22 @@ without its spread across rounds, which is negligible, to save width."""
 
 def aggregate(df: pl.DataFrame) -> pl.DataFrame:
     """Mean and sdev across rounds per (method, dataset)."""
-    # show the tree life as a fraction of its maximum
     df = df.with_columns(
+        # show the tree life as a fraction of its maximum
         pl.col("tree_life").cast(pl.Float64) / pl.col("mcmc_steps").cast(pl.Float64),
         pl.col("mean_leaves").cast(pl.Float64)
         / pl.col("method").replace_strict(MAX_LEAVES, default=None),
         pl.col("frac_empty_trees").cast(pl.Float64) / EMPTY_TREES_PRIOR,
         # the mse relative to predicting the test mean, as in fullbench-plot
         relmse=(pl.col("rmse") / pl.col("test_sdev")).pow(2),
+        # the lower of the two peak memory measures, in GB: the one of jax
+        # when there is, since the gpu one also counts what the jax
+        # allocator holds without using, and the gpu one otherwise
+        peak_memory=pl.min_horizontal(
+            pl.col("peak_gpu_memory").cast(pl.Float64),
+            pl.col("peak_jax_memory").cast(pl.Float64),
+        )
+        / 1e9,
     )
     stats = [
         expr
@@ -289,14 +304,15 @@ def make_full_table(agg: pl.DataFrame) -> str:
             if any(c != "---" for c in cells):
                 group.append((m, cells))
         rows_ = []
+        label_lines = label.split("\n")
         for i, (m, cells) in enumerate(group):
-            line = label if i == 0 else ""
+            line = label_lines[i] if i < len(label_lines) else ""
             if col == "mean_leaves":
                 # the unit differs by method, so put it on each line
                 line = (label if i == 0 else f"\\phantom{{{label}}}") + (
                     f"/{MAX_LEAVES[m]}"
                 )
-            if col.startswith("time_") and m in JIT_METHODS:
+            if col in JIT_COLUMNS and m in JIT_METHODS:
                 line = f"{line} (incl. xla)" if line else "(incl. xla)"
             name = METHOD_NICKNAMES.get(m, m)
             rows_.append(" & ".join([line, name, *cells]) + " \\\\")

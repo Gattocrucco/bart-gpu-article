@@ -48,9 +48,10 @@ def load_results(paths: Sequence[Path]) -> pl.DataFrame:
         print(f"read {path}...")
         with open(path) as f:
             tables.append(pl.DataFrame(json.load(f)))
-    # files written by older versions of fullbench may lack or have extra
-    # columns, so fill the missing ones with nulls
-    return pl.concat(tables, how="diagonal_relaxed")
+    # assume all the files have the latest format, so that a file with other
+    # columns is an error; relaxed because the all-null columns, e.g., the
+    # error sdev of xgboost, have the null dtype
+    return pl.concat(tables, how="vertical_relaxed")
 
 
 class Agg(NamedTuple):

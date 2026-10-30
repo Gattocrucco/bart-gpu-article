@@ -12,7 +12,7 @@ SIMDATASET = data/savedata-4000000-1000-32-continuous-peff100
 FULLBENCH_METHODS ?= bartz bartz2000 xgboost xgboostes
 
 # the fullbench results tabulated in the article, in column order
-FULLBENCH_RESULTS = $(foreach m,xgboost bartz bartz2000,results/fullbench-$(m)-NVIDIA_RTX_PRO_5000_Blackwell.json)
+FULLBENCH_RESULTS = $(foreach m,xgboost xgboostes bartz bartz2000,results/fullbench-$(m)-NVIDIA_RTX_PRO_5000_Blackwell.json)
 
 # datasets for fullbench: the complete ones, i.e., with the metadata that is
 # written last; not data/dataset-* because that also matches backup copies
