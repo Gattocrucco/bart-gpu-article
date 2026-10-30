@@ -680,19 +680,20 @@ would not have discriminative power.
 	\centering
 	\caption{\label{tab:fullbench} Comparison of \texttt{bartz} against
 		\texttt{XGBoost} on various large datasets, at default
-		settings, on GPU. ``bartz-2000'' uses 2000 trees instead of the
-		default 200. Test set size is \num{10000}. Each run is repeated
-		5 times over different train/test splits and with different
-		random seeds. Time reported in seconds. ``life'' is the number
-		of iterations since each tree was last pruned back to a root,
-	averaged over trees at the end of the MCMC, and divided by the total
-number of MCMC iterations. See \autoref{tab:fullbench-full} in the appendix for
-the complete results.}
+		settings, on GPU. ``xgboost-es'' uses early stopping with a
+		large maximum number of trees, and ``bartz-2000'' uses 2000
+		trees instead of the default 200. Test set size is \num{10000}.
+		Each run is repeated 5 times over different train/test splits
+		and with different random seeds. Time reported in seconds.
+		``life'' is the number of iterations since each tree was last
+		pruned back to a root, averaged over trees at the end of the
+	MCMC, and divided by the total number of MCMC iterations. See
+\autoref{tab:fullbench-full} in the appendix for the complete results.}
 	\small\sffamily
 	% typeset the numbers as text, in the current font family
 	\sisetup{mode=text, reset-text-family=false}
 	\setlength{\tabcolsep}{3pt}
-	\input{fullbench-table}
+	\widecenter{\input{fullbench-table}}
 \end{table}
 
 Finally, having proven that our BART implementation is state of the art in the
@@ -985,15 +986,12 @@ most about 20x rather than the asymptotic 100x.
 	\caption{\label{tab:fullbench-full} Extended version of
 		\autoref{tab:fullbench}. Comparison of \texttt{bartz} against
 		\texttt{XGBoost} on various large datasets, at default
-		settings, on a Nvidia RTX PRO 5000 GPU. Test set size is
-		\num{10000}. Each run is repeated 5 times over different
-		train/test splits and with different random seeds. The standard
-		deviation across repetitions is reported as a digit in
-		parentheses. ``Tree life'' is the number of iterations since
-		each tree was last pruned back to a root, averaged over trees
-		at the end of the MCMC, and divided by the total number of MCMC
-	iterations.}
-	\small\sffamily
+		settings, on a Nvidia RTX PRO 5000 GPU. Each run is repeated 5
+		times over different train/test splits and with different
+	random seeds. The standard deviation across repetitions is reported as
+a digit in parentheses when non-zero.}
+	\footnotesize\sffamily
+	\renewcommand{\arraystretch}{0.97}
 	% typeset the numbers as text, in the current font family
 	\sisetup{mode=text, reset-text-family=false}
 	\setlength{\tabcolsep}{3pt}
