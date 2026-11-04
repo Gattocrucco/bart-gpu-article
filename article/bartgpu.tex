@@ -595,16 +595,17 @@ and $q=2$ (each predictor interacts with two other predictors).
 \begin{figure}
 	\centering
 	\widecenter{\includempl{time-single}\includempl{time-single-1000}}
-	\caption{\label{fig:single}
-		\textbf{Left panel:} Time to run an iteration of the algorithm
-		vs.\ training set size $n$, comparing \texttt{bartz} with the
-		fastest BART implementation (\texttt{dbarts}),
-		\texttt{XGBoost}, and \texttt{catboost}, on CPU
-		(\texttt{-M1Pro}) and GPU (\texttt{-P5000}). Gradient boosting
-		requires only one iteration to produce a usable result, while
-		BART requires $O(1000)$ iterations, so the \textbf{right panel}
-		shows the same data but with BART timings multiplied by an
-		arbitrary factor 1000 to aid visual comparison of the lines.}
+	\caption{\label{fig:single} \textbf{Left panel:} Time to run an
+		iteration of the algorithm vs.\ training set size $n$,
+		comparing \texttt{bartz} with the fastest BART implementation
+		(\texttt{dbarts}), \texttt{XGBoost}, and \texttt{catboost}, on
+		CPU (\texttt{-M1Pro}) and GPU (\texttt{-P5000}). Gradient
+		boosting requires only one iteration to produce a usable
+		result, while BART requires $O(1000)$ iterations, so the
+		\textbf{right panel} shows the same data but with BART timings
+		multiplied by an arbitrary factor 1000 to aid visual comparison
+	of the lines. See Figures~\ref{fig:time-all}
+and~\ref{fig:time-all-1000} for the complete results.}
 \end{figure}
 
 We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
@@ -624,22 +625,22 @@ is less reliable. Since we take best of three, the bias should be in the
 conservative direction of making \texttt{dbarts} appear faster.
 
 The results with the ``low-low'' settings $p=100$, $n_\text{tree}=200$ are
-shown in \autoref{fig:single} (complete results in \autoref{fig:time-all} in
-the appendix). On CPU, \texttt{dbarts} is 3--4 times faster than \texttt{bartz}
-at low training set size $n$, then \texttt{bartz} takes over in the range
-$n=\num{1000}\text{--} \num{10000}$ and reaches a 4--5x advantage at large $n$.
-On GPU, \texttt{bartz} switches from a constant to a linear regime around $n =
-\num{1000000}$, highlighting the tree-serial bottleneck that requires
-parallelization along $n$ discussed in \autoref{sec:impl}. At high $n$,
-\texttt{bartz} on GPU is 100x faster than itself on CPU, by extrapolation 500x
-faster than the previous state of the art \texttt{dbarts}, and 200x faster than
-XGBoost on GPU. Notably, XGBoost is only 20x faster than itself on GPU vs.{}
-CPU, and our CPU runtime beats the previous state of the art by 5x, so the
-comparison is not artificially inflated by a slow CPU version. Considering a
-BART run with 2000 MCMC iterations, it would then be 10x slower than a single
-XGBoost run GPU vs.{} GPU (at same number of trees), while on CPU vs.{} CPU it
-would be 60x slower. (Note again: these figures do not include predictor
-quantization.)
+shown in \autoref{fig:single} (complete results in Figures~\ref{fig:time-all}
+and~\ref{fig:time-all-1000} in the appendix). On CPU, \texttt{dbarts} is 3--4
+times faster than \texttt{bartz} at low training set size $n$, then
+\texttt{bartz} takes over in the range $n=\num{1000}\text{--} \num{10000}$ and
+reaches a 4--5x advantage at large $n$. On GPU, \texttt{bartz} switches from a
+constant to a linear regime around $n = \num{1000000}$, highlighting the
+tree-serial bottleneck that requires parallelization along $n$ discussed in
+\autoref{sec:impl}. At high $n$, \texttt{bartz} on GPU is 100x faster than
+itself on CPU, by extrapolation 500x faster than the previous state of the art
+\texttt{dbarts}, and 200x faster than XGBoost on GPU. Notably, XGBoost is only
+20x faster than itself on GPU vs.{} CPU, and our CPU runtime beats the previous
+state of the art by 5x, so the comparison is not artificially inflated by a
+slow CPU version. Considering a BART run with 2000 MCMC iterations, it would
+then be 10x slower than a single XGBoost run GPU vs.{} GPU (at same number of
+trees), while on CPU vs.{} CPU it would be 60x slower. (Note again: these
+figures do not include predictor quantization.)
 
 BART requires 1000--2000 (traditionally 1100) iterations to produce a result,
 while gradient boosting one iteration, so comparing per-iteration timings
@@ -659,13 +660,13 @@ doesn't (it's implicitly amortized in the MCMC iterations).
 \begin{figure}
 	\centering
 	\widecenter{\includempl{rmse-single}\includempl{coverage-single}}
-	\caption{\label{fig:accuracy-single}
-		Test set mean square error (MSE) (\textbf{left panel}) and
-		coverage of \SI{50}\% intervals on the latent mean
-		(\textbf{right panel}) vs.\ training set size, comparing
-		\texttt{bartz} with the most popular implementations of BART,
-		to check they yield similar results. The test set size is
-	always 1000.}
+	\caption{\label{fig:accuracy-single} Test set mean square error (MSE)
+		(\textbf{left panel}) and coverage of \SI{50}\% intervals on
+		the latent mean (\textbf{right panel}) vs.\ training set size,
+		comparing \texttt{bartz} with the most popular implementations
+		of BART, to check they yield similar results. See
+	Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all} for the full
+results.}
 \end{figure}
 
 Since we re-implemented the well-known BART MCMC without substantial changes,
@@ -714,7 +715,8 @@ and simulate one large dataset from \autoref{eq:dgp} with $p_\text{eff}/p =
 high-level interfaces, but for using a single MCMC chain in bartz instead of
 the default four.
 
-The results are in \autoref{tab:fullbench}. On the largest dataset (higgs,
+The results are in \autoref{tab:fullbench} (more details in
+\autoref{sec:completeresults}). On the largest dataset (higgs,
 $n\approx\num{11000000}$), bartz is 17x slower than XGBoost, roughly in line
 with the large-$n$ 20x factor previously estimated from \autoref{fig:single}
 (it's 20x instead of 10x because here XGBoost has the default 100 trees instead
@@ -949,56 +951,176 @@ relative numerical error with standard deviation $\approx \num{1e-7} \sqrt
 it would be with 16 bit floats, which might be an option to further accelerate
 the implementation.
 
-\section{Complete results of performance measurements, and further considerations}
-\label{sec:gpumem}
+\section{Complete results of the measurements in \autoref{sec:perf}}
+\label{sec:completeresults}
 
-The speed benchmarks and out-of-sample MSE tests for all combinations of
-$p$-$n_\text{tree}$ settings are in Figures~\ref{fig:time-all} and~\ref{fig:rmse-all}.\marginpar{FIX}
+The speed benchmarks for all combinations of $p$-$n_\text{tree}$ settings are
+in Figures~\ref{fig:time-all} and~\ref{fig:time-all-1000}. The full results of
+the predictive accuracy comparison between BART packages are in
+Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. The full results of the
+bartz vs.\ XGBoost comparison on a few datasets are in
+\autoref{tab:fullbench-full}.
+
+The datasets used in \autoref{tab:fullbench-full} were chosen by considering
+OpenML datasets with $n\ge\num{1000000}$ and then filtering out those that
+appeared low quality on a subjective judgement, were not apt for a
+\texttt{bartz} run without nontrivial pre-processing (mainly, \texttt{bartz}
+does not support missing predictors and high-cardinality categorical
+predictors), or were not apt for a simple generic out-of-sample predictive
+comparison. The selection of these datasets was finalized before running the
+benchmark and looking at the results. The dataset simulated from
+\autoref{eq:dgp} was coarsely tuned to have an out-of-sample MSE around 0.5 on
+\texttt{bartz}, without checking the corresponding \texttt{XGBoost} accuracy to
+choose the hyperparameters.
+
+The train/test split is random and does not take into account temporal ordering
+on time series data. Thus, on datasets with a time axis, predictions are
+interpolations rather than forward predictions.
+
+We mostly followed the pre-processing of the paper introducing the dataset
+where we found one: \textcite{grinsztajn_why_2022} for ``poker'' and ``zurich
+delays'', \textcite{baldi_searching_2014} for ``higgs''. We presume the full
+chain of provenance of our ``poker'' dataset is: UCI Poker Hand dataset, LibSVM
+datasets, OpenML id 354, \textcite{grinsztajn_why_2022}'s pipeline, OpenML id
+43955. The ``radar traffic'' dataset comes from public data
+\autocite{austin2019radar}. For the full details of our pre-processing, see the
+supplemental code (\autoref{sec:code}).
+
+The meaning of the rows in \autoref{tab:fullbench-full} is:
+%
+\begin{description}
+	
+	\item[OpenML id] The unique identifier of the dataset in the OpenML
+		catalogue.
+
+	\item[n] The number of units in the training split. The test set is
+		always \num{10000} units.
+
+	\item[p] The number of predictors, after pre-processing.
+
+	\item[task] Whether the outcome is continuous (``regression'') or
+		binary (``classification'').
+	
+	\item[simulated] Whether the data is collected from real-world
+		measurements or simulated.
+
+	\item[time series] Whether the data has temporal ordering (we ignore
+		it).
+
+	\item[test sdev] The standard deviation of the test set. Always close
+		to 1.000 for continuous outcomes because they are standardized,
+		while for binary outcomes it indicates balancing. Both our
+		binary datasets are perfectly balanced.
+
+	\item[RMSE] The root mean square error of out-of-sample predictions on
+		the test set. The MSE is averaged over 5 independent train/test
+		splits.
+
+	\item[error sdev] The posterior RMS error standard deviation of BART.
+
+	\item[MSE/test var] Fraction of the variance unexplained by the
+		predictions. Reports the same information of RMSE, but ranges
+		from 0 to 1.
+
+	\item[log loss] The logarithm of the probability assigned to the
+		correct test label by the model. Posterior mean in the case of
+		BART. For XGBoost, this is available only for classification.
+
+	\item[50\,\% coverage] BART-only. Coverage of the \SI{50}{\%} credible
+		intervals on test outcomes, when outcomes are continuous.
+
+	\item[train time] The end-to-end time to train the model on a single
+		split, starting cold.
+	
+	\item[cold predict] The time taken to compute predictions given a
+		trained model, on the first prediction after training.
+
+	\item[warm predict] The time taken to compute predictions given a
+		trained model, re-computing them a second time.
+
+	\item[peak gpu mem.] Maximum GPU memory used during a full run
+		(loading, training, prediction, scoring). For XGBoost, this is
+		measures the total allocated GPU memory. This is not possible
+		with bartz because JAX aggressively pre-allocates memory and
+		does not relinquish it, so we query the total size of allocated
+		jax arrays instead. This is an underestimate by probably about
+		\SI{1}{GB} because there is additional memory usage beyond the
+		arrays.
+
+	\item[trees] The number of trees.
+
+	\item[leaves] The average number of leaves per tree (averaged over
+		post-burn-in MCMC samples for BART), reported as a fraction to
+		the total number of leaves allowed by the method.
+
+	\item[empty trees] BART-only. The fraction of empty (i.e., root-only,
+		depth-0) trees across post-burn-in MCMC samples, reported as a
+		fraction to the a-priori expected fraction which is an upper
+		bound (the data can only push the trees to grow more than the
+		prior, not less).
+	
+	\item[acceptance] BART-only. The average acceptance of the tree
+		structure Metropolis-Hastings in the post-burn-in MCMC samples.
+
+	\item[tree life] BART-only. The number of iterations since the last
+		time the tree was pruned back to empty, averaged over trees at
+		the last MCMC iteration, and reported as a fraction to the
+		total number of iterations.
+
+\end{description}
 
 \begin{figure}
 	\widecenter{\includempl{time-all}}
-	\caption{\label{fig:time-all} Time to run an iteration (one sweep through
-		all trees) of the algorithm vs.\ training set size $n$, comparing
-		\texttt{bartz} with the fastest BART implementation (\texttt{dbarts}),
-		\texttt{XGBoost}, and \texttt{catboost}, for various settings of number of
-		trees and number of predictors $p$, on CPU (\texttt{-M1pro}) and GPU
-		(\texttt{-P5000}). Take into account that gradient boosting requires only
-		one iteration to produce a usable result, while BART requires $O(1000)$
-		iterations.}
+	\caption{\label{fig:time-all} Full version of \autoref{fig:single},
+		left panel. Time to run an iteration (one sweep through all
+		trees) of the algorithm vs.\ training set size $n$, comparing
+		\texttt{bartz} with the fastest BART implementation
+		(\texttt{dbarts}), \texttt{XGBoost}, and \texttt{catboost}, for
+		various settings of number of trees and number of
+		predictors~$p$, on CPU (\texttt{-M1pro}) and GPU
+		(\texttt{-P5000}). Take into account that gradient boosting
+		requires only one iteration to produce a usable result, while
+		BART requires $O(1000)$ iterations. See
+		\autoref{fig:time-all-1000} for a version of this plot where
+		the BART running time is multiplied by 1000.}
 \end{figure}
 
 \begin{figure}
 	\widecenter{\includempl{time-all-1000}}
-	\caption{\label{fig:time-all-1000}}
+	\caption{\label{fig:time-all-1000} Full version of
+		\autoref{fig:single}, right panel. Time to run 1 iteration  of
+		\texttt{XGBoost}, \texttt{catboost}, or 1000 iterations of
+		\texttt{bartz}, \texttt{dbarts}, vs.\ training set size $n$.
+		This is the same data as \autoref{fig:time-all}.}
 \end{figure}
-
-\paragraph{Effect of limited GPU memory}
-
-A striking feature of the speed benchmarks in \autoref{fig:time-all} is that
-with high $p$ or $n_\text{tree}$ the \texttt{bartz-P5000} line terminates at
-small $n$ like the other methods despite being faster. Our benchmark harness
-increases $n$ until timeout or out-of-memory error, so this indicates that
-\texttt{bartz} is running out of GPU memory. The memory installed on GPU cards
-is fixed, it can't be expanded, and there is no swap, so this is a hard limit.
-The speed premium of the GPU kicks in only at high $n$, so this memory limit
-indirectly limits the speed gain. The practical consequence is that running the
-algorithm in ``high'' $p$ or $n_\text{tree}$ settings allows a speed gain of at
-most about 20x rather than the asymptotic 100x.
 
 \begin{figure}
 	\centering
 	\widecenter{\includempl{rmse-all}}
-	\caption{\label{fig:rmse-all} Test set mean square error (MSE) vs.\
-		training set size, comparing \texttt{bartz} with the most popular
-		implementations of BART, to check they yield the same predictive
-		performance, for various settings of number of trees and number of
-		predictors $p$. The test set size is always 1000.}
+	\caption{\label{fig:rmse-all} Full version of
+		\autoref{fig:accuracy-single}, left panel. Test set mean square
+		error (MSE) vs.\ training set size~$n$, comparing
+		\texttt{bartz} with the most popular implementations of BART,
+		to check they yield the same predictive performance, for
+		various settings of number of trees and number of predictors
+	$p$ on data simulated as \autoref{eq:dgp}. The test set size is always
+1000. The MSE is averaged over enough runs to reach a total training set size
+of at least 1000 for each point, capped at 10 runs.}
 \end{figure}
 
 \begin{figure}
 	\centering
 	\widecenter{\includempl{coverage-all}}
-	\caption{\label{fig:coverage-all}}
+	\caption{\label{fig:coverage-all} Full version of
+		\autoref{fig:accuracy-single}, right panel. Coverage of
+		\SI{50}{\%} credible intervals on the latent mean vs.\ training
+		set size~$n$, comparing \texttt{bartz} with the most popular
+		implementations of BART, to check they yield the same
+		predictive performance, for various settings of number of trees
+		and number of predictors $p$ on data simulated as
+		\autoref{eq:dgp}. The test set size is always 1000. The MSE is
+		averaged over enough runs to reach a total training set size of
+	at least 1000 for each point, capped at 10 runs.}
 \end{figure}
 
 \begin{table}
@@ -1009,7 +1131,8 @@ most about 20x rather than the asymptotic 100x.
 		settings, on a Nvidia RTX PRO 5000 GPU. Each run is repeated 5
 		times over different train/test splits and with different
 	random seeds. The standard deviation across repetitions is reported as
-a digit in parentheses when non-zero.}
+a digit in parentheses when non-zero. See \autoref{sec:completeresults} for
+details.}
 	\footnotesize\sffamily
 	\renewcommand{\arraystretch}{0.97}
 	% typeset the numbers as text, in the current font family
@@ -1018,31 +1141,54 @@ a digit in parentheses when non-zero.}
 	\widecenter{\input{fullbench-table-full}}
 \end{table}
 
-\paragraph{On increasing the number of trees}
+\section{Comment on the constraint of GPU memory}
+\label{sec:gpumem}
 
-Next, we discuss how the speed of this implementation allows to run BART with
-many more trees than usual, which is an unexplored route in the BART literature,
-and potentially connects to various scaling behaviors of BART. Our a priori best
+A striking feature of the speed benchmarks in \autoref{fig:time-all} is that
+with high $p$ or $n_\text{tree}$ the \texttt{bartz-P5000} line terminates at
+small $n$ like the other methods despite being faster. Our benchmark harness
+increases $n$ until timeout or out-of-memory error, so this indicates that
+\texttt{bartz} is running out of GPU memory. The memory installed on GPU cards
+is fixed, it can't be expanded, and there is no swap, so this is a hard limit.
+The speed premium of the GPU kicks in only at high $n$, so this memory limit
+indirectly limits the speed gain. The practical consequence is that, with 48
+GiB of GPU memory, running the algorithm in ``high'' $p$ or $n_\text{tree}$
+settings allows a GPU over CPU speed gain of at most about 20x rather than the
+asymptotic 100x.
+
+\section{On increasing the number of trees}
+
+We discuss how the speed of this implementation allows to run BART with many
+more trees than usual, which is an unexplored route in the BART literature, and
+potentially connects to various scaling behaviors of BART. Our a priori best
 guess is that, since 1) the total number of leaves in the set of trees is the
-effective number of parameters of the regression model, 2) the optimal number of
-parameters will in general increase with $p$ and $n$, and 3) the trees ought to
-remain shallow, then: the number of trees should increase up to linearly with
-$\max(n, p)$.
+effective number of parameters of the regression model, 2) the optimal number
+of parameters will in general increase with $p$ and $n$, and 3) the trees ought
+to remain shallow, then: the number of trees should increase up to linearly
+with $\max(n, p)$.
 
-We look at our MSE measurements to get some empirical evidence that increasing
-the number of trees is useful. Consider the left column of panels in
+We look first at our MSE measurements to get some empirical evidence that
+increasing the number of trees is useful. Consider the left column of panels in
 \autoref{fig:rmse-all}. They both have a ``high'' $p$ setting ($n = 20p$),
 while differing in the number of trees. In the bottom panel, at fixed
-$n_\text{tree}=200$, the MSE increases faster with $n$, reaching at some point
-the population variance, indicating useless predictions.
+$n_\text{tree}=200$, the MSE increases with $n$, reaching at some point the
+population variance, indicating useless predictions; while in the top panel,
+with $n_\text{tree}=n/8$, the MSE appears to be following a flat trend (a
+complete direct comparison is not possible due to the different truncation of
+the plots due to memory and time constraints in the runs). Analogous
+considerations apply to the left column in \autoref{fig:coverage-all}. Next,
+consider the bartz vs.{} XGBoost comparison in \autoref{tab:fullbench-full}:
+``bartz-2000'' (2000 trees) dominates ``bartz'' (200 trees) on RMSE and MCMC
+mixing (``empty trees'', ``acceptance'', ``tree life'').
 
 Nobody, that we know of, ever explored the effect of increasing the number of
-trees this much. At ``high'' $n_\text{tree}$, the series stop at $n\approx
-	8000$, which means $n_\text{tree}\approx 1000$. We've never seen more than 200
-trees in the literature, but for the experiments in \citet[fig.~6,
-p.~286]{chipman2010} and \citet{collins_improved_2023} who reach resp.\ $m=300$
-and $m=800$. The GPU example script that we provide in the documentation of
-\texttt{bartz} runs with \num{10000} trees by default.
+trees this much. We run BART with up to 1000 trees in
+Figures~\ref{fig:rmse-all}, \ref{fig:coverage-all} and up to 2000 in
+\autoref{tab:fullbench-full}. We've never seen more than 200 trees in the
+literature, but for the experiments in \citet[fig.~6, p.~286]{chipman2010} (300
+trees) and \citet{collins_improved_2023} (800 trees). The example notebook that
+we provide in the documentation of \texttt{bartz} runs with \num{10000} trees
+by default.
 
 The number of trees bears on the acceptance of the BART MCMC, together with the
 level of noise in the data. If the number of trees is too small, each tree has
@@ -1059,11 +1205,8 @@ disfavored, so the MCMC gets stuck. Thus the signal/noise ratio (SNR) is an
 important influence on the optimal number of trees; high SNR datasets may need
 more trees.
 
-These considerations, together with the absence of high-$n_\text{tree}$
-experiments, suggest this as an interesting area to explore, made accessible by
-this work as it alleviates the computational burden. Consider these examples
-from the literature, where it appears the authors were not considering
-increasing the number of trees as an option:
+Specifically, consider these examples from the literature, where it appears the
+authors were not considering increasing the number of trees as an option:
 
 \begin{itemize}
 
@@ -1088,15 +1231,19 @@ increasing the number of trees as an option:
 	      high-dimensional dataset, they set the BART hyperparameters to make the
 	      trees grow very deep, instead of simply increasing the number of trees.
 
-	\item \citet[\S2, p.~8]{yannotty_combining_2026} express the worry that on
-	      large datasets the trees will have to grow deep. In our experience, the
-	      trees become immediately shallower when their number is increased.
+	\item \citet[\S2, p.~8]{yannotty_combining_2026} express the worry that
+		on large datasets the trees will have to grow deep. In our
+		experience, and as shown in \autoref{tab:fullbench-full} row
+		``leaves'', the trees become immediately shallower when their
+		number is increased.
 
 \end{itemize}
 
 \section{Code and data}
+\label{sec:code}
 
-The results in this paper are fully reproducible with \redactedcite{\citet{petrillo2025}}.
+The results in this paper are fully reproducible with
+\redactedcite{\citet{petrillo2025}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
