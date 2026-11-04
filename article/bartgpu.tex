@@ -165,23 +165,24 @@ package \citep{herren_stochtree_2026}.
 
 This paper re-addresses the speed gap by re-implementing BART on GPU. While
 XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
-statistical model, our plain BART implementation is 100 times faster on GPU vs.\
-CPU, while achieving state-of-the-art speed on CPU (at $n \gtrsim
-	\num{1000000}$, on a Nvidia RTX Pro 5000 Blackwell vs.\ an Apple M1 Pro). This
+statistical model, our plain BART implementation is 100 times faster on GPU
+vs.\ CPU, while achieving state-of-the-art speed on CPU (at $n \gtrsim
+\num{1000000}$, on a Nvidia RTX Pro 5000 Blackwell vs.\ an Apple M1 Pro). This
 makes BART fast enough to be a (still generally slower) alternative to
 non-Bayesian methods on large datasets without methodological caveats, but with
 the inconvenience of requiring a GPU.\footnote{In a previous version of this
-	manuscript, we claimed running time ``comparable'' to XGBoost, and a 200x
-	speedup vs.\ cpu. We moderated these claims as both XGBoost and our cpu
-	implementation became faster in the intervening time before this revision, while
-	the speed on gpu at high $n$ has not changed.} While XGBoost \& co.{} have their
-own GPU implementations as well, we find that BART achieves higher speed ups
-with parallelization. We provide a Python package, \texttt{bartz}
-\redactedcite{\citep{gattocrucco_2026_23137928}}. In \autoref{sec:bart} we summarize the
-background knowledge on BART, then in \autoref{sec:impl} we describe how to
-adapt BART to run on GPU, and in \autoref{sec:perf} we measure the performance
-of our implementation. Finally, in \autoref{sec:conclusions} we assess the
-merits of our work and consider further research directions.
+	manuscript, we claimed running time ``comparable'' to XGBoost, and a
+	200x speedup vs.\ cpu. We moderated these claims as both XGBoost and
+	our cpu implementation became faster in the intervening time before
+this revision, while the speed on gpu at high $n$ has not changed.} While
+XGBoost \& co.{} have their own GPU implementations as well, we find that BART
+achieves higher speed ups with parallelization. We provide a Python package,
+\texttt{bartz} \redactedcite{\citep{gattocrucco_2026_23932737}}. In
+\autoref{sec:bart} we summarize the background knowledge on BART, then in
+\autoref{sec:impl} we describe how to adapt BART to run on GPU, and in
+\autoref{sec:perf} we measure the performance of our implementation. Finally,
+in \autoref{sec:conclusions} we assess the merits of our work and consider
+further research directions.
 
 \section{BART recap}
 \label{sec:bart}
@@ -366,10 +367,11 @@ down to every detail. See \citet[p.~12]{ronen2022} and \citet[p.~4]{tan2024}.
 \label{sec:impl}
 
 This is the principal contribution of this paper. The implementation described
-here corresponds to version 0.9.0 of the Python package \texttt{bartz}
-\redactedcite{\citep{gattocrucco_2026_23137928}}. The software is a pure Python package based
-on the machine learning library JAX \citep{bradbury2018}, which provides a
-computing toolset built around Numpy-like \citep{harris2020} tensor objects.
+here corresponds to version 0.14.0 of the Python package \texttt{bartz}
+\redactedcite{\citep{gattocrucco_2026_23932737}}. The software is a pure Python
+package based on the machine learning library JAX \citep{bradbury2018}, which
+provides a computing toolset built around Numpy-like \citep{harris2020} tensor
+objects.
 
 Amongst other array-oriented ML frameworks, what makes JAX attractive for
 implementing BART is its focus on XLA compilation, useful to write the somewhat
