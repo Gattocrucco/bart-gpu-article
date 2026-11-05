@@ -327,8 +327,8 @@ topic. For more details see \citet{chipman1998,chipman2010}, \citet[\S
 	A]{kapelner2016}, \citet[ch.~5]{daniels2023}, and \citet[\S2.1.4,
 	p.~5]{tan2019}.
 
-BART uses Metropolis and conjugate sampling within a Gibbs sampler. The sampler
-scans over trees. On each tree, the structure $T_j$ is updated with Metropolis,
+BART uses Metropolis-Hastings (MH) and conjugate sampling within a Gibbs sampler. The sampler
+scans over trees. On each tree, the structure $T_j$ is updated with MH,
 conditional on the other trees, but marginalizing the leaves $M_j$ of the
 current tree. Then, $M_j$ is conjugately sampled conditional on the other trees
 and the updated $T_j$. After scanning all trees, $\sigma^2$ is conjugately
@@ -338,25 +338,24 @@ proposing to grow a leaf into a node with two leaves, to prune two sibling
 leaves making their parent a leaf, or other more complex moves. The change is
 either accepted or rejected. Then, $M_1$ is sampled given the potentially
 modified $T_1$; this step is a linear regression. This is repeated for all trees
-in order. Then $\sigma^2$ is sampled with the trees fixed; its posterior is
+in order. Then $\sigma^2$ is sampled with the trees fixed; its full conditional is
 approximately centered on the current residual variance.
 
 Based on our general experience with BART and with developing the implementation
 described in this paper, the acceptance of the tree structure Metropolis step is
-typically \SI{10}\%--\SI{30}\% \citep[see also][p.~891]{pratola2016}, so on
-average the whole forest moves every 3 to 10 MCMC iterations. Pathological cases
+typically \SI{10}\%--\SI{30}\% \citep[see also][p.~891]{pratola2016}, so each
+tree changes on average every 3 to 10 MCMC iterations. Pathological cases
 can lower this acceptance to very small values. A rule of thumb on the number of
-samples is to run the chain for 2000 samples and discard the first 1000
-(differently from the defaults of popular BART packages, which range from 100 to
-500).
+samples is to run the chain for 2000 samples and discard the first 1000,
+differently from the burn-in defaults of popular BART packages, which range from 100 to
+500; see also \textcite[6]{kapelner2016}.
 %
 % default burn-ins on 2024-10-30:
 % 100 in BART, dbarts::bart, BayesTree
 % 250 in bartMachine
 % 500 in dbarts::bart2
 %
-See \citet[fig.~7, p.~20]{tan2024} for an analysis of the benefit of running
-multiple chains. It is useful to run at least 2 chains and compare the
+It is useful to run at least 2 chains and compare the
 distributions of the function value at a few points; if the distributions do not
 coincide, it may be useful to burn more initial samples. Each tree should not
 end up with more than 10 leaves, the algorithm is meant to work with shallow
@@ -366,9 +365,8 @@ This MCMC is quite complex, and moves the tree structures slowly. In practice
 in most problems it will not reach convergence, i.e., it won't sample the tree
 structures from their actual posterior. However, the function values also
 depend on the leaves, which are re-sampled each time from scratch instead of
-updated with Metropolis, so the quality of the MCMC samples is sufficient for
-prediction, even if they are not a precise representation of the tree
-posterior. See \citet[p.~12]{ronen2022} and \citet[p.~4]{tan2024}.
+updated with MH, so the quality of the MCMC samples, while degraded, may be sufficient for
+prediction; \textcite[891]{pratola2016} shows an example where, with stuck tree structures, coverage on the latent mean is 54\,\% instead of the 90\,\% target. See \textcite{shuo_tan_computational_2024} for a deeper discussion of convergence.
 
 \section{Implementation of BART for GPU}
 \label{sec:impl}
