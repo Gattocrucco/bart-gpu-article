@@ -196,10 +196,10 @@ R^p \times \mathbb R$, it infers without guidance a function $f$ such that $y_i
 = f(\mathbf x_i) + \varepsilon_i$, keeping a balance between $f$ and the error
 terms $\varepsilon_i$ such that given a new $\mathbf x^*$ from a pair $(\mathbf
 x^*, y^*)$ with $y^*$ yet unknown, $f(\mathbf x^*)$ is a good advance
-prediction of $y^*$. The result is provided in the form of a set of possible
+prediction of $E[y^*]$. The result is provided in the form of a set of possible
 functions $\{f_k\}$, chosen in such a way that the spread of $f_k(\mathbf x^*)$
-over the possibilities quantifies the uncertainty in predicting $y^*$. More
-precisely, this ensemble is obtained by defining a prior distribution over the
+over the possibilities quantifies the uncertainty in predicting $E[y^*]$. More
+precisely, this set is obtained by defining a prior distribution over the
 space of functions, and then sampling the corresponding posterior distribution.
 See \citet[ch.~4]{muller2015} for a general reference on this topic.
 
@@ -207,11 +207,11 @@ BART represents the regression function as the sum of a fixed number
 $n_\text{tree}$ of decision trees. The prior on functions is induced by
 defining a single-tree prior recursively, which is then repeated i.i.d.\ for
 all trees. The posterior is sampled by a BART-specific MCMC algorithm that
-updates one tree at a time. The most popular implementations of BART are the R
-software libraries \texttt{bartMachine} \citep{kapelner2016,kapelner2023},
+updates one tree at a time. The implementations of BART most used in published research are the R
+packages \texttt{bartMachine} \citep{kapelner2016,kapelner2023},
 \texttt{dbarts} \citep{dorie2024}, and \texttt{BART}
 \citep{sparapani2021,mcculloch2024}, though many others exist. In the
-following, we summarize the description from the original BART paper
+following, we summarize the description from the main BART paper
 \citep{chipman2010}.
 
 \paragraph{Decision trees}
