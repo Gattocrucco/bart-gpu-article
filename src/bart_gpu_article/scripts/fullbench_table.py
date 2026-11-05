@@ -40,7 +40,7 @@ FULL_ROWS = {
     "time_train": "train time (s)",
     "time_test": "cold predict (s)",
     "time_test_warm": "warm predict (s)",
-    "peak_memory": "peak gpu mem.\n(GB)",
+    "peak_memory": "peak GPU mem.\n(GB)",
     "num_trees": "trees",
     "mean_leaves": "leaves",
     "frac_empty_trees": f"empty trees/{EMPTY_TREES_PRIOR}",
