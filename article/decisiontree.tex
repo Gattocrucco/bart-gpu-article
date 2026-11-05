@@ -1,0 +1,79 @@
+% Decision tree of Figure 1, redrawn after Hill, Linero & Murray (2020), Fig. 1.
+% Requires \usetikzlibrary{positioning,fit,shapes.geometric}.
+\begin{tikzpicture}[
+		font=\small,
+		% the parts of a decision rule are separate nodes, without padding, so
+		% that the arrows can point at each part; they are aligned on the
+		% baseline with the spacing of a relation symbol (5mu at \small)
+		rulepart/.style={inner sep=0pt},
+		relsep/.style={anchor=base west, xshift=2.5pt},
+		decision/.style={draw, rectangle, inner xsep=8pt, inner ysep=6pt},
+		leaf/.style={draw, circle, minimum size=7mm, inner sep=0pt},
+		leafvalue/.style={inner sep=0pt},
+		branch/.style={font=\sffamily\tiny},
+		ann/.style={text=red!75!black, font=\sffamily\footnotesize, align=center},
+		annarrow/.style={->, >=stealth, red!75!black, semithick},
+		region/.style={draw, thin},
+	]
+	\colorlet{leafone}{blue!18}
+	\colorlet{leaftwo}{orange!30}
+	\colorlet{leafthree}{green!22}
+
+	% the tree; the YES branch goes left, as in Figure 2
+
+	\node[rulepart] (rax) at (2.6, 0) {$x_1$};
+	\node[rulepart, relsep] (rlt) at (rax.base east) {$<$};
+	\node[rulepart, relsep] (rsp) at (rlt.base east) {$0.8$};
+	\node[decision, fit=(rax)(rsp)] (root) {};
+
+	\node[rulepart] (iax) at (0.8, -1.05) {$x_2$};
+	\node[rulepart, relsep] (ilt) at (iax.base east) {$<$};
+	\node[rulepart, relsep] (isp) at (ilt.base east) {$0.4$};
+	\node[decision, fit=(iax)(isp)] (inner) {};
+	\node[draw=red!75!black, semithick, ellipse, minimum width=16mm, minimum height=5.4mm, inner sep=0pt] (rule) at (inner.center) {};
+
+	\node[leaf, fill=leafthree] (l3) at (5.0, -1.05) {};
+	\node[leafvalue] (l3v) at (l3.center) {$\mu_3$};
+	\node[leaf, fill=leafone] (l1) at (0.35, -2.2) {$\mu_1$};
+	\node[leaf, fill=leaftwo] (l2) at (1.95, -2.2) {$\mu_2$};
+
+	\draw (root.south) -- node[branch, above left] {YES} (inner.north);
+	\draw (root.south) -- node[branch, above right] {NO} (l3);
+	\draw (inner.south) -- node[branch, pos=0.4, left] {YES} (l1);
+	\draw (inner.south) -- node[branch, pos=0.4, right] {NO} (l2);
+
+	% terminology; each arrow tip touches what it refers to
+
+	\node[ann, anchor=west] (aroot) at (4.2, 0) {Root};
+	\draw[annarrow] (aroot) -- (root.east);
+	\node[ann, anchor=east] (aax) at (0.1, -0.45) {Splitting axis};
+	\draw[annarrow] (aax.east) -- ([shift={(2.5pt, -0.3pt)}]iax.north west);
+	\node[ann, anchor=east] (arule) at (-0.25, -1.05) {Decision rule};
+	\draw[annarrow] (arule) -- (rule.west);
+	\node[ann, anchor=east] (ainner) at (-0.15, -1.8) {Internal node};
+	\draw[annarrow] (ainner.east) -- (inner.south west);
+	\node[ann, anchor=west] (asp) at (2.35, -1.15) {Splitting point\\(cutpoint)};
+	\draw[annarrow] (asp.west) -- ([shift={(-0.6pt, -0.6pt)}]isp.east);
+	\node[ann, anchor=west] (aval) at (5.75, -0.6) {Leaf value};
+	\draw[annarrow] (aval.west) -- ([shift={(-1pt, -1pt)}]l3v.north east);
+	\node[ann, anchor=west] (aleaf) at (5.75, -1.5) {Leaf};
+	\draw[annarrow] (aleaf.west) -- (l3.south east);
+
+	% the corresponding partition of the input space
+
+	\begin{scope}[shift={(8.0, -2.55)}, x=2.85cm, y=2.85cm]
+		\fill[leafone] (0, 0) rectangle (0.8, 0.4);
+		\fill[leaftwo] (0, 0.4) rectangle (0.8, 1);
+		\fill[leafthree] (0.8, 0) rectangle (1, 1);
+		\draw[region] (0, 0) rectangle (1, 1);
+		\draw[region] (0.8, 0) -- (0.8, 1);
+		\draw[region] (0, 0.4) -- (0.8, 0.4);
+		\node at (0.4, 0.2) {$\mu_1$};
+		\node at (0.4, 0.7) {$\mu_2$};
+		\node at (0.9, 0.5) {$\mu_3$};
+		\node[below] at (0.8, 0) {$0.8$};
+		\node[left] at (0, 0.4) {$0.4$};
+		\node[below] at (0.4, 0) {$x_1$};
+		\node[left] at (0, 0.7) {$x_2$};
+	\end{scope}
+\end{tikzpicture}
