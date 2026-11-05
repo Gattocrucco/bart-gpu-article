@@ -313,7 +313,7 @@ def make_full_table(agg: pl.DataFrame) -> str:
                     f"/{MAX_LEAVES[m]}"
                 )
             if col in JIT_COLUMNS and m in JIT_METHODS:
-                line = f"{line} (incl. xla)" if line else "(incl. xla)"
+                line = f"{line} (incl. XLA)" if line else "(incl. XLA)"
             name = METHOD_NICKNAMES.get(m, m)
             rows_.append(" & ".join([line, name, *cells]) + " \\\\")
         if rows_:

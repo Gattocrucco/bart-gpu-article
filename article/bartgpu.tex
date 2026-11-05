@@ -1052,7 +1052,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		measures the total allocated GPU memory. This is not possible
 		with bartz because JAX aggressively pre-allocates memory and
 		does not relinquish it, so we query the total size of allocated
-		jax arrays instead. This is an underestimate by probably about
+		JAX arrays instead. This is an underestimate by probably about
 		\SI{1}{GB} because there is additional memory usage beyond the
 		arrays.
 
