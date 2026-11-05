@@ -51,6 +51,9 @@ testpaths = ["tests"]
 # build; set here rather than in a personal uv config so that machines without
 # that config resolve the same way instead of re-locking and dirtying uv.lock
 exclude-newer = "1 week"
+# bartz is a git dependency, so it has no wheel and must be built from source;
+# override a personal uv config that sets `no-build = true`
+no-build = false
 
 [tool.uv.sources]
 bartz = { git = "https://github.com/bartz-org/bartz.git", rev = "264649f0af92428d62feb46f1b9889eaaeb43ce6" }
