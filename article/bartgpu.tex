@@ -723,7 +723,7 @@ high-level interfaces, but for using a single MCMC chain in bartz instead of
 the default four.
 
 The results are in \autoref{tab:fullbench} (more details in
-\autoref{sec:completeresults}). On the largest dataset (higgs,
+\autoref{sec:completeresults}). On the largest dataset (``higgs'',
 $n\approx\num{11000000}$), bartz is 17x slower than XGBoost, roughly in line
 with the large-$n$ 20x factor previously estimated from \autoref{fig:single}
 (it's 20x instead of 10x because here XGBoost has the default 100 trees instead
@@ -735,8 +735,9 @@ least with the default XGBoost settings.
 
 The BART literature claims that, without tuning, BART is better than XGBoost,
 while here it's overall a draw at best: bartz has the same RMSE as XGBoost on 3
-datasets (electricity, higgs, zurich delays), worse RMSE on two (radar traffic,
-simulated) and better RMSE on one (poker). Interestingly, ``poker'' is the only
+datasets (``electricity'', ``higgs'', ``zurich delays''), worse RMSE on two
+(``radar traffic'', ``simulated'') and better RMSE on one (``poker'').
+Interestingly, ``poker'' is the only
 almost deterministic dataset in the bunch. The difference between the
 pre-existing benchmarks and ours is size: this is the first time BART is
 systematically tested on datasets with $n$ in the millions.
