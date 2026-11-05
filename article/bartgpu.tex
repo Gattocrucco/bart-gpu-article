@@ -667,7 +667,7 @@ doesn't (it's implicitly amortized in the MCMC iterations).
 \begin{figure}
 	\centering
 	\widecenter{\includempl{rmse-single}\includempl{coverage-single}}
-	\caption{\label{fig:accuracy-single} Test set mean square error (MSE)
+	\caption{\label{fig:accuracy-single} Test set mean squared error (MSE)
 		(\textbf{left panel}) and coverage of \SI{50}\% intervals on
 		the latent mean (\textbf{right panel}) vs.\ training set size,
 		comparing \texttt{bartz} with the most popular implementations
@@ -1022,7 +1022,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		while for binary outcomes it indicates balancing. Both our
 		binary datasets are perfectly balanced.
 
-	\item[RMSE] The root mean square error of out-of-sample predictions on
+	\item[RMSE] The root mean squared error of out-of-sample predictions on
 		the test set. The MSE is averaged over 5 independent train/test
 		splits.
 
@@ -1108,7 +1108,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\centering
 	\widecenter{\includempl{rmse-all}}
 	\caption{\label{fig:rmse-all} Full version of
-		\autoref{fig:accuracy-single}, left panel. Test set mean square
+		\autoref{fig:accuracy-single}, left panel. Test set mean squared
 		error (MSE) vs.\ training set size~$n$, comparing
 		\texttt{bartz} with the most popular implementations of BART,
 		to check they yield the same predictive performance, for
