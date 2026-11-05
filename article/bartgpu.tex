@@ -1048,7 +1048,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		trained model, re-computing them a second time.
 
 	\item[peak GPU mem.] Maximum GPU memory used during a full run
-		(loading, training, prediction, scoring). For XGBoost, this is
+		(loading, training, prediction, scoring). For XGBoost, this
 		measures the total allocated GPU memory. This is not possible
 		with bartz because JAX aggressively pre-allocates memory and
 		does not relinquish it, so we query the total size of allocated
