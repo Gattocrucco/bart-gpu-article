@@ -587,7 +587,7 @@ and we set the variance hyperparameters as follows:
 
 The running time and memory usage are mostly determined by $n$, $p$ and the
 number of trees, so we repeat most benchmarks on a power-of-2 scan of $n$ by a
-$2\times 2$ grid of settings: low/high p $\times$ low/high number of trees. As
+$2\times 2$ grid of settings: low/high $p$ $\times$ low/high number of trees. As
 ``low'' settings we use $p=100$ or $p=50$, $n_\text{tree} = 200$, while as
 ``high'' we make the parameters grow proportionally to $n$ with $n/p = 10$ or
 $20$ and $n/n_\text{tree}=8$. The number of trees being proportional to $n$ is
@@ -1003,10 +1003,10 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\item[OpenML id] The unique identifier of the dataset in the OpenML
 		catalogue.
 
-	\item[n] The number of units in the training split. The test set is
+	\item[\textit{n}] The number of units in the training split. The test set is
 		always \num{10000} units.
 
-	\item[p] The number of predictors, after pre-processing.
+	\item[\textit{p}] The number of predictors, after pre-processing.
 
 	\item[task] Whether the outcome is continuous (``regression'') or
 		binary (``classification'').
