@@ -392,7 +392,7 @@ Near-branchlessness is what allows XLA to produce performant programs
 automatically. However, the BART MCMC is not a natural fit for branchlessness:
 the tree structures change at each iteration, with nodes added and removed, and
 the set and number of datapoints assigned to each node altered. To shoehorn
-this algorithm into JAX, we make two major deviations from other
+this algorithm into JAX, we make two major deviations from most other
 implementations: 1)~we fix a maximum depth for the trees, and then write
 tree-traversing operations as if all trees were always maximal, with arithmetic
 that masks away operations on nodes that are not actually used; 2)~we always
@@ -402,9 +402,9 @@ de-optimizations are feasible because, like boosted trees, the point of BART is
 aggregating ``weak learners'', so trees are shallow \citep[see,
 e.g.,][\S6]{chipman2010}. In our implementation, we set the maximum tree depth
 $D$ to 5 by default, i.e., at most $2^D = 32$ leaves per tree, which is more
-than sufficient.
+than sufficient in normal conditions.
 
-To represent the trees as fixed-size matrices, we use a heap, as illustrated in
+To represent the trees as fixed-size matrices, we pad each tree to a perfect tree and list the nodes breadth-first, like a binary heap, as illustrated in
 \autoref{fig:heaptree}.
 %
 \begin{figure}
@@ -418,7 +418,7 @@ Each tree is represented by 3 arrays, separately holding the axis and splitting
 point for decision nodes, and the value for leaf nodes. The arrays are fixed in
 size, and each index corresponds to a potential node in the tree. The indices
 are assigned to the (potential) tree nodes in order, starting from 1, top to
-bottom, left to right (like reading text), imagining a maximal (full, balanced)
+bottom, left to right (like reading text), imagining a perfect
 binary tree with the maximum allowed depth. The entries corresponding to nodes
 not actually present in the tree are ignored, as are the axis and cutpoint
 entries (resp.\ the leaf value entry) corresponding to leaf (resp.\ decision)
@@ -460,7 +460,7 @@ becoming vectors or matrices as needed.
 In the following we will highlight a few other implementation choices and
 important points, without giving a full description of the training algorithm
 due to its complexity. For readers familiar with boosting, keep in mind that
-this MCMC is kind of like boosting but with a fixed set of trees, cycling back
+this MCMC is kind of like boosting but laying out all trees in advance and then cycling back
 in a loop to progressively update the trees in small increments. Suggestively,
 it could be called an ``interleaved stochastic tree boosting'' algorithm.
 
