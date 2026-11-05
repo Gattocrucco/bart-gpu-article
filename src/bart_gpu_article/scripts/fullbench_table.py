@@ -36,7 +36,7 @@ FULL_ROWS = {
     "error_sdev": "error sdev",
     "relmse": "MSE/test var",
     "logloss": "log loss",
-    "coverage_50": "50\\% coverage",
+    "coverage_50": "50\\,\\% coverage",
     "time_train": "train time (s)",
     "time_test": "cold predict (s)",
     "time_test_warm": "warm predict (s)",
