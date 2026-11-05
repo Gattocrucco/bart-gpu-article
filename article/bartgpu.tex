@@ -168,7 +168,7 @@ package \citep{herren_stochtree_2026}.
 This paper re-addresses the speed gap by re-implementing BART on GPU. While
 XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
 statistical model, our plain BART implementation is 100 times faster on GPU
-vs.\ CPU (at $n \gtrsim \num{1000000}$, on a Nvidia RTX Pro 5000 Blackwell vs.\
+vs.\ CPU (at $n \gtrsim \num{1000000}$, on a Nvidia RTX PRO 5000 Blackwell vs.\
 an Apple M1 Pro), while also surpassing the previous state of the art
 \autocite{dorie2024} by 5x on CPU, for a total 500x speedup at large $n$. This
 makes BART fast enough to be a (still generally slower) alternative to
@@ -606,7 +606,7 @@ and $q=2$ (each predictor interacts with two other predictors).
 		iteration of the algorithm vs.\ training set size $n$,
 		comparing \texttt{bartz} with the fastest BART implementation
 		(\texttt{dbarts}), XGBoost, and CatBoost, on
-		CPU (\texttt{-M1Pro}) and GPU (\texttt{-P5000}). Gradient
+		CPU (\texttt{-M1pro}) and GPU (\texttt{-P5000}). Gradient
 		boosting requires only one iteration to produce a usable
 		result, while BART requires $O(1000)$ iterations, so the
 		\textbf{right panel} shows the same data but with BART timings
@@ -618,7 +618,7 @@ and~\ref{fig:time-all-1000} for the complete results.}
 We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
 (the previous fastest BART implementation), XGBoost, and
 CatBoost on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
-Pro with 16 GiB RAM, while the GPU is a Nvidia RTX Pro 5000 Blackwell with 48
+Pro with 16 GiB RAM, while the GPU is a Nvidia RTX PRO 5000 Blackwell with 48
 GiB RAM. All methods that support it are allowed to use up to 6 cores on CPU.
 For all software packages, we run their setup and pre-processing step
 separately, before starting the timer. This includes data pre-processing, and
