@@ -93,7 +93,7 @@
 	of the regression is typically higher than other generic alternatives,
 	and it requires less manual tuning, making it a good default choice.
 	However, it is a niche method compared to natural competitors such as
-	\texttt{XGBoost}, due to the longer running time, making sample sizes
+	XGBoost, due to the longer running time, making sample sizes
 	above \num{10000}--\num{100000} a nuisance. We present a GPU
 	implementation of BART, up to 500x faster than the previous state of
 	the art, making BART fast enough to be a viable option on large
@@ -155,7 +155,7 @@ importance: 1) Speed: a single BART run produces an ensemble of $\mathord{\sim}
 	1000$ forests, representing the posterior distribution. Accordingly, BART is
 $O(1000)$ times slower. The largest BART analysis we know of had
 $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features
-\citep{pratola2020}, while \texttt{XGBoost} boasts ``billions of examples'' on
+\citep{pratola2020}, while XGBoost boasts ``billions of examples'' on
 its home page. 2) Classification performance: the literature lacks a systematic
 investigation of the performance of BART with binary rather than continuous
 outcomes; it could be that in this setting BART is not any better than popular
@@ -605,7 +605,7 @@ and $q=2$ (each predictor interacts with two other predictors).
 	\caption{\label{fig:single} \textbf{Left panel:} Time to run an
 		iteration of the algorithm vs.\ training set size $n$,
 		comparing \texttt{bartz} with the fastest BART implementation
-		(\texttt{dbarts}), \texttt{XGBoost}, and \texttt{catboost}, on
+		(\texttt{dbarts}), XGBoost, and CatBoost, on
 		CPU (\texttt{-M1Pro}) and GPU (\texttt{-P5000}). Gradient
 		boosting requires only one iteration to produce a usable
 		result, while BART requires $O(1000)$ iterations, so the
@@ -616,8 +616,8 @@ and~\ref{fig:time-all-1000} for the complete results.}
 \end{figure}
 
 We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
-(the previous fastest BART implementation), \texttt{XGBoost}, and
-\texttt{catboost} on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
+(the previous fastest BART implementation), XGBoost, and
+CatBoost on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
 Pro with 16 GiB RAM, while the GPU is a Nvidia RTX Pro 5000 Blackwell with 48
 GiB RAM. All methods that support it are allowed to use up to 6 cores on CPU.
 For all software packages, we run their setup and pre-processing step
@@ -659,7 +659,7 @@ and the optimal number of trees may differ between the methods. So in
 iteration time scaled by 1000 on BART methods, where 1000 is an arbitrary
 factor chosen to align well with the logarithmic scale of the plot. Another
 reason it's hard to interpret these timings precisely is that the running time
-of XGBoost and catboost (with default settings) scales with $p$, while BART
+of XGBoost and CatBoost (with default settings) scales with $p$, while BART
 doesn't (it's implicitly amortized in the MCMC iterations).
 
 \paragraph{Predictive accuracy comparison with other BART packages}
@@ -697,7 +697,7 @@ is too easy and so it would not have discriminative power.
 \begin{table}
 	\centering
 	\caption{\label{tab:fullbench} Comparison of \texttt{bartz} against
-		\texttt{XGBoost} on various large datasets, at default
+		XGBoost on various large datasets, at default
 		settings, on GPU. ``xgboost-es'' uses early stopping with a
 		large maximum number of trees, and ``bartz-2000'' uses 2000
 		trees instead of the default 200. Test set size is \num{10000}.
@@ -715,26 +715,26 @@ is too easy and so it would not have discriminative power.
 \end{table}
 
 Finally, having proven that our BART implementation is state of the art in the
-previous benchmarks, we compare \texttt{bartz} against \texttt{XGBoost} on GPU
+previous benchmarks, we compare \texttt{bartz} against XGBoost on GPU
 on full runs on a few large datasets. We select 5 large datasets from OpenML,
 and simulate one large dataset from \autoref{eq:dgp} with $p_\text{eff}/p =
-0.1$ and $q=32$. We run XGBoost and bartz with the default settings of their
-high-level interfaces, but for using a single MCMC chain in bartz instead of
+0.1$ and $q=32$. We run XGBoost and \texttt{bartz} with the default settings of their
+high-level interfaces, but for using a single MCMC chain in \texttt{bartz} instead of
 the default four.
 
 The results are in \autoref{tab:fullbench} (more details in
 \autoref{sec:completeresults}). On the largest dataset (``higgs'',
-$n\approx\num{11000000}$), bartz is 17x slower than XGBoost, roughly in line
+$n\approx\num{11000000}$), \texttt{bartz} is 17x slower than XGBoost, roughly in line
 with the large-$n$ 20x factor previously estimated from \autoref{fig:single}
 (it's 20x instead of 10x because here XGBoost has the default 100 trees instead
-of 200). On smaller datasets bartz is 40--50x slower, but for the simulated
-dataset, where bartz is about as fast XGBoost. What sets our simulated dataset
+of 200). On smaller datasets \texttt{bartz} is 40--50x slower, but for the simulated
+dataset, where \texttt{bartz} is about as fast XGBoost. What sets our simulated dataset
 apart from the others is that it has many predictors, $p=1000$ vs.{}
 $p=\numrange{5}{28}$. As expected, BART is advantaged in high-$p$ cases, at
 least with the default XGBoost settings.
 
 The BART literature claims that, without tuning, BART is better than XGBoost,
-while here it's overall a draw at best: bartz has the same RMSE as XGBoost on 3
+while here it's overall a draw at best: \texttt{bartz} has the same RMSE as XGBoost on 3
 datasets (``electricity'', ``higgs'', ``zurich delays''), worse RMSE on two
 (``radar traffic'', ``simulated'') and better RMSE on one (``poker'').
 Interestingly, ``poker'' is the only
@@ -742,24 +742,24 @@ almost deterministic dataset in the bunch. The difference between the
 pre-existing benchmarks and ours is size: this is the first time BART is
 systematically tested on datasets with $n$ in the millions.
 
-In this context, the main hyperparameter of both bartz and XGBoost is the
+In this context, the main hyperparameter of both \texttt{bartz} and XGBoost is the
 number of trees. The defaults, respectively 200 and 100 trees, are a priori not
 enough on datasets this large, since both algorithms are designed to work with
 shallow trees (2--10 leaves per tree in BART) and the total number of leaves
 must increase with the complexity and resolution of the signal to explain. So
-we also let XGBoost choose the optimal number of trees, and run bartz with 2000
+we also let XGBoost choose the optimal number of trees, and run \texttt{bartz} with 2000
 trees (``xgboost-es'' and ``bartz-2000'' in \autoref{tab:fullbench}). We also
 show ``life'', a measure of how long-lived the trees are in the BART MCMC, to
 check whether the MCMC is mixing well.
 
 Overall, ``bartz-2000'' appears worse than ``xgboost-es'': ``xgboost-es'' has
 RMSE better than or equal to ``bartz-2000'' on the 5 OpenML datasets, and worse
-on the simulated high-$p$ one. The 200 trees bartz run has average tree life at
+on the simulated high-$p$ one. The 200 trees \texttt{bartz} run has average tree life at
 or close to the maximum 1.0, which means the trees are almost never completely
 reset during the course of the MCMC. The 2000 trees run instead has tree lives
 in 0.57--0.96, better but still quite high, suggesting the optimal number of
 trees for BART may be even higher on these datasets. To fit our compute budget,
-we didn't optimize the number of bartz trees via cross-validation, and BART has
+we didn't optimize the number of \texttt{bartz} trees via cross-validation, and BART has
 no practical equivalent to XGBoost's early stopping (the technique in
 \cite[ch.~3]{collins_improved_2023} does not scale to large datasets, and would
 require further research to do so).
@@ -968,7 +968,7 @@ The speed benchmarks for all combinations of $p$-$n_\text{tree}$ settings are
 in Figures~\ref{fig:time-all} and~\ref{fig:time-all-1000}. The full results of
 the predictive accuracy comparison between BART packages are in
 Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. The full results of the
-bartz vs.\ XGBoost comparison on a few datasets are in
+\texttt{bartz} vs.\ XGBoost comparison on a few datasets are in
 \autoref{tab:fullbench-full}.
 
 The datasets used in \autoref{tab:fullbench-full} were chosen by considering
@@ -980,7 +980,7 @@ predictors), or were not apt for a simple generic out-of-sample predictive
 comparison. The selection of these datasets was finalized before running the
 benchmark and looking at the results. The dataset simulated from
 \autoref{eq:dgp} was coarsely tuned to have an out-of-sample MSE around 0.5 on
-\texttt{bartz}, without checking the corresponding \texttt{XGBoost} accuracy to
+\texttt{bartz}, without checking the corresponding XGBoost accuracy to
 choose the hyperparameters.
 
 The train/test split is random and does not take into account temporal ordering
@@ -1051,7 +1051,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\item[peak GPU mem.] Maximum GPU memory used during a full run
 		(loading, training, prediction, scoring). For XGBoost, this
 		measures the total allocated GPU memory. This is not possible
-		with bartz because JAX aggressively pre-allocates memory and
+		with \texttt{bartz} because JAX aggressively pre-allocates memory and
 		does not relinquish it, so we query the total size of allocated
 		JAX arrays instead. This is an underestimate by probably about
 		\SI{1}{GB} because there is additional memory usage beyond the
@@ -1085,7 +1085,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		left panel. Time to run an iteration (one sweep through all
 		trees) of the algorithm vs.\ training set size $n$, comparing
 		\texttt{bartz} with the fastest BART implementation
-		(\texttt{dbarts}), \texttt{XGBoost}, and \texttt{catboost}, for
+		(\texttt{dbarts}), XGBoost, and CatBoost, for
 		various settings of number of trees and number of
 		predictors~$p$, on CPU (\texttt{-M1pro}) and GPU
 		(\texttt{-P5000}). Take into account that gradient boosting
@@ -1099,7 +1099,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\widecenter{\includempl{time-all-1000}}
 	\caption{\label{fig:time-all-1000} Full version of
 		\autoref{fig:single}, right panel. Time to run 1 iteration  of
-		\texttt{XGBoost}, \texttt{catboost}, or 1000 iterations of
+		XGBoost, CatBoost, or 1000 iterations of
 		\texttt{bartz}, \texttt{dbarts}, vs.\ training set size $n$.
 		This is the same data as \autoref{fig:time-all}.}
 \end{figure}
@@ -1137,7 +1137,7 @@ of at least 1000 for each point, capped at 10 runs.}
 	\centering
 	\caption{\label{tab:fullbench-full} Extended version of
 		\autoref{tab:fullbench}. Comparison of \texttt{bartz} against
-		\texttt{XGBoost} on various large datasets, at default
+		XGBoost on various large datasets, at default
 		settings, on a Nvidia RTX PRO 5000 GPU. Each run is repeated 5
 		times over different train/test splits and with different
 	random seeds. The standard deviation across repetitions is reported as
@@ -1187,7 +1187,7 @@ with $n_\text{tree}=n/8$, the MSE appears to be following a flat trend (a
 complete direct comparison is not possible due to the different truncation of
 the plots due to memory and time constraints in the runs). Analogous
 considerations apply to the left column in \autoref{fig:coverage-all}. Next,
-consider the bartz vs.{} XGBoost comparison in \autoref{tab:fullbench-full}:
+consider the \texttt{bartz} vs.{} XGBoost comparison in \autoref{tab:fullbench-full}:
 ``bartz-2000'' (2000 trees) dominates ``bartz'' (200 trees) on RMSE and MCMC
 mixing (``empty trees'', ``acceptance'', ``tree life'').
 
