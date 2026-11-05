@@ -170,12 +170,12 @@ XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
 statistical model, our plain BART implementation is 100 times faster on GPU
 vs.\ CPU (at $n \gtrsim \num{1000000}$, on a Nvidia RTX PRO 5000 Blackwell vs.\
 an Apple M1 Pro), while also surpassing the previous state of the art
-\autocite{dorie2024} by 5x on CPU, for a total 500x speedup at large $n$. This
+\autocite{dorie2024} by 5x on CPU, for a total 500x speed-up at large $n$. This
 makes BART fast enough to be a (still generally slower) alternative to
 non-Bayesian methods on large datasets will less methodological compromise than
 XBART, but with the inconvenience of requiring a GPU.\footnote{In a previous
 	version of this manuscript, we claimed running time ``comparable'' to
-XGBoost, and a 200x speedup vs.\ CPU. We moderated these claims as both XGBoost
+XGBoost, and a 200x speed-up vs.\ CPU. We moderated these claims as both XGBoost
 and our CPU implementation became faster in the intervening time before this
 revision, more than the improvement in our GPU implementation.} While XGBoost
 \& co.{} have their own GPU implementations as well, we find that BART achieves
@@ -769,25 +769,25 @@ require further research to do so).
 
 We provide the first GPU implementation of BART as a Python package,
 \texttt{bartz}. On large datasets, we surpass the previous state of the art
-(\texttt{dbarts}) on CPU by 5x, and achieve a further 100x speedup on GPU (with
+(\texttt{dbarts}) on CPU by 5x, and achieve a further 100x speed-up on GPU (with
 some given CPU and GPU models), for a total 500x. This makes 2000 iterations of
 the BART MCMC about 10x slower than one XGBoost run (excl.\ predictor
 quantization, same number of trees), while the analogous factor on CPU would be
 60x with \texttt{bartz} and would have been 300x with \texttt{dbarts}. Beside
-the absolute speedup, this suggests that BART may in general parallelize better
+the absolute speed-up, this suggests that BART may in general parallelize better
 than non-Bayesian tree learning. Our package beats the previous state of the
 art on CPU and is written in pure Python without custom GPU kernels, so this
 observation is not simply an artifact of comparing a good GPU implementation to
 a poor CPU one.
 
 XBART, the previous most successful attempt at substantially accelerating BART,
-achieved a 20--30x speedup (at given implementation quality), but at the cost
+achieved a 20--30x speed-up (at given implementation quality), but at the cost
 of changing the algorithm and not being an implementation of BART but rather a
 BART-inspired non-Bayesian algorithm. Note again with ``previous state of the
 art'' above we refer to the BART implementation \texttt{dbarts} rather than
 XBART.
 
-Our speedup significantly increases the scope of application of BART. While our
+Our speed-up significantly increases the scope of application of BART. While our
 ambition would ultimately be to make Bayesian methods as common as non-Bayesian
 methods in this class, we note that raw speed is not sufficient, as shown by
 the surprisingly shy adoption of XBART: popular gradient boosting libraries are
