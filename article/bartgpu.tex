@@ -857,28 +857,28 @@ but there is probably an intrinsic limit on how small $n$ can be.
 \label{sec:bayesrecap}
 
 In the Bayesian paradigm, the parameters of the model (and consequently the
-predictions) are inferred from the data by conditioning the prior probability
+predictions) are inferred from the data by conditioning a joint data-parameters probability
 distribution on the observed values of the data, obtaining a posterior
 distribution for the parameters. The BART model definition in
 Equations~\ref{eq:bartdef}--\ref{eq:bartdef2} can be expanded into a joint
-probability density function of the data and parameters $p(\mathbf y, \sigma,
-	\{T_j\}, \{M_j\})$; the posterior $p(\sigma, \{T_j\}, \{M_j\}\mid \mathbf y)$
+probability density function of the data and parameters $p(\mathbf y, \sigma^2,
+	\{T_j\}, \{M_j\})$, $\mathbf y = (y_1, \ldots, y_n)$; the posterior $p(\sigma^2, \{T_j\}, \{M_j\}\mid \mathbf y)$
 is, up to a constant multiplicative factor, the same expression but with
 $\mathbf y$ held fixed at the observed values. This distribution expresses the
 degree of belief in each possible combination of parameter values being the
 correct one; e.g., the mode or the mean of the distribution could be used as
-estimates of the parameters.
+estimates of continuous parameters.
 
 \paragraph{MCMC}
 
-Even though the posterior $p(\sigma, \{T_j\}, \{M_j\}\mid \mathbf y)$ could be
+Even though the posterior $p(\sigma^2, \{T_j\}, \{M_j\}\mid \mathbf y)$ could be
 written down explicitly, it is a long and complex formula that is in practice
 impossible to interpret. To represent the posterior in a legible way, the most
-common technique is Markov chain Monte Carlo (MCMC): setting $\theta=(\sigma,
+common technique is Markov chain Monte Carlo (MCMC): setting $\theta=(\sigma^2,
 	\{T_j\}, \{M_j\})$ for brevity, it is possible to define an iterative numerical
 procedure that, starting from an initial choice of parameter values
-$\theta^{(0)}$, evaluating numerically the posterior density function
-$\theta\mapsto p(\theta|\mathbf y)$ only in some points, picks a new set of
+$\theta^{(0)}$, evaluating numerically the joint density function
+$\theta\mapsto p(\mathbf y,\theta)$ only in some points, picks a new set of
 values $\theta^{(1)}$, and so on $\theta^{(2)}, \theta^{(3)}, \ldots$, yielding
 overall a sequence of parameter values which is a random sample from the
 posterior. Then, e.g., the mean of the distribution is approximated by the
@@ -892,10 +892,10 @@ practice, some of the initial samples must be discarded, and even after that,
 the remaining number of MCMC samples must be higher by some factor than what's
 sought.
 
-\paragraph{Metropolis and Gibbs sampling}
+\paragraph{Metropolis-Hastings and Gibbs sampling}
 
 A common general way of building an MCMC is the Metropolis-Hastings (MH) class of
-samplers. An MH sampler requires to define a \emph{proposal distribution}
+samplers. An MH sampler requires defining a \emph{proposal distribution}
 $p(\theta';\theta)$. At MCMC step $k$, the current values of the parameters
 $\theta^{(k)}$ in the chain are plugged as parameters of the proposal as
 $p(\cdot;\theta^{(k)})$. A random draw $\tilde\theta^{(k+1)}\sim
@@ -904,18 +904,18 @@ $\tilde\theta^{(k+1)}$. Then a criterion decides if the new proposed values are
 accepted (keep new values, $\theta^{(k+1)} = \tilde\theta^{(k+1)}$) or rejected
 (keep current values, $\theta^{(k+1)} = \theta^{(k)}$), with a biased coin flip
 that depends on the posterior and favors the choice of $\theta^{(k+1)}$ that
-makes the posterior density higher. In other words, the sampler tries to move
+makes the posterior density higher, but adjusting for how much the proposal is biased towards going there. In other words, the sampler tries to move
 one step at a time in parameter space, picking a move at random, testing the
 ground, and deciding whether to proceed in that direction, based on how much the
-probability increases going there.
+probability changes going there.
 
-A special case of Metropolis-Hastings is Gibbs sampling. Split the parameters in
+A special case of Metropolis-Hastings is Gibbs sampling. Split the parameters into
 two subsets $\theta = (\theta_a, \theta_b)$. If we adopt an MH proposal that
 proposes changes to $\theta_a$ only, keeping $\theta_b$ fixed, from the
 \emph{full conditional} distribution $p(\theta_a|\theta_b,\mathbf y)$, it turns
 out that the MH acceptance probability is always~1 and the move is always
 accepted. Alternating this procedure between $\theta_a$ and $\theta_b$ yields a
-valid sampler for the full $\theta$. Gibbs sampling allows to nest sampling
+valid sampler for the full $\theta$. Gibbs sampling allows nesting sampling
 strategies, by applying them one parameter at a time with the full conditional
 as posterior distribution.
 
@@ -926,8 +926,10 @@ With these notions in hand, the high-level description of an iteration of the BA
 		                            T_j \sim \text{MH on } p(T_j\mid\mathbf T_{-j},\mathbf M_{-j},\mathbf y,\sigma^2), \\
 		                            M_j \sim p(M_j\mid\mathbf T,\mathbf M_{-j},\mathbf y,\sigma^2),
 	                            \end{cases} \\
-	\sigma^2                  & \sim p(\sigma^2\mid\mathbf T,\mathbf M,\mathbf y).
+	\sigma^2                  & \sim p(\sigma^2\mid\mathbf T,\mathbf M,\mathbf y),
 \end{align}
+%
+where the subscript ``$-j$'' means ``all indices but for $j$''.
 
 
 \section{Further details on the implementation}
