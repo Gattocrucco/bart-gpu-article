@@ -400,8 +400,9 @@ scan through all datapoints, even for operations that would require only the
 subset of datapoints associated with a given node. These sweeping
 de-optimizations are feasible because, like boosted trees, the point of BART is
 aggregating ``weak learners'', so trees are shallow \citep[see,
-e.g.,][\S6]{chipman2010}. In our implementation, we set max tree depth to 5 by
-default, i.e., at most 32 leaves per tree, which is more than sufficient.
+e.g.,][\S6]{chipman2010}. In our implementation, we set the maximum tree depth
+$D$ to 5 by default, i.e., at most $2^D = 32$ leaves per tree, which is more
+than sufficient.
 
 To represent the trees as fixed-size matrices, we use a heap, as illustrated in
 \autoref{fig:heaptree}.
@@ -410,7 +411,7 @@ To represent the trees as fixed-size matrices, we use a heap, as illustrated in
 	\centering
 	\includegraphics[width=\textwidth]{heaptree}
 	\caption{\label{fig:heaptree} Heap representation of a decision tree, with
-		the maximum depth set to 3.}
+		the maximum depth set to $D = 2$.}
 \end{figure}
 %
 Each tree is represented by 3 arrays, separately holding the axis and splitting
@@ -435,7 +436,7 @@ Next, we illustrate how to traverse a tree in a branchless fashion, in
 	\KwResult{Heap index of the leaf $\mathbf x$ falls into}
 	leaf\_found = False\;
 	index = 1\;
-	\For{i = 1 \KwTo $D - 1$}{
+	\For{i = 1 \KwTo $D$}{
 		axis = $a_\text{index}$\;
 		split = $s_\text{index}$\;
 		leaf\_found = leaf\_found OR (split = 0)\;
@@ -497,7 +498,7 @@ and to sample the leaves. At each MCMC iteration, these indices change in
 limited ways due to the simplicity of the GROW and PRUNE moves, so it is
 convenient to keep the indices in memory rather than recompute them from scratch
 each time with \autoref{alg:traverse}. If the maximum depth of the trees $D$ is
-$\le 8$, the indices fit into a byte, so this cache uses $n \times
+$\le 7$, the indices fit into a byte, so this cache uses $n \times
 	n_\text{tree}$ bytes. Together with the $n\times p$ predictors matrix, this is
 the bulk of the irreducible memory usage of this algorithm, and it is an
 additional memory requirement compared to (non-Bayesian) boosting. We estimate
@@ -936,11 +937,11 @@ With these notions in hand, the high-level description of an iteration of the BA
 
 With reference to \autoref{sec:impl}: the heap representation of the trees
 wastes most of the array entries. However it turns out to use about the same
-memory as other common alternatives. The maximum number of nodes is $2^D - 1$,
-so the heap size is $2^D$ (index 0 is unused). Since the nodes at maximum depth
-can only be leaves, the axis and cutpoint arrays are only $2^{D-1}$ long. Using
-32 bit integers and floats, the total size in bytes is $4 \times (2^{D-1} +
-	2^{D-1} + 2^{D}) = 2^{D+3}$ bytes. If $D=6$, that's 512 bytes. Consider instead
+memory as other common alternatives. The maximum number of nodes is $2^{D+1} - 1$,
+so the heap size is $2^{D+1}$ (index 0 is unused). Since the nodes at maximum depth
+can only be leaves, the axis and cutpoint arrays are only $2^D$ long. Using
+32 bit integers and floats, the total size in bytes is $4 \times (2^D +
+	2^D + 2^{D+1}) = 2^{D+4}$ bytes. If $D=5$, that's 512 bytes. Consider instead
 a representation in C/C++ that used separately allocated linked node objects.
 Each node contains allocation metadata (16 bytes), axis (4), cutpoint (4), leaf
 value (4), and pointers to children ($2\times 8$), for a total of 44 bytes per
