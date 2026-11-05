@@ -88,18 +88,20 @@
 \begin{abstract}
 
 	Bayesian Additive Regression Trees (BART) is a nonparametric Bayesian
-	regression technique based on an ensemble of decision trees. It is part of
-	the toolbox of many statisticians. The overall statistical quality of the
-	regression is typically higher than other generic alternatives, and it
-	requires less manual tuning, making it a good default choice. However, it is
-	a niche method compared to natural competitors such as \texttt{XGBoost}, due
-	to the longer running time, making sample sizes above
-	\num{10000}--\num{100000} a nuisance. We present a GPU-enabled
-	implementation of BART, faster by up to 100x in a given GPU vs.\ CPU
-	comparison, making BART fast enough to be a viable alternative to
-	non-Bayesian algorithms on large datasets, and showing that BART
-	parallelizes better than its non-Bayesian counterparts. This implementation
-	is available in the Python package \texttt{bartz}.
+	regression technique based on an ensemble of decision trees. It is part
+	of the toolbox of many statisticians. The overall statistical quality
+	of the regression is typically higher than other generic alternatives,
+	and it requires less manual tuning, making it a good default choice.
+	However, it is a niche method compared to natural competitors such as
+	\texttt{XGBoost}, due to the longer running time, making sample sizes
+	above \num{10000}--\num{100000} a nuisance. We present a GPU
+	implementation of BART, up to 500x faster than the previous state of
+	the art, making BART fast enough to be a viable option on large
+	datasets, and showing that BART parallelizes better than its
+	non-Bayesian counterparts. We also find that, to be as practical as
+	tree boosting on large datasets, BART would need a scalable way to
+	infer the number of trees. This implementation is available in the
+	Python package \texttt{bartz}.
 
 \end{abstract}
 
@@ -166,17 +168,18 @@ package \citep{herren_stochtree_2026}.
 This paper re-addresses the speed gap by re-implementing BART on GPU. While
 XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
 statistical model, our plain BART implementation is 100 times faster on GPU
-vs.\ CPU, while achieving state-of-the-art speed on CPU (at $n \gtrsim
-\num{1000000}$, on a Nvidia RTX Pro 5000 Blackwell vs.\ an Apple M1 Pro). This
+vs.\ CPU (at $n \gtrsim \num{1000000}$, on a Nvidia RTX Pro 5000 Blackwell vs.\
+an Apple M1 Pro), while also surpassing the previous state of the art
+\autocite{dorie2024} by 5x on CPU, for a total 500x speedup at large $n$. This
 makes BART fast enough to be a (still generally slower) alternative to
-non-Bayesian methods on large datasets without methodological caveats, but with
-the inconvenience of requiring a GPU.\footnote{In a previous version of this
-	manuscript, we claimed running time ``comparable'' to XGBoost, and a
-	200x speedup vs.\ cpu. We moderated these claims as both XGBoost and
-	our cpu implementation became faster in the intervening time before
-this revision, while the speed on gpu at high $n$ has not changed.} While
-XGBoost \& co.{} have their own GPU implementations as well, we find that BART
-achieves higher speed ups with parallelization. We provide a Python package,
+non-Bayesian methods on large datasets will less methodological compromise than
+XBART, but with the inconvenience of requiring a GPU.\footnote{In a previous
+	version of this manuscript, we claimed running time ``comparable'' to
+XGBoost, and a 200x speedup vs.\ CPU. We moderated these claims as both XGBoost
+and our CPU implementation became faster in the intervening time before this
+revision, more than the improvement in our GPU implementation.} While XGBoost
+\& co.{} have their own GPU implementations as well, we find that BART achieves
+higher speed-up with parallelization. We provide a Python package,
 \texttt{bartz} \redactedcite{\citep{gattocrucco_2026_23932737}}. In
 \autoref{sec:bart} we summarize the background knowledge on BART, then in
 \autoref{sec:impl} we describe how to adapt BART to run on GPU, and in
@@ -189,26 +192,27 @@ further research directions.
 
 BART is a Bayesian nonparametric regression method. Semi-formally, this means
 that, given a set of $n$ pairs of observations $(\mathbf x_i,y_i) \in \mathbb
-	R^p \times \mathbb R$, it infers without guidance a function $f$ such that $y_i
-	= f(\mathbf x_i) + \varepsilon_i$, keeping a balance between $f$ and the error
+R^p \times \mathbb R$, it infers without guidance a function $f$ such that $y_i
+= f(\mathbf x_i) + \varepsilon_i$, keeping a balance between $f$ and the error
 terms $\varepsilon_i$ such that given a new $\mathbf x^*$ from a pair $(\mathbf
-	x^*, y^*)$ with $y^*$ yet unknown, $f(\mathbf x^*)$ is a good advance prediction
-of $y^*$. The result is provided in the form of a set of possible functions
-$\{f_k\}$, chosen in such a way that the spread of $f_k(\mathbf x^*)$ over the
-possibilities quantifies the uncertainty in predicting $y^*$. More precisely,
-this ensemble is obtained by defining a prior distribution over the space of
-functions, and then sampling the corresponding posterior distribution. See
-\citet[ch.~4]{muller2015} for a general reference on this topic.
+x^*, y^*)$ with $y^*$ yet unknown, $f(\mathbf x^*)$ is a good advance
+prediction of $y^*$. The result is provided in the form of a set of possible
+functions $\{f_k\}$, chosen in such a way that the spread of $f_k(\mathbf x^*)$
+over the possibilities quantifies the uncertainty in predicting $y^*$. More
+precisely, this ensemble is obtained by defining a prior distribution over the
+space of functions, and then sampling the corresponding posterior distribution.
+See \citet[ch.~4]{muller2015} for a general reference on this topic.
 
 BART represents the regression function as the sum of a fixed number
-$n_\text{tree}$ of decision trees. The prior on functions is induced by defining
-a single-tree prior recursively, which is repeated i.i.d.\ for all trees. The
-posterior is sampled by a BART-specific MCMC algorithm that updates one tree at
-a time. The most popular implementations of BART are the R software libraries
-\texttt{bartMachine} \citep{kapelner2016,kapelner2023}, \texttt{dbarts}
-\citep{dorie2024}, and \texttt{BART} \citep{sparapani2021,mcculloch2024}, though
-many others exist. In the following, we summarize the description from the
-original BART paper \citep{chipman2010}.
+$n_\text{tree}$ of decision trees. The prior on functions is induced by
+defining a single-tree prior recursively, which is then repeated i.i.d.\ for
+all trees. The posterior is sampled by a BART-specific MCMC algorithm that
+updates one tree at a time. The most popular implementations of BART are the R
+software libraries \texttt{bartMachine} \citep{kapelner2016,kapelner2023},
+\texttt{dbarts} \citep{dorie2024}, and \texttt{BART}
+\citep{sparapani2021,mcculloch2024}, though many others exist. In the
+following, we summarize the description from the original BART paper
+\citep{chipman2010}.
 
 \paragraph{Decision trees}
 
@@ -289,25 +293,26 @@ The free hyperparameters in this model are:
 %
 \begin{itemize}
 
-	\item The splitting grid. The two common defaults are at most 100 equally
-	      spaced splits along each $\mathbf x$ axis in the range of the data, or at
-	      most 100 split midway between each observed value along each $\mathbf x$
-	      axis.
+	\item The splitting grid. The two common defaults are at most 100
+		equally spaced splits along each $\mathbf x$ axis in the range
+		of the data, or at most 100 splits midway between each observed
+		value along each $\mathbf x$ axis.
 
-	\item The number of trees $n_\text{tree}$, default 200. Although indicated with
-	      ``$m$'' is the original notation, in this manuscript we use $n_\text{tree}$ for
-	      clarity.
+	\item The number of trees $n_\text{tree}$, default 200. Although
+		indicated with ``$m$'' is the original notation, in this
+		manuscript we use $n_\text{tree}$ for clarity.
 
 	\item $\alpha$ and $\beta$, regulating the depth distribution of the
 	      trees. Default 0.95 and 2.
 
 	\item $\mu_\mu$ and $\sigma_\mu$, which set the prior mean and variance
-	      $m\mu_\mu$ and $n_\text{tree}\sigma_\mu^2$ of $f(\mathbf x)$. By default set
-	      based on some measure of the location and scale of the outcome data.
+		$n_\text{tree}\mu_\mu$ and $n_\text{tree}\sigma_\mu^2$ of
+		$f(\mathbf x)$. By default set based on some measure of the
+		location and scale of the outcome data.
 
-	\item $\nu$ and $\lambda$, which regulate the prior on the variance of the error
-	      term. By default $\nu=3$, while $\lambda$ is set to some measure of squared
-	      scale of the data.
+	\item $\nu$ and $\lambda$, which regulate the prior on the variance of
+		the error term. By default $\nu=3$, while $\lambda$ is set to
+		some measure of squared scale of the data.
 
 \end{itemize}
 
@@ -355,13 +360,13 @@ coincide, it may be useful to burn more initial samples. Each tree should not
 end up with more than 10 leaves, the algorithm is meant to work with shallow
 trees. If the trees grow deeper, increase the number of trees.
 
-This MCMC is quite complex, and moves the tree structures slowly. In practice in
-most problems it will not reach convergence, i.e., it won't sample the tree
-structures from their actual posterior. However, the function values also depend
-on the leaves, which are re-sampled each time from scratch instead of updated
-with Metropolis, so the quality of the MCMC samples is sufficient for
-prediction, even if they are not representative of the precise tree distribution
-down to every detail. See \citet[p.~12]{ronen2022} and \citet[p.~4]{tan2024}.
+This MCMC is quite complex, and moves the tree structures slowly. In practice
+in most problems it will not reach convergence, i.e., it won't sample the tree
+structures from their actual posterior. However, the function values also
+depend on the leaves, which are re-sampled each time from scratch instead of
+updated with Metropolis, so the quality of the MCMC samples is sufficient for
+prediction, even if they are not a precise representation of the tree
+posterior. See \citet[p.~12]{ronen2022} and \citet[p.~4]{tan2024}.
 
 \section{Implementation of BART for GPU}
 \label{sec:impl}
@@ -386,17 +391,17 @@ state.
 Near-branchlessness is what allows XLA to produce performant programs
 automatically. However, the BART MCMC is not a natural fit for branchlessness:
 the tree structures change at each iteration, with nodes added and removed, and
-the set and number of datapoints assigned to each node altered. To shoehorn this
-algorithm into JAX, we make two major deviations from other implementations:
-1)~we fix a maximum depth for the trees, and then write tree-traversing
-operations as if all trees were always maximal, with arithmetic that masks away
-operations on nodes that are not actually used; 2)~we always scan through all
-datapoints, even for operations that would require only the subset of datapoints
-associated with a given node. These sweeping de-optimizations are feasible
-because, like boosted trees, the point of BART is aggregating ``weak learners'',
-so trees are shallow \citep[see, e.g.,][\S6]{chipman2010}. In our
-implementation, we set a default maximum number of 6 tree levels, i.e., at most
-32 leaves per tree, which is more than sufficient.
+the set and number of datapoints assigned to each node altered. To shoehorn
+this algorithm into JAX, we make two major deviations from other
+implementations: 1)~we fix a maximum depth for the trees, and then write
+tree-traversing operations as if all trees were always maximal, with arithmetic
+that masks away operations on nodes that are not actually used; 2)~we always
+scan through all datapoints, even for operations that would require only the
+subset of datapoints associated with a given node. These sweeping
+de-optimizations are feasible because, like boosted trees, the point of BART is
+aggregating ``weak learners'', so trees are shallow \citep[see,
+e.g.,][\S6]{chipman2010}. In our implementation, we set max tree depth to 5 by
+default, i.e., at most 32 leaves per tree, which is more than sufficient.
 
 To represent the trees as fixed-size matrices, we use a heap, as illustrated in
 \autoref{fig:heaptree}.
@@ -531,7 +536,7 @@ we mainly care about accelerating BART on large datasets.
 
 In addition to the vanilla BART model and MCMC, \texttt{bartz} currently
 implements classification with probit link, variable selection
-\citep{linero2018}, data parallelism (shard examples across devices)
+\citep{linero2018}, data parallelism (shard units across devices)
 \citep{pratola2014}, chain parallelism (run independent MCMC chains across
 devices), multivariate outcomes, and heteroskedasticity with fixed weights.
 
@@ -678,14 +683,14 @@ evidence here that our implementation is correct, we compare the out-of-sample
 prediction accuracy between our package \texttt{bartz} and the 3 most popular
 BART implementations, on data generated as \autoref{eq:dgp}. The result at
 ``low-low'' settings is in \autoref{fig:accuracy-single} (complete results in
-\autoref{fig:rmse-all} in the appendix); mean squared error and coverage shake
-out similar across packages as expected.
+\autoref{sec:completeresults}); mean squared error and coverage shake out
+similar across packages as expected.
 
-In \autoref{fig:accuracy-single} we show coverage of credible intervals for
-prediction of the latent mean (which we can compute using the true mean because
-the data is simulated) rather than intervals for prediction of the outcome,
-because targeting a confidence level on exchangeable data is too easy and so it
-would not have discriminative power.
+Note: in \autoref{fig:accuracy-single} we show coverage of credible intervals
+for prediction of the latent mean (which we can compute using the true mean
+because the data is simulated) rather than intervals for prediction of the
+observable outcome, because targeting a confidence level on exchangeable data
+is too easy and so it would not have discriminative power.
 
 \paragraph{Full run comparisons}
 
