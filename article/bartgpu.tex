@@ -168,7 +168,7 @@ package \citep{herren_stochtree_2026}.
 This paper re-addresses the speed gap by re-implementing BART on GPU. While
 XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
 statistical model, our plain BART implementation is 100 times faster on GPU
-vs.\ CPU (at $n \gtrsim \num{1000000}$, on a Nvidia RTX PRO 5000 Blackwell vs.\
+vs.\ CPU (at $n \gtrsim \num{1000000}$, on an Nvidia RTX PRO 5000 Blackwell vs.\
 an Apple M1 Pro), while also surpassing the previous state of the art
 \autocite{dorie2024} by 5x on CPU, for a total 500x speed-up at large $n$. This
 makes BART fast enough to be a (still generally slower) alternative to
@@ -618,7 +618,7 @@ and~\ref{fig:time-all-1000} for the complete results.}
 We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
 (the previous fastest BART implementation), XGBoost, and
 CatBoost on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
-Pro with 16 GiB RAM, while the GPU is a Nvidia RTX PRO 5000 Blackwell with 48
+Pro with 16 GiB RAM, while the GPU is an Nvidia RTX PRO 5000 Blackwell with 48
 GiB RAM. All methods that support it are allowed to use up to 6 cores on CPU.
 For all software packages, we run their setup and pre-processing step
 separately, before starting the timer. This includes data pre-processing, and
@@ -893,8 +893,8 @@ sought.
 
 \paragraph{Metropolis and Gibbs sampling}
 
-A common general way of building a MCMC is the Metropolis-Hastings (MH) class of
-samplers. A MH sampler requires to define a \emph{proposal distribution}
+A common general way of building an MCMC is the Metropolis-Hastings (MH) class of
+samplers. An MH sampler requires to define a \emph{proposal distribution}
 $p(\theta';\theta)$. At MCMC step $k$, the current values of the parameters
 $\theta^{(k)}$ in the chain are plugged as parameters of the proposal as
 $p(\cdot;\theta^{(k)})$. A random draw $\tilde\theta^{(k+1)}\sim
@@ -909,7 +909,7 @@ ground, and deciding whether to proceed in that direction, based on how much the
 probability increases going there.
 
 A special case of Metropolis-Hastings is Gibbs sampling. Split the parameters in
-two subsets $\theta = (\theta_a, \theta_b)$. If we adopt a MH proposal that
+two subsets $\theta = (\theta_a, \theta_b)$. If we adopt an MH proposal that
 proposes changes to $\theta_a$ only, keeping $\theta_b$ fixed, from the
 \emph{full conditional} distribution $p(\theta_a|\theta_b,\mathbf y)$, it turns
 out that the MH acceptance probability is always~1 and the move is always
@@ -1138,7 +1138,7 @@ of at least 1000 for each point, capped at 10 runs.}
 	\caption{\label{tab:fullbench-full} Extended version of
 		\autoref{tab:fullbench}. Comparison of \texttt{bartz} against
 		XGBoost on various large datasets, at default
-		settings, on a Nvidia RTX PRO 5000 GPU. Each run is repeated 5
+		settings, on an Nvidia RTX PRO 5000 GPU. Each run is repeated 5
 		times over different train/test splits and with different
 	random seeds. The standard deviation across repetitions is reported as
 a digit in parentheses when non-zero. See \autoref{sec:completeresults} for
