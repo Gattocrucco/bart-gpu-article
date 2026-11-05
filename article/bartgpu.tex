@@ -172,7 +172,7 @@ vs.\ CPU (at $n \gtrsim \num{1000000}$, on a Nvidia RTX PRO 5000 Blackwell vs.\
 an Apple M1 Pro), while also surpassing the previous state of the art
 \autocite{dorie2024} by 5x on CPU, for a total 500x speed-up at large $n$. This
 makes BART fast enough to be a (still generally slower) alternative to
-non-Bayesian methods on large datasets will less methodological compromise than
+non-Bayesian methods on large datasets with less methodological compromise than
 XBART, but with the inconvenience of requiring a GPU.\footnote{In a previous
 	version of this manuscript, we claimed running time ``comparable'' to
 XGBoost, and a 200x speed-up vs.\ CPU. We moderated these claims as both XGBoost
@@ -299,7 +299,7 @@ The free hyperparameters in this model are:
 		value along each $\mathbf x$ axis.
 
 	\item The number of trees $n_\text{tree}$, default 200. Although
-		indicated with ``$m$'' is the original notation, in this
+		indicated with ``$m$'' in the original notation, in this
 		manuscript we use $n_\text{tree}$ for clarity.
 
 	\item $\alpha$ and $\beta$, regulating the depth distribution of the
@@ -728,7 +728,7 @@ $n\approx\num{11000000}$), \texttt{bartz} is 17x slower than XGBoost, roughly in
 with the large-$n$ 20x factor previously estimated from \autoref{fig:single}
 (it's 20x instead of 10x because here XGBoost has the default 100 trees instead
 of 200). On smaller datasets \texttt{bartz} is 40--50x slower, but for the simulated
-dataset, where \texttt{bartz} is about as fast XGBoost. What sets our simulated dataset
+dataset, where \texttt{bartz} is about as fast as XGBoost. What sets our simulated dataset
 apart from the others is that it has many predictors, $p=1000$ vs.{}
 $p=\numrange{5}{28}$. As expected, BART is advantaged in high-$p$ cases, at
 least with the default XGBoost settings.
@@ -1128,7 +1128,7 @@ of at least 1000 for each point, capped at 10 runs.}
 		implementations of BART, to check they yield the same
 		predictive performance, for various settings of number of trees
 		and number of predictors $p$ on data simulated as
-		\autoref{eq:dgp}. The test set size is always 1000. The MSE is
+		\autoref{eq:dgp}. The test set size is always 1000. Coverage is
 		averaged over enough runs to reach a total training set size of
 	at least 1000 for each point, capped at 10 runs.}
 \end{figure}
@@ -1167,6 +1167,7 @@ settings allows a GPU over CPU speed gain of at most about 20x rather than the
 asymptotic 100x.
 
 \section{On increasing the number of trees}
+\label{sec:moretrees}
 
 We discuss how the speed of this implementation allows to run BART with many
 more trees than usual, which is an unexplored route in the BART literature, and
