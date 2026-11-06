@@ -372,7 +372,7 @@ prediction; \textcite[891]{pratola2016} shows an example where, with stuck tree 
 \label{sec:impl}
 
 This is the principal contribution of this paper. The implementation described
-here corresponds to versions 0.9.0 to 0.14.0 of the Python package \texttt{bartz}
+here corresponds to versions 0.11.0 to 0.14.0 of the Python package \texttt{bartz}
 \redactedcite{\citep{gattocrucco_2026_23932737}}. The software is a pure Python
 package based on the machine learning library JAX \citep{bradbury2018}, which
 provides a computing toolset built around NumPy-like \citep{harris2020} tensor
@@ -467,11 +467,11 @@ it could be called an ``interleaved stochastic tree boosting'' algorithm.
 \paragraph{Representation of predictors}
 
 Each predictor $x_i$ can be replaced by its index into the splitting grid. Since
-the number of cutpoints rarely exceeds 255 in practice (the default in BART
+the number of cutpoints rarely exceeds 255 in practice (the default in most BART
 packages is 100), each predictor then requires only 1 byte, for a total of $np$
 bytes for the matrix of predictors. This quantization is important because the
 whole matrix has to fit into GPU memory. This is the same strategy used by,
-e.g., LightGBM \citep{ke_lightgbm_2017}.
+e.g., LightGBM and CatBoost \autocites{ke_lightgbm_2017}[\S5]{dorogush_catboost_2018}.
 
 \paragraph{Tree structure proposal}
 
@@ -483,24 +483,24 @@ GROW (add two children to a leaf node), PRUNE (remove two sibling leaves), SWAP
 Following the implementation of the \texttt{BART} package, we use only GROW and
 PRUNE for simplicity \citep[\S C, p.~57]{sparapani2021}. To stay branchless, we
 have to execute all the calculations for both moves, even if we end up using
-only one. GROW and PRUNE have the nice properties that the modifications can not
-overlap in the tree arrays, and that the tree proposed by GROW contains the
-initial tree which in turn contains the tree proposed by PRUNE. This allows to
-share the memory and most of the calculations between the two moves, and
+only one. However, GROW and PRUNE have the nice properties that one is the inverse of the other, the proposed moves can not
+overlap in the tree arrays, and the tree proposed by GROW contains the
+initial tree which in turn contains the tree proposed by PRUNE. This allows
+sharing memory and most of the calculations between the two moves, and
 simplifies the updates to the indices cache (described below) and the running
 residuals.
 
-\paragraph{Traverse indices cache}
+\paragraph{Leaf indices cache}
 
-The indices that, for each tree, indicate in which leaf each datapoint falls
+The indices that, for each tree, indicate which leaf each datapoint falls
 into, are used to compute the acceptance probability of the Metropolis steps,
 and to sample the leaves. At each MCMC iteration, these indices change in
 limited ways due to the simplicity of the GROW and PRUNE moves, so it is
 convenient to keep the indices in memory rather than recompute them from scratch
 each time with \autoref{alg:traverse}. If the maximum depth of the trees $D$ is
 $\le 7$, the indices fit into a byte, so this cache uses $n \times
-	n_\text{tree}$ bytes. Together with the $n\times p$ predictors matrix, this is
-the bulk of the irreducible memory usage of this algorithm, and it is an
+	n_\text{tree}$ bytes (per chain). Together with the $n\times p$ predictors matrix, this is
+the bulk of the memory usage of this algorithm, and it is an
 additional memory requirement compared to (non-Bayesian) boosting. We estimate
 removing this cache would slow training down by 2--3x.
 
@@ -510,7 +510,7 @@ The key steps of the MCMC that are computed in parallel across trees are:
 %
 \begin{enumerate}
 	\item Propose tree structure moves.
-	\item Update the tree indices cache.
+	\item Update the leaf indices cache.
 	\item Sample centered full-conditional leaves.
 	\item Compute most of the terms in the Metropolis acceptance probabilities.
 \end{enumerate}
