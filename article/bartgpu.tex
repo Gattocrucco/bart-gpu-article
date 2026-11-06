@@ -1047,7 +1047,11 @@ and~\ref{fig:time-all-1000}. Further details on the setup:
 \label{sec:compdetails}
 
 The full results of the predictive accuracy comparison between BART packages
-are in Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. 
+are in Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. Here for
+\texttt{BART} we actually use the \texttt{BART3} package
+\autocite{mcculloch2025}, its not formally released successor, and we use
+\texttt{bartz} through its compatibility interface \texttt{bartz.BART.gbart}
+meant to closely reproduce the specific settings of \texttt{BART3}.
 
 \begin{figure}
 	\centering
