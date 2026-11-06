@@ -137,10 +137,14 @@ def aggregate(df: pl.DataFrame) -> pl.DataFrame:
     stats = [
         expr
         for col in STAT_COLUMNS
+        # all-null columns come out of the concat with the null dtype
+        for x in (pl.col(col).cast(pl.Float64),)
         for expr in (
-            # all-null columns come out of the concat with the null dtype
-            pl.col(col).cast(pl.Float64).mean().alias(f"mean_{col}"),
-            pl.col(col).cast(pl.Float64).std().alias(f"{col}_sdev"),
+            # the rmse is the root of the mse averaged over rounds
+            (x.pow(2).mean().sqrt() if col == "rmse" else x.mean()).alias(
+                f"mean_{col}"
+            ),
+            x.std().alias(f"{col}_sdev"),
         )
     ]
     return df.group_by("method", "dataset_path", maintain_order=True).agg(
