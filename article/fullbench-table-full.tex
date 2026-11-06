@@ -10,55 +10,55 @@ simulated &  & no & yes & no & no & yes & yes \\
 time series &  & yes & no & yes & yes & no & no \\
 test sdev &  & \num{0.998(4)} & \num{0.4993(2)} & \num{1.002(3)} & \num{0.997(7)} & \num{0.49998(2)} & \num{1.047(4)} \\
 \midrule
-RMSE & xgboost & \num{0.136(2)} & \num{0.414(2)} & \num{0.257(4)} & \num{0.945(7)} & \num{0.32(1)} & \num{0.709(4)} \\
+RMSE & xgboost & \num{0.136(2)} & \num{0.414(3)} & \num{0.258(2)} & \num{0.946(7)} & \num{0.32(1)} & \num{0.707(3)} \\
  & bartz & \num{0.138(2)} & \num{0.417(2)} & \num{0.272(1)} & \num{0.946(7)} & \num{0.116(6)} & \num{0.790(4)} \\
- & xgboost-es & \num{0.119(2)} & \num{0.397(2)} & \num{0.208(5)} & \num{0.942(7)} & \num{0.044(5)} & \num{0.619(3)} \\
+ & xgboost-es & \num{0.119(2)} & \num{0.397(2)} & \num{0.208(5)} & \num{0.942(6)} & \num{0.044(5)} & \num{0.621(2)} \\
  & bartz-2000 & \num{0.131(2)} & \num{0.403(2)} & \num{0.227(3)} & \num{0.945(7)} & \num{0.076(3)} & \num{0.601(3)} \\
 \addlinespace
 error sdev & bartz & \num{0.1374(2)} & --- & \num{0.273(1)} & \num{0.94640(3)} & --- & \num{0.790(2)} \\
  & bartz-2000 & \num{0.1288(1)} & --- & \num{0.2242(2)} & \num{0.94479(3)} & --- & \num{0.6029(9)} \\
 \addlinespace
-MSE/test var & xgboost & \num{0.0185(5)} & \num{0.687(8)} & \num{0.066(2)} & \num{0.900(2)} & \num{0.42(3)} & \num{0.459(5)} \\
+MSE/test var & xgboost & \num{0.0186(5)} & \num{0.688(9)} & \num{0.066(1)} & \num{0.900(2)} & \num{0.42(3)} & \num{0.456(4)} \\
  & bartz & \num{0.0192(5)} & \num{0.697(8)} & \num{0.0739(3)} & \num{0.9002(8)} & \num{0.053(5)} & \num{0.569(9)} \\
- & xgboost-es & \num{0.0142(4)} & \num{0.632(5)} & \num{0.043(2)} & \num{0.894(2)} & \num{0.008(2)} & \num{0.349(4)} \\
+ & xgboost-es & \num{0.0141(4)} & \num{0.633(5)} & \num{0.043(2)} & \num{0.894(2)} & \num{0.008(2)} & \num{0.352(3)} \\
  & bartz-2000 & \num{0.0171(5)} & \num{0.652(8)} & \num{0.051(1)} & \num{0.898(2)} & \num{0.023(2)} & \num{0.329(3)} \\
 \addlinespace
-log loss & xgboost & --- & \num{0.513(5)} & --- & --- & \num{0.35(2)} & --- \\
+log loss & xgboost & --- & \num{0.513(6)} & --- & --- & \num{0.35(2)} & --- \\
  & bartz & \num{-0.56(1)} & \num{0.520(4)} & \num{0.117(5)} & \num{1.363(7)} & \num{0.073(5)} & \num{1.183(6)} \\
- & xgboost-es & --- & \num{0.477(3)} & --- & --- & \num{0.015(3)} & --- \\
+ & xgboost-es & --- & \num{0.478(4)} & --- & --- & \num{0.015(3)} & --- \\
  & bartz-2000 & \num{-0.62(1)} & \num{0.490(5)} & \num{-0.07(1)} & \num{1.362(7)} & \num{0.047(2)} & \num{0.910(5)} \\
 \addlinespace
 50\,\% coverage & bartz & \num{0.685(7)} & --- & \num{0.658(6)} & \num{0.462(7)} & --- & \num{0.501(7)} \\
  & bartz-2000 & \num{0.681(4)} & --- & \num{0.684(2)} & \num{0.462(8)} & --- & \num{0.505(5)} \\
 \addlinespace
-train time (s) & xgboost & \num{0.44(2)} & \num{4.34(1)} & \num{0.600(8)} & \num{1.32(4)} & \num{0.35(3)} & \num{48.2(1)} \\
+train time (s) & xgboost & \num{0.38(4)} & \num{1.62(3)} & \num{0.46(2)} & \num{0.72(3)} & \num{0.32(3)} & \num{11.09(5)} \\
 (incl. XLA) & bartz & \num{19.24(5)} & \num{74.1(4)} & \num{24.53(8)} & \num{59.6(3)} & \num{18.35(3)} & \num{42.6(6)} \\
- & xgboost-es & \num{2.6(1)} & \num{41(3)} & \num{9(1)} & \num{8.7(3)} & \num{1.79(6)} & \num{90(6)} \\
+ & xgboost-es & \num{2.7(3)} & \num{37(3)} & \num{9(1)} & \num{7.8(6)} & \num{1.88(7)} & \num{51(5)} \\
 (incl. XLA) & bartz-2000 & \num{96.14(4)} & \num{537(1)} & \num{134.87(9)} & \num{332.5(2)} & \num{96.80(6)} & \num{223.4(3)} \\
 \addlinespace
-cold predict (s) & xgboost & \num{0.008(7)} & \num{0.00350(6)} & \num{0.007(7)} & \num{0.00268(3)} & \num{0.005(7)} & \num{0.027(6)} \\
+cold predict (s) & xgboost & \num{0.00260(2)} & \num{0.0040(8)} & \num{0.00270(5)} & \num{0.0038(8)} & \num{0.00258(4)} & \num{0.0309(4)} \\
 (incl. XLA) & bartz & \num{1.33(1)} & \num{1.07(1)} & \num{1.328(9)} & \num{1.338(8)} & \num{1.04(1)} & \num{1.59(1)} \\
- & xgboost-es & \num{0.021(2)} & \num{0.047(4)} & \num{0.059(7)} & \num{0.024(1)} & \num{0.0169(6)} & \num{0.035(7)} \\
+ & xgboost-es & \num{0.021(3)} & \num{0.048(3)} & \num{0.06(1)} & \num{0.025(2)} & \num{0.0184(7)} & \num{0.040(1)} \\
 (incl. XLA) & bartz-2000 & \num{0.980(4)} & \num{1.112(5)} & \num{1.00(3)} & \num{0.984(4)} & \num{1.091(2)} & \num{2.76(3)} \\
 \addlinespace
-warm predict (s) & xgboost & \num{0.004(7)} & \num{0.00117(7)} & \num{0.007(9)} & \num{0.000827(8)} & \num{0.00069(2)} & \num{0.028(6)} \\
+warm predict (s) & xgboost & \num{0.00096(4)} & \num{0.00120(7)} & \num{0.00096(3)} & \num{0.00096(6)} & \num{0.00088(1)} & \num{0.0285(3)} \\
  & bartz & \num{0.1889(2)} & \num{0.198(1)} & \num{0.1930(4)} & \num{0.1941(6)} & \num{0.1874(2)} & \num{0.4097(4)} \\
- & xgboost-es & \num{0.0051(4)} & \num{0.012(1)} & \num{0.014(2)} & \num{0.0061(2)} & \num{0.0042(2)} & \num{0.026(6)} \\
+ & xgboost-es & \num{0.0051(5)} & \num{0.0113(8)} & \num{0.014(2)} & \num{0.0059(5)} & \num{0.0043(1)} & \num{0.033(4)} \\
  & bartz-2000 & \num{0.2049(6)} & \num{0.2143(3)} & \num{0.2103(3)} & \num{0.2057(2)} & \num{0.1983(5)} & \num{1.877(4)} \\
 \addlinespace
-peak GPU mem. & xgboost & \num{0.583} & \num{1.32} & \num{0.627} & \num{0.866} & \num{0.557(2)} & \num{8.52} \\
+peak GPU mem. & xgboost & \num{0.593(8)} & \num{2.82} & \num{0.9(1)} & \num{2.00} & \num{0.560} & \num{24.5} \\
 (GB) & bartz & \num{0.848} & \num{3.19} & \num{0.973} & \num{1.80} & \num{0.835} & \num{22.0} \\
- & xgboost-es & \num{0.576(1)} & \num{1.297(2)} & \num{0.650(4)} & \num{0.8657(9)} & \num{0.565(1)} & \num{7.71} \\
+ & xgboost-es & \num{0.60(4)} & \num{2.69} & \num{0.8(2)} & \num{1.95} & \num{0.566} & \num{22.1} \\
  & bartz-2000 & \num{3.56} & \num{23.8} & \num{5.32} & \num{12.3} & \num{3.42} & \num{22.0} \\
 \addlinespace
 trees & xgboost & \num{100} & \num{100} & \num{100} & \num{100} & \num{100} & \num{100} \\
  & bartz & \num{200} & \num{200} & \num{200} & \num{200} & \num{200} & \num{200} \\
- & xgboost-es & \num{1658(99)} & \num{3820(358)} & \num{4935(624)} & \num{1935(72)} & \num{1353(51)} & \num{766(94)} \\
+ & xgboost-es & \num{1617(190)} & \num{3672(287)} & \num{4495(808)} & \num{1797(151)} & \num{1353(51)} & \num{724(84)} \\
  & bartz-2000 & \num{2000} & \num{2000} & \num{2000} & \num{2000} & \num{2000} & \num{2000} \\
 \addlinespace
-leaves/64 & xgboost & \num{0.995(1)} & \num{0.998(1)} & \num{0.9989(5)} & \num{0.967(5)} & \num{0.80(5)} & \num{1.00} \\
+leaves/64 & xgboost & \num{0.9955(8)} & \num{0.9982(9)} & \num{0.998(1)} & \num{0.968(3)} & \num{0.80(5)} & \num{1.00} \\
 \phantom{leaves}/32 & bartz & \num{0.51(1)} & \num{0.895(5)} & \num{0.929(8)} & \num{0.352(6)} & \num{0.492(5)} & \num{0.56(1)} \\
-\phantom{leaves}/64 & xgboost-es & \num{0.9909(3)} & \num{0.9863(7)} & \num{0.9897(3)} & \num{0.9569(9)} & \num{0.893(3)} & \num{0.9980(4)} \\
+\phantom{leaves}/64 & xgboost-es & \num{0.9909(2)} & \num{0.9868(5)} & \num{0.9927(4)} & \num{0.956(2)} & \num{0.893(3)} & \num{0.9979(2)} \\
 \phantom{leaves}/32 & bartz-2000 & \num{0.166(1)} & \num{0.321(1)} & \num{0.307(2)} & \num{0.1151(5)} & \num{0.205(2)} & \num{0.0986(7)} \\
 \addlinespace
 empty trees/0.05 & bartz & \num{0} & \num{0} & \num{0} & \num{0.02(3)} & \num{0} & \num{0} \\
