@@ -1013,7 +1013,9 @@ and~\ref{fig:time-all-1000}. Further details on the setup:
 	\item For all packages but CatBoost, we only time the part that's
 		repeated over trees, instead of the pre and post-processing
 		that does not depend on the number of trees. The CatBoost API
-		did not allow us to do this.
+		does not allow us to do this completely, though predictor
+		quantization remains separate, which is probably most of the
+		fixed overhead.
 
 	\item \texttt{dbarts} has an \texttt{n.threads} parameter to use
 		parallelization, but we found it didn't actually work and so we
