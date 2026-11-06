@@ -519,7 +519,7 @@ Instead, the computations that have to follow the ordered tree scan are:
 %
 \begin{enumerate}[start=5]
 	\item Sum the partial (i.e., all trees less the current one) residuals
-	      falling in each leaf (an indexed reduce); this is the main bottleneck.
+	      falling in each leaf (an indexed reduce); this is the main bottleneck at large $n$.
 	\item Complete the calculation of the Metropolis acceptance probability and
 	      accept/reject the move.
 	\item Compute the posterior mean of the leaves to un-center the sampled leaf values.
@@ -530,16 +530,16 @@ These steps can not be run in parallel for all trees due to the cyclical
 dependence between running residuals and the acceptance status of each move.
 Since this part includes two $O(n)$ operations (residuals reduction and update),
 it can be parallelized effectively only if $n$ is large enough. As shown in
-\autoref{sec:perf} below, this can be a problem in practice, though
+\autoref{sec:perf} next, this can be a problem in practice, though
 we mainly care about accelerating BART on large datasets.
 
 \paragraph{Additional features}
 
-In addition to the vanilla BART model and MCMC, \texttt{bartz} currently
-implements classification with probit link, variable selection
-\citep{linero2018}, data parallelism (shard units across devices)
-\citep{pratola2014}, chain parallelism (run independent MCMC chains across
-devices), multivariate outcomes, and heteroskedasticity with fixed weights.
+In addition to the vanilla BART model and MCMC, \texttt{bartz} v0.14.0
+implements classification with probit link \autocite[\S4]{chipman2010}, variable selection
+\citep{linero2018}, data parallelism
+\autocite[shard datapoints across devices,][]{pratola2014}, chain parallelism (run independent MCMC chains across
+devices), multivariate outcomes, heteroskedasticity with fixed weights, and Bayesian Causal Forests \autocite[BCF,][]{hahn2020}.
 
 \section{Performance measurements}
 \label{sec:perf}
