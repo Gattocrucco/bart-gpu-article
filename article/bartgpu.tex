@@ -604,8 +604,8 @@ and $q=2$ (each predictor interacts with one other predictor on average).
 	\centering
 	\widecenter{\includempl{time-single}\includempl{time-single-1000}}
 	\caption{\label{fig:single} \textbf{Left panel:} Time to run an
-		iteration of the algorithm vs.\ training set size $n$,
-		comparing \texttt{bartz} with the fastest BART implementation
+		iteration (one sweep through all trees) of the algorithm vs.\ training set size $n$,
+		comparing \texttt{bartz} with the previous fastest BART implementation
 		(\texttt{dbarts}), XGBoost, and CatBoost, on
 		CPU (\texttt{-M1pro}) and GPU (\texttt{-P5000}). Gradient
 		boosting requires only one iteration to produce a usable
@@ -621,7 +621,7 @@ We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
 CatBoost on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
 Pro with 16 GiB RAM, while the GPU is an Nvidia RTX PRO 5000 Blackwell with 48
 GiB RAM. All methods that support it are allowed to use up to 6 cores on CPU.
-For all software packages but CatBoost, we run their setup and pre-processing step
+For all software packages, we run their setup and pre-processing step
 separately, before starting the timer. This includes data pre-processing, and
 XLA compilation for \texttt{bartz} specifically. The configurations are mostly
 left to their default values. We clock a full iteration (a sweep through all
@@ -634,8 +634,7 @@ conservative direction of making \texttt{dbarts} appear faster.
 See \autoref{sec:timingdetails} for further details on the setup.
 
 The results with the ``low-low'' settings $p=100$, $n_\text{tree}=200$ are
-shown in \autoref{fig:single} (complete results in Figures~\ref{fig:time-all}
-and~\ref{fig:time-all-1000} in the appendix). On CPU, \texttt{dbarts} is 2--3
+shown in \autoref{fig:single}. On CPU, \texttt{dbarts} is 2--3
 times faster than \texttt{bartz} at low training set size $n$, then
 \texttt{bartz} takes over in the range $n=\num{1000}\text{--} \num{10000}$ and
 reaches a 5x advantage at large $n$. On GPU, \texttt{bartz} switches from a
@@ -652,8 +651,8 @@ trees), while on CPU vs.{} CPU it would be 50x slower. (Note again: these
 figures do not include predictor quantization.)
 
 BART requires 1000--2000 (traditionally 1100) iterations to produce a result,
-while gradient boosting one iteration, so comparing per-iteration timings
-across the methods requires to multiply by some factor. However this factor is
+while gradient boosting only one iteration, so comparing per-iteration timings
+across the methods requires multiplying by some factor. However this factor is
 not precisely defined because it's common to cross-validate gradient boosting
 methods, it's also common to run BART longer to be sure the MCMC is converging,
 and the optimal number of trees may differ between the methods. So in
@@ -662,7 +661,7 @@ iteration time scaled by 1000 on BART methods, where 1000 is an arbitrary
 factor chosen to align well with the logarithmic scale of the plot. Another
 reason it's hard to interpret these timings precisely is that the running time
 of XGBoost and CatBoost (with default settings) scales with $p$, while BART
-doesn't (it's implicitly amortized in the MCMC iterations).
+doesn't (the search is implicitly amortized in the MCMC iterations).
 
 \paragraph{Predictive accuracy comparison with other BART packages}
 
@@ -1138,7 +1137,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\caption{\label{fig:time-all} Full version of \autoref{fig:single},
 		left panel. Time to run an iteration (one sweep through all
 		trees) of the algorithm vs.\ training set size $n$, comparing
-		\texttt{bartz} with the fastest BART implementation
+		\texttt{bartz} with the previous fastest BART implementation
 		(\texttt{dbarts}), XGBoost, and CatBoost, for
 		various settings of number of trees and number of
 		predictors~$p$, on CPU (\texttt{-M1pro}) and GPU

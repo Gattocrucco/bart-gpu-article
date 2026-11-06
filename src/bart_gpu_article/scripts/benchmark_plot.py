@@ -93,12 +93,12 @@ def get_cycler() -> Cycler:
             "#A2C8EC",
             "#FFBC79",
             "#CFCFCF",
-        ][:5],  # from style tableau-colorblind10
+        ][:6],  # from style tableau-colorblind10
         # color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'][:5],
         # color=5 * ['#c00'],
-        linestyle=["-", "--", "-.", ":", "-"],
-        marker=5 * ["."],
-        markerfacecolor=5 * ["none"],
+        linestyle=["-", "--", "-.", ":", "-", "--"],
+        marker=6 * ["."],
+        markerfacecolor=6 * ["none"],
     )
 
 
