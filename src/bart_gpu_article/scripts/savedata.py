@@ -45,7 +45,8 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         type=int,
         default=None,
         dest="q",
-        help="number of quadratic interaction terms (default: 2 if p > 2 else 0)",
+        help="width of the quadratic interaction band: each predictor can "
+        "interact with its q neighbours (even, < p; default: 2 if p > 2 else 0)",
     )
     parser.add_argument(
         "--binary",

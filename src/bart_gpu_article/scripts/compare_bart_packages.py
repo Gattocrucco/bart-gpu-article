@@ -523,7 +523,7 @@ def parse_args(argv: Sequence[str]) -> Namespace:
         "-p",
         "--high-p",
         action="store_true",
-        help="set p such that n/p=10 (p scales with n)",
+        help="set p such that n/p=20 (p scales with n)",
     )
     parser.add_argument(
         "-l",
