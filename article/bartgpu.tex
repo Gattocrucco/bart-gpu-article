@@ -634,10 +634,10 @@ conservative direction of making \texttt{dbarts} appear faster.
 
 The results with the ``low-low'' settings $p=100$, $n_\text{tree}=200$ are
 shown in \autoref{fig:single} (complete results in Figures~\ref{fig:time-all}
-and~\ref{fig:time-all-1000} in the appendix). On CPU, \texttt{dbarts} is 3--4
+and~\ref{fig:time-all-1000} in the appendix). On CPU, \texttt{dbarts} is 2--3
 times faster than \texttt{bartz} at low training set size $n$, then
 \texttt{bartz} takes over in the range $n=\num{1000}\text{--} \num{10000}$ and
-reaches a 4--5x advantage at large $n$. On GPU, \texttt{bartz} switches from a
+reaches a 5x advantage at large $n$. On GPU, \texttt{bartz} switches from a
 constant to a linear regime around $n = \num{1000000}$, highlighting the
 tree-serial bottleneck that requires parallelization along $n$ discussed in
 \autoref{sec:impl}. At high $n$, \texttt{bartz} on GPU is 100x faster than
@@ -647,7 +647,7 @@ itself on CPU, by extrapolation 500x faster than the previous state of the art
 state of the art by 5x, so the comparison is not artificially inflated by a
 slow CPU version. Considering a BART run with 2000 MCMC iterations, it would
 then be 10x slower than a single XGBoost run GPU vs.{} GPU (at same number of
-trees), while on CPU vs.{} CPU it would be 60x slower. (Note again: these
+trees), while on CPU vs.{} CPU it would be 50x slower. (Note again: these
 figures do not include predictor quantization.)
 
 BART requires 1000--2000 (traditionally 1100) iterations to produce a result,
@@ -774,7 +774,7 @@ We provide the first GPU implementation of BART as a Python package,
 some given CPU and GPU models), for a total 500x. This makes 2000 iterations of
 the BART MCMC about 10x slower than one XGBoost run (excl.\ predictor
 quantization, same number of trees), while the analogous factor on CPU would be
-60x with \texttt{bartz} and would have been 300x with \texttt{dbarts}. Beside
+50x with \texttt{bartz} and would have been 250x with \texttt{dbarts}. Beside
 the absolute speed-up, this suggests that BART may in general parallelize better
 than non-Bayesian tree learning. Our package beats the previous state of the
 art on CPU and is written in pure Python without custom GPU kernels, so this
