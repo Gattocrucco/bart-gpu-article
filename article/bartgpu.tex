@@ -962,8 +962,10 @@ relative numerical error with standard deviation $\approx \num{1e-7} \sqrt
 it would be with 16 bit floats, which might be an option to further accelerate
 the implementation.
 
-\section{Details of timing measurements}
+\section{Details of benchmark setups}
 \label{sec:timingdetails}
+
+\paragraph{Single-iteration timing}
 
 \begin{itemize}
 
@@ -1011,6 +1013,12 @@ the implementation.
 		which should speed up \texttt{dbarts} a bit.
 
 \end{itemize}
+
+\paragraph{Full runs bartz vs.{} XGBoost}
+
+``xgboost-es'' configuration: a random 10\,\% of the training split is set
+aside as validation set. Improvement on the validation set is checked every 50
+trees. On the first check that shows no improvement, XGBoost stops.
 
 \section{Complete results of the measurements in \autoref{sec:perf}}
 \label{sec:completeresults}
