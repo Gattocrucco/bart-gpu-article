@@ -937,18 +937,18 @@ where the subscript ``$-j$'' means ``all indices but for $j$''.
 
 \paragraph{Size of the tree representation}
 
-With reference to \autoref{sec:impl}: the heap representation of the trees
+With reference to \autoref{sec:impl}: when trees are not full, the fixed-size heap representation of the trees
 wastes most of the array entries. However it turns out to use about the same
 memory as other common alternatives. The maximum number of nodes is $2^{D+1} - 1$,
 so the heap size is $2^{D+1}$ (index 0 is unused). Since the nodes at maximum depth
 can only be leaves, the axis and cutpoint arrays are only $2^D$ long. Using
-32 bit integers and floats, the total size in bytes is $4 \times (2^D +
-	2^D + 2^{D+1}) = 2^{D+4}$ bytes. If $D=5$, that's 512 bytes. Consider instead
+8 bit integers for the cutpoints, 16 bit integers for the axes, and 16 bit floats for the leaves (these are the sizes used by \texttt{bartz} on GPU if $p > 256$), the total size in bytes is $2^D +
+	2\cdot2^D + 2\cdot 2^{D+1} = 7\cdot 2^D$ bytes. If $D=5$, that's 224 bytes per tree. Consider instead
 a representation in C/C++ that used separately allocated linked node objects.
-Each node contains allocation metadata (16 bytes), axis (4), cutpoint (4), leaf
-value (4), and pointers to children ($2\times 8$), for a total of 44 bytes per
-node, rounded to 48 for alignment. This matches the size of the heap if there
-are 10 nodes per tree on average, and it's also not contiguous in memory. Other
+Each node contains allocation overhead (8 bytes), axis (2), cutpoint (1), leaf
+value (2), and pointers to children ($2\times 8$), for a total of 29 bytes per
+node, rounded to 32 for alignment. This matches the size of the heap if there
+are 7 nodes per tree on average, and it's also not contiguous in memory. Other
 possible linked schemes, and those used in existing implementations, similarly
 consume a lot of memory in scaffolding; for example, \texttt{BART} uses 64 bytes
 per node. % see BART 2.9.6, files src/tree.h:100, src/tree.cpp:56
@@ -960,7 +960,7 @@ instead of recomputed, a potential problem is the accumulation of numerical
 error. The values of the residuals and their updates are similar across
 datapoints and trees, so, with 32 bit floats, each MCMC iteration adds a
 relative numerical error with standard deviation $\approx \num{1e-7} \sqrt
-	{n_\text{tree}}$. This is not a problem for all current BART applications, but
+	{n_\text{tree}}$. This is not a problem for any current BART application, but
 it would be with 16 bit floats, which might be an option to further accelerate
 the implementation.
 
