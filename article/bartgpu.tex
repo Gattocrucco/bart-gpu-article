@@ -678,18 +678,16 @@ results.}
 \end{figure}
 
 Since we re-implemented the well-known BART MCMC without substantial changes,
-we do not include a thorough assessment of the predictive performance of BART
-\citep[see instead][]{linero2018b,he_stochastic_2023}. To show at least some
+we do not include a systematic assessment of the predictive performance of BART itself
+\autocites[see for example][table~2]{linero2018b}[supplementary]{he2019}[table~4]{he_stochastic_2023}[fig.~5]{nguyen2025oblique}. To show at least some
 evidence here that our implementation is correct, we compare the out-of-sample
 prediction accuracy between our package \texttt{bartz} and the 3 most popular
 BART implementations, on data generated as \autoref{eq:dgp}. The result at
 ``low-low'' settings is in \autoref{fig:accuracy-single} (complete results in
 \autoref{sec:completeresults}); mean squared error and coverage shake out
 similar across packages as expected.
-
 Note: in \autoref{fig:accuracy-single} we show coverage of credible intervals
-for prediction of the latent mean (which we can compute using the true mean
-because the data is simulated) rather than intervals for prediction of the
+for prediction of the latent mean rather than intervals for prediction of the
 observable outcome, because targeting a confidence level on exchangeable data
 is too easy and so it would not have discriminative power.
 
@@ -1168,7 +1166,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		various settings of number of trees and number of predictors
 	$p$ on data simulated as \autoref{eq:dgp}. The test set size is always
 1000. The MSE is averaged over enough runs to reach a total training set size
-of at least 1000 for each point, capped at 10 runs.}
+of at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
 \end{figure}
 
 \begin{figure}
@@ -1183,7 +1181,7 @@ of at least 1000 for each point, capped at 10 runs.}
 		and number of predictors $p$ on data simulated as
 		\autoref{eq:dgp}. The test set size is always 1000. Coverage is
 		averaged over enough runs to reach a total training set size of
-	at least 1000 for each point, capped at 10 runs.}
+	at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
 \end{figure}
 
 \begin{table}

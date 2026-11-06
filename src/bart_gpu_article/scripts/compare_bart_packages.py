@@ -150,6 +150,16 @@ def run_bartMachine(
         num_burn_in=kw_bartMachine.pop("nskip"),
         num_iterations_after_burn_in=kw_bartMachine.pop("ndpost"),
         run_in_sample=False,
+        # KNOWN ISSUE, kept because the results in the article were produced
+        # with it: bartMachine 1.4.1.1 ignores a user-provided sig_sq_est when
+        # setting the prior. In `build_bart_machine` (R/bart_package_builders.R)
+        # only the `is.null(sig_sq_est)` branch calls `setSampleVarY`, so the
+        # Java side falls back to the sample variance of y, i.e., the error
+        # variance prior is calibrated as if sigest = sd(y_train) instead of 1
+        # like the other packages. The difference is small at large n since
+        # var(y) ~ 1, but noisy at very small n. Also note that sig_sq_est is a
+        # variance while sigest is a standard deviation: passing one for the
+        # other is correct only because sigest = 1.
         sig_sq_est=kw_bartMachine.pop("sigest"),
         # mem_cache_for_speed=False,  # set to False to use less memory
         seed=make_int_seed(key),
