@@ -621,7 +621,7 @@ We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
 CatBoost on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
 Pro with 16 GiB RAM, while the GPU is an Nvidia RTX PRO 5000 Blackwell with 48
 GiB RAM. All methods that support it are allowed to use up to 6 cores on CPU.
-For all software packages, we run their setup and pre-processing step
+For all software packages but CatBoost, we run their setup and pre-processing step
 separately, before starting the timer. This includes data pre-processing, and
 XLA compilation for \texttt{bartz} specifically. The configurations are mostly
 left to their default values. We clock a full iteration (a sweep through all
@@ -631,6 +631,7 @@ packages, each run starts fresh. While \texttt{bartz} is branchless,
 \texttt{dbarts} is not, and given the state dependence, \texttt{dbarts} timing
 is less reliable. Since we take best of three, the bias should be in the
 conservative direction of making \texttt{dbarts} appear faster.
+See \autoref{sec:timingdetails} for further details on the setup.
 
 The results with the ``low-low'' settings $p=100$, $n_\text{tree}=200$ are
 shown in \autoref{fig:single} (complete results in Figures~\ref{fig:time-all}
@@ -963,6 +964,56 @@ relative numerical error with standard deviation $\approx \num{1e-7} \sqrt
 	{n_\text{tree}}$. This is not a problem for any current BART application, but
 it would be with 16 bit floats, which might be an option to further accelerate
 the implementation.
+
+\section{Details of timing measurements}
+\label{sec:timingdetails}
+
+\begin{itemize}
+
+	\item BART packages (\texttt{dbarts} and our \texttt{bartz}) are timed
+		by letting their MCMC scaffold run 15 MCMC iterations. This is
+		repeated 3 times, and the time of the fastest round is divided
+		by 15 to get the quoted measurement.
+
+	\item XGBoost and CatBoost are timed by repeating three times a single
+		run (building all trees from scratch), then taking the fastest
+		of the three rounds.
+	
+	\item BART packages start each successive round from the MCMC state of
+		the previous one, while boosting packages always start from
+		scratch. The initial MCMC state is the default one, with empty
+		trees.
+
+	\item For all packages but CatBoost, we only time the part that's
+		repeated over trees, instead of the pre and post-processing
+		that does not depend on the number of trees. The CatBoost API
+		did not allow us to do this.
+
+	\item \texttt{dbarts} has an \texttt{n.threads} parameter to use
+		parallelization, but we found it didn't actually work and so we
+		do not enable parallelization in \texttt{dbarts}.
+
+	\item We did not find a reliable way to set the number of cores used by
+		JAX on macOS, so for \texttt{bartz} we observed rather than
+		imposed that it never uses beyond the 6 high-performance cores
+		of the M1 Pro, with average load between 2 and 3.
+
+	\item XGBoost and CatBoost both have working number-of-threads
+		settings, so we set both to 6.
+	
+	\item We claim \texttt{dbarts} is the previous fastest BART
+		implementation. This is mentioned in the literature in
+		\textcite[\S1]{he2019} and \textcite[\S D.3,
+		p.~61]{sparapani2021}, but the fact that this is still true at
+		the time of writing in 2026 is based on unreported
+		measurements.
+	
+	\item We change some \texttt{dbarts} settings to make it match
+		\texttt{bartz}: \texttt{n.cuts=255}, which should not have an
+		effect on running time, and \texttt{keepTrainingFits=FALSE},
+		which should speed up \texttt{dbarts} a bit.
+
+\end{itemize}
 
 \section{Complete results of the measurements in \autoref{sec:perf}}
 \label{sec:completeresults}
