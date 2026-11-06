@@ -773,7 +773,7 @@ some given CPU and GPU models), for a total 500x. This makes 2000 iterations of
 the BART MCMC about 10x slower than one XGBoost run (excl.\ predictor
 quantization, same number of trees), while the analogous factor on CPU would be
 50x with \texttt{bartz} and would have been 250x with \texttt{dbarts}. Beside
-the absolute speed-up, this suggests that BART may in general parallelize better
+the absolute speed-up, this suggests that BART might in general parallelize better
 than non-Bayesian tree learning. Our package beats the previous state of the
 art on CPU and is written in pure Python without custom GPU kernels, so this
 observation is not simply an artifact of comparing a good GPU implementation to
