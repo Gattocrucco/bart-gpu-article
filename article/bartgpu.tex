@@ -552,7 +552,7 @@ gradient boosting packages, on real and simulated data.
 
 We run some of the benchmarks on synthetic data to conveniently set training
 set size $n$ and number of predictors $p$ to arbitrary values while also
-controlling the signal-to-noise ratio. The data generating process (DGP) is the
+controlling the signal-to-noise ratio (SNR). The data generating process (DGP) is the
 following sparse quadratic model:
 %
 \begin{align}
@@ -562,7 +562,7 @@ following sparse quadratic model:
 	P_{jj'}                              & = \begin{cases}
 		                                         1 & \min(|j-j'|,p-|j-j'|) \le q/2, \\
 		                                         0 & \text{otherwise,}
-	                                         \end{cases}, \quad q \bmod 2 = 0, \quad q < p,                                                                  \\
+	                                         \end{cases} \quad q \bmod 2 = 0, \quad q < p,                                                                  \\
 	\mu(x) &= \sum_j
 	\frac{\sigma_\text{lin}}{\sqrt{p_\text{eff}}}
 	s_j \beta_j x_j + \sum_{jj'}
@@ -575,10 +575,10 @@ The model definition is chosen to yield these convenient moment relationships:
 %
 \begin{align}
 	E[\operatorname{Var}[Y_i|s,\beta,A]] & = \sigma^2_\text{lin} + \sigma^2_\text{quad} + \sigma^2_\text{eps}, \quad \text{(expected population variance)}   \\
-	\operatorname{Var}[Y_i] & = E[\operatorname{Var}[Y_i|s,\beta,A]] + \frac{\sigma^2_\text{quad}} {4/5 + q\,p_\text{eff}/p }, \quad \text{(prior variance)}
+	\operatorname{Var}[Y_i] & = E[\operatorname{Var}[Y_i|s,\beta,A]] + \frac{\sigma^2_\text{quad}} {4/5 + q\,p_\text{eff}/p }, \quad \text{(``prior'' variance)}
 \end{align}
 %
-and we set the variance hyperparameters as follows:
+and we set the variance hyperparameters as follows, yielding $\text{SNR}=2$ on average:
 %
 \begin{align}
 	\sigma^2_\text{lin} &= \sigma^2_\text{quad} = \sigma^2_\text{eps} = 1/3.
@@ -596,7 +596,7 @@ an unusually high setting. These combinations are not optimal for inference,
 they are simple extreme cases to explore the computational complexity of the
 algorithms. The ``low-low'' setting is the one closer to common usage. In this
 matrix, we use the DGP hyperparameters $p_\text{eff}=p$ (all predictors active)
-and $q=2$ (each predictor interacts with two other predictors).
+and $q=2$ (each predictor interacts with one other predictor on average).
 
 \paragraph{Single-iteration timing measurements}
 
