@@ -366,7 +366,7 @@ in most problems it will not reach convergence, i.e., it won't sample the tree
 structures from their actual posterior. However, the function values also
 depend on the leaves, which are re-sampled each time from scratch instead of
 updated with MH, so the quality of the MCMC samples, while degraded, may be sufficient for
-prediction; \textcite[891]{pratola2016} shows an example where, with stuck tree structures, coverage on the latent mean is 54\,\% instead of the 90\,\% target. See \textcite{shuo_tan_computational_2024} for a deeper discussion of convergence.
+prediction; \textcite[891]{pratola2016} shows an example where, with stuck tree structures, coverage on the latent mean is 54\,\% instead of the 90\,\% target. See \textcite{tan2026computationalefficiencybayesianadditive} for a deeper discussion of convergence.
 
 \section{Implementation of BART for GPU}
 \label{sec:impl}
@@ -1259,7 +1259,7 @@ asymptotic 100x.
 \section{On increasing the number of trees}
 \label{sec:moretrees}
 
-We discuss how the speed of this implementation allows to run BART with many
+Here we discuss how the speed of this implementation allows to run BART with many
 more trees than usual, which is an unexplored route in the BART literature, and
 potentially connects to various scaling behaviors of BART. Our a priori best
 guess is that, since 1) the total number of leaves in the set of trees is the
@@ -1286,10 +1286,9 @@ Nobody, that we know of, ever explored the effect of increasing the number of
 trees this much. We run BART with up to 1000 trees in
 Figures~\ref{fig:rmse-all}, \ref{fig:coverage-all} and up to 2000 in
 \autoref{tab:fullbench-full}. We've never seen more than 200 trees in the
-literature, but for the experiments in \citet[fig.~6, p.~286]{chipman2010} (300
-trees) and \citet{collins_improved_2023} (800 trees). The example notebook that
-we provide in the documentation of \texttt{bartz} runs with \num{10000} trees
-by default.
+literature, but for the experiments in \textcite[][fig.~6, p.~286, 300 trees]{chipman2010},
+\textcite[][800 trees]{collins_improved_2023}, and recently \textcite[][500 trees]{tan2026computationalefficiencybayesianadditive}. For comparison, the example notebook that
+we provide in the documentation of \texttt{bartz} runs with \num{10000} trees.
 
 The number of trees bears on the acceptance of the BART MCMC, together with the
 level of noise in the data. If the number of trees is too small, each tree has
@@ -1311,20 +1310,21 @@ authors were not considering increasing the number of trees as an option:
 
 \begin{itemize}
 
-	\item \citet[\S4.1]{ronen2022} show numerically how the convergence of the
-	      MCMC degrades at high $n$. Their experiment is already computationally
-	      demanding, and they stick to the default 200 trees, but a higher number of
-	      trees might improve the mixing.
+	\item \citet[\S4.1]{ronen2022} (the first version of
+		\cite{tan2026computationalefficiencybayesianadditive}) showed
+		numerically how the convergence of the MCMC degrades at high
+		$n$, but didn't consider increasing the number of trees. The
+		2024 revision of
+		\textcite{tan2026computationalefficiencybayesianadditive}
+		suggested increasing the number of trees, but did not seem to
+		consider it as interesting as other options, and only tried up
+		to 10~trees in experiments. Finally, the last revision formally
+		proves keeping the number of trees fixed is worse for MCMC
+		mixing, and runs experiments with up to 500 trees.
 
 	\item \citet{pratola2016} develops complex Metropolis proposals to increase
 	      acceptance in high-$n$, low-$\sigma$ datasets; a simpler alternative
 	      solution might be again to increase the number of trees.
-
-	\item \citet{tan2024} study how the MCMC convergence deteriorates increasing
-	      $n$; they also provide some evidence on the usefulness of more trees in
-	      fig.~4, p.~16, but trying only up to 10 trees at $p=10$. They seemingly
-	      consider various more complex alternatives more interesting for improving
-	      mixing than simply trying more trees.
 
 	\item \citet{lakshminarayanan_particle_2015} introduce an alternative BART
 	      MCMC algorithm, claiming that it solves scaling problems of the standard
