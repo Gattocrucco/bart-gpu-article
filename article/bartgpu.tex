@@ -733,13 +733,13 @@ $p=\numrange{5}{28}$. As expected, BART is advantaged in high-$p$ cases, at
 least with the default XGBoost settings.
 
 The BART literature claims that, without tuning, BART is better than XGBoost,
-while here it's overall a draw at best: \texttt{bartz} has the same RMSE as XGBoost on 3
+while here it's overall a draw at best: \texttt{bartz} has nearly the same RMSE as XGBoost on 3
 datasets (``electricity'', ``higgs'', ``zurich delays''), worse RMSE on two
 (``radar traffic'', ``simulated'') and better RMSE on one (``poker'').
 Interestingly, ``poker'' is the only
 almost deterministic dataset in the bunch. The difference between the
 pre-existing benchmarks and ours is size: this is the first time BART is
-systematically tested on datasets with $n$ in the millions.
+systematically benchmarked on datasets with $n$ in the millions.
 
 In this context, the main hyperparameter of both \texttt{bartz} and XGBoost is the
 number of trees. The defaults, respectively 200 and 100 trees, are a priori not
@@ -752,10 +752,10 @@ show ``life'', a measure of how long-lived the trees are in the BART MCMC, to
 check whether the MCMC is mixing well.
 
 Overall, ``bartz-2000'' appears worse than ``xgboost-es'': ``xgboost-es'' has
-RMSE better than or equal to ``bartz-2000'' on the 5 OpenML datasets, and worse
-on the simulated high-$p$ one. The 200 trees \texttt{bartz} run has average tree life at
+RMSE better than ``bartz-2000'' on the 5 OpenML datasets, and worse
+on the simulated high-$p$ one. The 200-trees \texttt{bartz} run has average tree life at
 or close to the maximum 1.0, which means the trees are almost never completely
-reset during the course of the MCMC. The 2000 trees run instead has tree lives
+reset during the course of the MCMC. The 2000-trees run instead has tree lives
 in 0.57--0.96, better but still quite high, suggesting the optimal number of
 trees for BART may be even higher on these datasets. To fit our compute budget,
 we didn't optimize the number of \texttt{bartz} trees via cross-validation, and BART has
