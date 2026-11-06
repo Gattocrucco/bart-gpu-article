@@ -128,21 +128,21 @@ predictors \citep{kapelner_prediction_2015}, variable selection
 categorical outcomes \citep{murray_log-linear_2021}, dynamic number of trees
 \citep[ch.~3]{collins_improved_2023}, categorical predictors
 \citep{deshpande_flexbart_2025}, and arbitrary conditional response distribution
-(i.e., arbitrary ``likelihood'' or ``loss'') \citep{linero_generalized_2025}.
+\autocite[i.e., arbitrary ``likelihood'' or ``loss'',][]{linero_generalized_2025}.
 Other works design models built on top of BART to handle specific needs, e.g.,
 causal inference \citep{hahn2020}, missing data problems \citep{goh_joint_2024},
 and time series \citep{huber_inference_2022,lima_minnesota_2025}. Some effort
 was directed at computational optimization: data parallelism
 \citep{pratola2014}, efficient implementations
-\citep{dorie2024,deshpande_flexbart_2025}, and Accelerated BART (XBART)
-\citep{he2019,he_stochastic_2023}.
+\citep{dorie2024,deshpande_flexbart_2025}, and Accelerated BART
+\autocite[XBART,][]{he2019,he_stochastic_2023}.
 
 The natural non-Bayesian competitors to compare BART against are popular
 gradient-boosted trees implementations like XGBoost \citep{chen2016}, LightGBM
 \citep{ke_lightgbm_2017} and CatBoost \citep{dorogush_catboost_2018}.
-\citet[table~2, p.~1105]{linero2018b} and \citet{he_stochastic_2023} include
-systematic comparisons against XGBoost showing that BART achieves higher
-predictive performance, while working well without tuning. Furthermore, as a
+BART is known to achieve higher predictive performance than XGBoost without tuning
+\autocites[see][table~2]{linero2018b}[supplementary]{he2019}[table~4]{he_stochastic_2023}[\S A]{nguyen2025oblique}. 
+Furthermore, as a
 Bayesian method, BART includes out-of-the-box uncertainty quantification, and,
 as illustrated by the many variants in the literature, it can be extended to
 larger models in a principled way, making BART a solid building block. Despite
@@ -152,16 +152,14 @@ popular regression tool amongst the ones mentioned is XGBoost, used by half of
 the surveyed data scientists. From download counts, we estimate that BART is
 $O(1000)$ times less used than XGBoost.
 
-We hypothesize the following reasons for this gap, in decreasing order of
-importance: 1) Speed: a single BART run produces an ensemble of $\mathord{\sim}
+We hypothesize two reasons for this gap.
+First, speed: a single BART run produces an ensemble of $\mathord{\sim}
 	1000$ forests, representing the posterior distribution. Accordingly, BART is
-$O(1000)$ times slower. The largest BART analysis we know of had
+$O(1000)$ times slower. The two largest BART analyses we know of had
 $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features
-\citep{pratola2020}, while XGBoost boasts ``billions of examples'' on
-its home page. 2) Classification performance: the literature lacks a systematic
-investigation of the performance of BART with binary rather than continuous
-outcomes; it could be that in this setting BART is not any better than popular
-methods. 3) Software ecosystem: even though \citet{he_stochastic_2023} showed
+\citep{pratola2020}, and $n\approx\num{7000000},p=3$ \autocite[\S7.2]{pratola2014}, while XGBoost boasts ``billions of examples'' on
+its home page and was presented with a 1.7B$\times$67 dataset \autocite[table~2]{chen2016}.
+Second, software ecosystem: even though \citet{he_stochastic_2023} showed
 how XBART is fast enough to be an alternative to non-Bayesian methods, the
 software implementation was not maintained to the quality standards of popular
 data science packages, with only recent efforts at providing a well-maintained
@@ -170,7 +168,7 @@ package \citep{herren_stochtree_2026}.
 This paper re-addresses the speed gap by re-implementing BART on GPU. While
 XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
 statistical model, our plain BART implementation is 100 times faster on GPU
-vs.\ CPU (at $n \gtrsim \num{1000000}$, on an Nvidia RTX PRO 5000 Blackwell vs.\
+vs.\ CPU (at $n \gtrsim \num{10000000}$, on an Nvidia RTX PRO 5000 Blackwell vs.\
 an Apple M1 Pro), while also surpassing the previous state of the art
 \autocite{dorie2024} by 5x on CPU, for a total 500x speed-up at large $n$. This
 makes BART fast enough to be a (still generally slower) alternative to
