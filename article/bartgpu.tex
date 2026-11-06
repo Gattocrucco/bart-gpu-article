@@ -724,9 +724,9 @@ the default four, and optimizing XGBoost data loading for GPU. See \autoref{sec:
 The results are in \autoref{tab:fullbench}.
 On the largest dataset (``higgs'',
 $n\approx\num{11000000}$), \texttt{bartz} is 46x slower than XGBoost, roughly in line
-with the large-$n$ 10x factor previously estimated from \autoref{fig:single}
-(10x at same number of trees, 20x with XGBoost's default 100 trees, 60x going from $p=100$ to $p=28$).
-On smaller datasets \texttt{bartz} is 50--90x slower, but for the simulated
+with the large-$n$ 10x factor previously estimated from \autoref{fig:single}:
+it's 10x at same number of trees, which becomes 20x with XGBoost's default 100 trees, then 70x going from $p=100$ to $p=28$.
+On smaller datasets \texttt{bartz} is 50--80x slower, except for the simulated
 dataset, where \texttt{bartz} is only 4x slower than XGBoost. What sets our simulated dataset
 apart from the others is that it has many predictors, $p=1000$ vs.{}
 $p=\numrange{5}{28}$. As expected, BART is advantaged in high-$p$ cases, at
