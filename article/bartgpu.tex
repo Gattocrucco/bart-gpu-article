@@ -1082,7 +1082,7 @@ of at least 1000 for each point, capped at 10 runs. The data is re-generated ind
 	at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
 \end{figure}
 
-\section{Details of the full runs \texttt{bartz} vs.{} XGBoost}
+\section{Details of the benchmark on datasets}
 \label{sec:fulldetails}
 
 The full results of the \texttt{bartz} vs.\ XGBoost comparison on a few
@@ -1109,15 +1109,17 @@ details.}
 \paragraph{XGBoost setup} 
 
 We use the main XGBoost Python interface, \texttt{xgboost.train()}, but
-imitating the settings of the high-level scikit-learn-like interface
-\texttt{xgboost.XGBRegressor}. The only change we make is that we move the data
+imitating the settings of the high-level scikit-learn-like interfaces
+\texttt{xgboost.XGBRegressor} and \texttt{xgboost.XGBClassifier}. The only change we make is that we move the data
 to GPU using CuPy before passing it into \texttt{xgboost.QuantileDMatrix}, and
 instead of using \texttt{cupy.array(...)} as in the XGBoost GPU tutorial, we
 use \texttt{x = cupy.empty(...); x.set(...)} because we found this to be much
-faster. With the default \texttt{XGBRegressor}-like code path, the data would
-be processed on CPU. For ``xgboost-es'', we set aside a random 10\,\% of the
-training split as validation set. Improvement on the validation set is checked
-every 50 trees. On the first check that shows no improvement, XGBoost stops.
+faster. With the default \texttt{XGBRegressor}-like code path, the predictors would
+be pre-processed on CPU. For ``xgboost-es'', we set aside a random 10\,\% of the
+training split as validation set. At every round (i.e., after generating each
+tree), XGBoost will stop if the last 50 rounds showed no loss decrease on the
+validation set, and we truncate the trees at the best one (so 50 before the last
+one produced).
 
 \paragraph{bartz setup}
 
@@ -1191,8 +1193,8 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		predictions. Reports the same information of RMSE, but ranges
 		from 0 to 1.
 
-	\item[log loss] The logarithm of the probability assigned to the
-		correct test label by the model. Posterior mean in the case of
+	\item[log loss] The logarithm of the probability (density) assigned to the
+		correct test label (outcome) by the model. Posterior mean in the case of
 		BART. For XGBoost, this is available only for classification.
 
 	\item[50\,\% coverage] BART-only. Coverage of the \SI{50}{\%} credible
