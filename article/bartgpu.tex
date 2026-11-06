@@ -684,7 +684,7 @@ evidence here that our implementation is correct, we compare the out-of-sample
 prediction accuracy between our package \texttt{bartz} and the 3 most popular
 BART implementations, on data generated as \autoref{eq:dgp}. The result at
 ``low-low'' settings is in \autoref{fig:accuracy-single} (complete results in
-\autoref{sec:completeresults}); mean squared error and coverage shake out
+\autoref{sec:compdetails}); mean squared error and coverage shake out
 similar across packages as expected.
 Note: in \autoref{fig:accuracy-single} we show coverage of credible intervals
 for prediction of the latent mean rather than intervals for prediction of the
@@ -719,10 +719,10 @@ on full runs on a few large datasets. We select 5 large datasets from OpenML,
 and simulate one large dataset from \autoref{eq:dgp} with $p_\text{eff}/p =
 0.1$ and $q=32$. We run XGBoost and \texttt{bartz} with the default settings of their
 high-level interfaces, but for using a single MCMC chain in \texttt{bartz} instead of
-the default four.
+the default four. See \autoref{sec:fulldetails} for more details.
 
-The results are in \autoref{tab:fullbench} (more details in
-\autoref{sec:completeresults}). On the largest dataset (``higgs'',
+The results are in \autoref{tab:fullbench}.
+On the largest dataset (``higgs'',
 $n\approx\num{11000000}$), \texttt{bartz} is 17x slower than XGBoost, roughly in line
 with the large-$n$ 20x factor previously estimated from \autoref{fig:single}
 (it's 20x instead of 10x because here XGBoost has the default 100 trees instead
@@ -962,10 +962,37 @@ relative numerical error with standard deviation $\approx \num{1e-7} \sqrt
 it would be with 16 bit floats, which might be an option to further accelerate
 the implementation.
 
-\section{Details of benchmark setups}
+\section{Details of single-iteration timing measurement}
 \label{sec:timingdetails}
 
-\paragraph{Single-iteration timing}
+\begin{figure}
+	\widecenter{\includempl{time-all}}
+	\caption{\label{fig:time-all} Full version of \autoref{fig:single},
+		left panel. Time to run an iteration (one sweep through all
+		trees) of the algorithm vs.\ training set size $n$, comparing
+		\texttt{bartz} with the previous fastest BART implementation
+		(\texttt{dbarts}), XGBoost, and CatBoost, for
+		various settings of number of trees and number of
+		predictors~$p$, on CPU (\texttt{-M1pro}) and GPU
+		(\texttt{-P5000}). Take into account that gradient boosting
+		requires only one iteration to produce a usable result, while
+		BART requires $O(1000)$ iterations. See
+		\autoref{fig:time-all-1000} for a version of this plot where
+		the BART running time is multiplied by 1000.}
+\end{figure}
+
+\begin{figure}
+	\widecenter{\includempl{time-all-1000}}
+	\caption{\label{fig:time-all-1000} Full version of
+		\autoref{fig:single}, right panel. Time to run 1 iteration  of
+		XGBoost, CatBoost, or 1000 iterations of
+		\texttt{bartz}, \texttt{dbarts}, vs.\ training set size $n$.
+		This is the same data as \autoref{fig:time-all}.}
+\end{figure}
+
+The single-iteration timing benchmarks for all combinations of
+$p$-$n_\text{tree}$ settings are in Figures~\ref{fig:time-all}
+and~\ref{fig:time-all-1000}. Further details on the setup:
 
 \begin{itemize}
 
@@ -1014,21 +1041,72 @@ the implementation.
 
 \end{itemize}
 
-\paragraph{Full runs bartz vs.{} XGBoost}
+\section{Details of comparison between BART packages}
+\label{sec:compdetails}
 
-``xgboost-es'' configuration: a random 10\,\% of the training split is set
-aside as validation set. Improvement on the validation set is checked every 50
-trees. On the first check that shows no improvement, XGBoost stops.
+The full results of the predictive accuracy comparison between BART packages
+are in Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. 
 
-\section{Complete results of the measurements in \autoref{sec:perf}}
-\label{sec:completeresults}
+\begin{figure}
+	\centering
+	\widecenter{\includempl{rmse-all}}
+	\caption{\label{fig:rmse-all} Full version of
+		\autoref{fig:accuracy-single}, left panel. Test set mean squared
+		error (MSE) vs.\ training set size~$n$, comparing
+		\texttt{bartz} with the most popular implementations of BART,
+		to check they yield the same predictive performance, for
+		various settings of number of trees and number of predictors
+	$p$ on data simulated as \autoref{eq:dgp}. The test set size is always
+1000. The MSE is averaged over enough runs to reach a total training set size
+of at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
+\end{figure}
 
-The speed benchmarks for all combinations of $p$-$n_\text{tree}$ settings are
-in Figures~\ref{fig:time-all} and~\ref{fig:time-all-1000}. The full results of
-the predictive accuracy comparison between BART packages are in
-Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. The full results of the
-\texttt{bartz} vs.\ XGBoost comparison on a few datasets are in
-\autoref{tab:fullbench-full}.
+\begin{figure}
+	\centering
+	\widecenter{\includempl{coverage-all}}
+	\caption{\label{fig:coverage-all} Full version of
+		\autoref{fig:accuracy-single}, right panel. Coverage of
+		\SI{50}{\%} credible intervals on the latent mean vs.\ training
+		set size~$n$, comparing \texttt{bartz} with the most popular
+		implementations of BART, to check they yield the same
+		predictive performance, for various settings of number of trees
+		and number of predictors $p$ on data simulated as
+		\autoref{eq:dgp}. The test set size is always 1000. Coverage is
+		averaged over enough runs to reach a total training set size of
+	at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
+\end{figure}
+
+\section{Details of the full runs \texttt{bartz} vs.{} XGBoost}
+\label{sec:fulldetails}
+
+The full results of the \texttt{bartz} vs.\ XGBoost comparison on a few
+datasets are in \autoref{tab:fullbench-full}.
+
+\begin{table}
+	\centering
+	\caption{\label{tab:fullbench-full} Extended version of
+		\autoref{tab:fullbench}. Comparison of \texttt{bartz} against
+		XGBoost on various large datasets, at default
+		settings, on an Nvidia RTX PRO 5000 GPU. Each run is repeated 5
+		times over different train/test splits and with different
+	random seeds. The standard deviation across repetitions is reported as
+a digit in parentheses when non-zero. See \autoref{sec:fulldetails} for
+details.}
+	\footnotesize\sffamily
+	\renewcommand{\arraystretch}{0.97}
+	% typeset the numbers as text, in the current font family
+	\sisetup{mode=text, reset-text-family=false}
+	\setlength{\tabcolsep}{3pt}
+	\widecenter{\input{fullbench-table-full}}
+\end{table}
+
+\paragraph{``xgboost-es'' configuration}
+
+A random 10\,\% of the training split is set aside as validation set.
+Improvement on the validation set is checked every 50 trees. On the first check
+that shows no improvement, XGBoost stops.
+
+\paragraph{Dataset selection and preprocessing}
 
 The datasets used in \autoref{tab:fullbench-full} were chosen by considering
 OpenML datasets with $n\ge\num{1000000}$ and then filtering out those that
@@ -1054,6 +1132,8 @@ datasets, OpenML id 354, \textcite{grinsztajn_why_2022}'s pipeline, OpenML id
 43955. The ``radar traffic'' dataset comes from public data
 \autocite{austin2019radar}. For the full details of our pre-processing, see the
 supplemental code (\autoref{sec:code}).
+
+\paragraph{Definition of measurements reported in the table}
 
 The meaning of the rows in \autoref{tab:fullbench-full} is:
 %
@@ -1137,78 +1217,6 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		total number of iterations.
 
 \end{description}
-
-\begin{figure}
-	\widecenter{\includempl{time-all}}
-	\caption{\label{fig:time-all} Full version of \autoref{fig:single},
-		left panel. Time to run an iteration (one sweep through all
-		trees) of the algorithm vs.\ training set size $n$, comparing
-		\texttt{bartz} with the previous fastest BART implementation
-		(\texttt{dbarts}), XGBoost, and CatBoost, for
-		various settings of number of trees and number of
-		predictors~$p$, on CPU (\texttt{-M1pro}) and GPU
-		(\texttt{-P5000}). Take into account that gradient boosting
-		requires only one iteration to produce a usable result, while
-		BART requires $O(1000)$ iterations. See
-		\autoref{fig:time-all-1000} for a version of this plot where
-		the BART running time is multiplied by 1000.}
-\end{figure}
-
-\begin{figure}
-	\widecenter{\includempl{time-all-1000}}
-	\caption{\label{fig:time-all-1000} Full version of
-		\autoref{fig:single}, right panel. Time to run 1 iteration  of
-		XGBoost, CatBoost, or 1000 iterations of
-		\texttt{bartz}, \texttt{dbarts}, vs.\ training set size $n$.
-		This is the same data as \autoref{fig:time-all}.}
-\end{figure}
-
-\begin{figure}
-	\centering
-	\widecenter{\includempl{rmse-all}}
-	\caption{\label{fig:rmse-all} Full version of
-		\autoref{fig:accuracy-single}, left panel. Test set mean squared
-		error (MSE) vs.\ training set size~$n$, comparing
-		\texttt{bartz} with the most popular implementations of BART,
-		to check they yield the same predictive performance, for
-		various settings of number of trees and number of predictors
-	$p$ on data simulated as \autoref{eq:dgp}. The test set size is always
-1000. The MSE is averaged over enough runs to reach a total training set size
-of at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
-\end{figure}
-
-\begin{figure}
-	\centering
-	\widecenter{\includempl{coverage-all}}
-	\caption{\label{fig:coverage-all} Full version of
-		\autoref{fig:accuracy-single}, right panel. Coverage of
-		\SI{50}{\%} credible intervals on the latent mean vs.\ training
-		set size~$n$, comparing \texttt{bartz} with the most popular
-		implementations of BART, to check they yield the same
-		predictive performance, for various settings of number of trees
-		and number of predictors $p$ on data simulated as
-		\autoref{eq:dgp}. The test set size is always 1000. Coverage is
-		averaged over enough runs to reach a total training set size of
-	at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
-\end{figure}
-
-\begin{table}
-	\centering
-	\caption{\label{tab:fullbench-full} Extended version of
-		\autoref{tab:fullbench}. Comparison of \texttt{bartz} against
-		XGBoost on various large datasets, at default
-		settings, on an Nvidia RTX PRO 5000 GPU. Each run is repeated 5
-		times over different train/test splits and with different
-	random seeds. The standard deviation across repetitions is reported as
-a digit in parentheses when non-zero. See \autoref{sec:completeresults} for
-details.}
-	\footnotesize\sffamily
-	\renewcommand{\arraystretch}{0.97}
-	% typeset the numbers as text, in the current font family
-	\sisetup{mode=text, reset-text-family=false}
-	\setlength{\tabcolsep}{3pt}
-	\widecenter{\input{fullbench-table-full}}
-\end{table}
 
 \section{Comment on the constraint of GPU memory}
 \label{sec:gpumem}
