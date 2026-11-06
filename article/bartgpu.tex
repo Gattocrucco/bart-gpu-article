@@ -574,8 +574,8 @@ following sparse quadratic model:
 The model definition is chosen to yield these convenient moment relationships:
 %
 \begin{align}
-	E[\operatorname{Var}[Y_i|s,\beta,A]] & = \sigma^2_\text{lin} + \sigma^2_\text{quad} + \sigma^2_\text{eps}, \quad \text{(expected population variance)}   \\
-	\operatorname{Var}[Y_i] & = E[\operatorname{Var}[Y_i|s,\beta,A]] + \frac{\sigma^2_\text{quad}} {4/5 + q\,p_\text{eff}/p }, \quad \text{(``prior'' variance)}
+	E[\operatorname{Var}[Y_i|s,\beta,A]] & = \sigma^2_\text{lin} + \sigma^2_\text{quad} + \sigma^2_\text{eps}, \quad \text{(expected population variance)} \label{eq:popvar}  \\
+	\operatorname{Var}[Y_i] & = E[\operatorname{Var}[Y_i|s,\beta,A]] + \frac{\sigma^2_\text{quad}} {4/5 + q\,p_\text{eff}/p }, \quad \text{(``prior'' variance)} \label{eq:priorvar}
 \end{align}
 %
 and we set the variance hyperparameters as follows, yielding $\text{SNR}=2$ on average:
@@ -1058,13 +1058,6 @@ and~\ref{fig:time-all-1000}. Further details on the setup:
 \section{Details of comparison between BART packages}
 \label{sec:compdetails}
 
-The full results of the predictive accuracy comparison between BART packages
-are in Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. Here for
-\texttt{BART} we actually use the \texttt{BART3} package
-\autocite{mcculloch2025}, its not formally released successor, and we use
-\texttt{bartz} through its compatibility interface \texttt{bartz.BART.gbart}
-meant to closely reproduce the specific settings of \texttt{BART3}.
-
 \begin{figure}
 	\centering
 	\widecenter{\includempl{rmse-all}}
@@ -1093,6 +1086,33 @@ of at least 1000 for each point, capped at 10 runs. The data is re-generated ind
 		averaged over enough runs to reach a total training set size of
 	at least 1000 for each point, capped at 10 runs. The data is re-generated independently for each method.}
 \end{figure}
+
+The full results of the predictive accuracy comparison between BART packages
+are in Figures~\ref{fig:rmse-all} and~\ref{fig:coverage-all}. Some details:
+%
+\begin{itemize}
+
+	\item Here for \texttt{BART} we actually use the \texttt{BART3} package
+		\autocite{mcculloch2025}, its not formally released successor,
+		and we use \texttt{bartz} through its compatibility interface
+		\texttt{bartz.BART.gbart} meant to closely reproduce the
+		specific settings of \texttt{BART3}.
+	
+	\item All runs are on CPU. The power-of-2 $n$ sweep terminates,
+		separately for each method, when the runner hits a 120\,s
+		timeout, so slower packages are tested up to smaller $n$.
+	
+	\item We change the settings of the packages to make them as consistent
+		as possible with each other. Some irreducible differences
+		remain, for example \texttt{bartMachine} does not allow
+		controlling the grid of splitting points.
+	
+	\item In \autoref{fig:rmse-all}, the dashed lines labelled
+		``prior/population/error var'' refer to the quantities defined
+		in Equations~\ref{eq:popvar}, \ref{eq:priorvar}, and
+		$\sigma^2_\text{eps}$ in \autoref{eq:dgp}.
+
+\end{itemize}
 
 \section{Details of the benchmark on datasets}
 \label{sec:fulldetails}
