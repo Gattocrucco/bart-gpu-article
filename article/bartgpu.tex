@@ -620,7 +620,7 @@ We pit our implementation \texttt{bartz} on CPU and GPU against \texttt{dbarts}
 (the previous fastest BART implementation), XGBoost, and
 CatBoost on data generated as \autoref{eq:dgp}. Our CPU is an Apple M1
 Pro with 16 GiB RAM, while the GPU is an Nvidia RTX PRO 5000 Blackwell with 48
-GiB RAM. All methods that support it are allowed to use up to 6 cores on CPU.
+GiB RAM. All methods but \texttt{dbarts} are allowed to use up to 6 cores on CPU.
 For all software packages, we run their setup and pre-processing step
 separately, before starting the timer. This includes data pre-processing, and
 XLA compilation for \texttt{bartz} specifically. The configurations are mostly
@@ -1011,20 +1011,23 @@ and~\ref{fig:time-all-1000}. Further details on the setup:
 		trees.
 
 	\item For all packages but CatBoost, we only time the part that's
-		repeated over trees, instead of the pre and post-processing
+		repeated over trees, instead of the pre- and post-processing
 		that does not depend on the number of trees. The CatBoost API
 		does not allow us to do this completely, though predictor
 		quantization remains separate, which is probably most of the
 		fixed overhead.
 
 	\item \texttt{dbarts} has an \texttt{n.threads} parameter to use
-		parallelization, but we found it didn't actually work and so we
-		do not enable parallelization in \texttt{dbarts}.
+		parallelization, but we found we could get at most a 1.3x
+		speed-up at $n \ge \num{10000}$ trying up to \texttt{n.threads=6}, so we do not enable
+		parallelization in \texttt{dbarts}. Similarly, we don't use
+		use the data-sharding capability of \texttt{bartz} across
+		virtual CPU devices, which can make it faster by up to 2x.
 
 	\item We did not find a reliable way to set the number of cores used by
 		JAX on macOS, so for \texttt{bartz} we observed rather than
 		imposed that it never uses beyond the 6 high-performance cores
-		of the M1 Pro, with average load between 2 and 3.
+		of the M1 Pro, with average load around 2.
 
 	\item XGBoost and CatBoost both have working number-of-threads
 		settings, so we set both to 6.
@@ -1039,7 +1042,16 @@ and~\ref{fig:time-all-1000}. Further details on the setup:
 	\item We change some \texttt{dbarts} settings to make it match
 		\texttt{bartz}: \texttt{n.cuts=255}, which should not have an
 		effect on running time, and \texttt{keepTrainingFits=FALSE},
-		which should speed up \texttt{dbarts} a bit.
+		which should speed up \texttt{dbarts} a tiny bit.
+	
+	\item We recorded the results for CatBoost on CPU, but they
+		are not displayed in the plots to reduce clutter. In these
+		benchmarks, CatBoost mostly serves as a reference to check that
+		XGBoost is working fine.
+	
+	\item Each power-of-2 $n$ sweep terminates at the first $n$ where the
+		runner hits a 120\,s timeout. When running \texttt{bartz} on
+		GPU, it can also stop if JAX throws an out-of-memory error.
 
 \end{itemize}
 
