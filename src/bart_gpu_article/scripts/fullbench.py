@@ -369,8 +369,8 @@ class Xgboost(Benchmark):
     """Xgboost harness, using the native interface as in the xgboost python
     guide (https://xgboost.readthedocs.io/en/stable/python/python_intro.html).
 
-    The data stays on cpu also with ``--device gpu``: xgboost moves it to the
-    gpu by itself, following ``device`` in the parameters.
+    The data arrives on cpu, as for bartz. With ``--device gpu``, `train` copies
+    it to the gpu before building the `QuantileDMatrix`, see `_matrix`.
     """
 
     num_boost_round: int = 100
@@ -385,11 +385,16 @@ class Xgboost(Benchmark):
         x_test: Float[np.ndarray, "p n_test"],
         cfg: Config,
     ) -> None:
-        # import here rather than in `train`, so that loading the library (and
-        # its cuda dependencies) stays out of the training time
+        # import here rather than in `train`, so that loading the libraries
+        # (and their cuda dependencies) stays out of the training time
         import xgboost
 
         self._xgb = xgboost
+        self._cupy = None
+        if cfg.platform == "gpu":
+            import cupy
+
+            self._cupy = cupy
         self._X_train = x_train.T
         self._y_train = y_train
         self._X_test = x_test.T
@@ -402,11 +407,45 @@ class Xgboost(Benchmark):
             "seed": make_int_seed(key),
         }
 
+    def _matrix(
+        self,
+        X: Float[np.ndarray, "n p"],
+        y: Float[np.ndarray, " n"],
+        ref: Any = None,
+    ) -> Any:
+        """Build a `QuantileDMatrix` on the device the booster trains on.
+
+        `QuantileDMatrix` does the quantile binning where the input data lives,
+        not where the booster trains, and later converts the bins to the gpu
+        format if needed. On the largest datasets, binning on cpu takes several
+        times longer than the 100 default boosting rounds on gpu, so copy the
+        data to the gpu first, inside the training time, like bartz does in its
+        own training.
+        """
+        cp = self._cupy
+        if cp is None:
+            return self._xgb.QuantileDMatrix(X, label=y, ref=ref)
+        # not `cupy.asarray`, which stages the copy through a newly allocated
+        # pinned buffer of the same size, an order of magnitude slower on large
+        # arrays than copying into device memory directly
+        arrays = []
+        for a in (X, y):
+            order = "F" if a.flags.f_contiguous else "C"
+            a_gpu = cp.empty(a.shape, a.dtype, order=order)
+            a_gpu.set(a)
+            arrays.append(a_gpu)
+        X_gpu, y_gpu = arrays
+        matrix = self._xgb.QuantileDMatrix(X_gpu, label=y_gpu, ref=ref)
+        # xgboost allocates outside the cupy pool, so give the raw copy back
+        # to the driver and keep only the bins on the gpu
+        del arrays, X_gpu, y_gpu
+        cp.get_default_memory_pool().free_all_blocks()
+        return matrix
+
     def train(self) -> None:
-        xgb = self._xgb
         # the quantile binning happens here, like bartz's in its own train
-        dtrain = xgb.QuantileDMatrix(self._X_train, label=self._y_train)
-        self._booster = xgb.train(self._params, dtrain, self.num_boost_round)
+        dtrain = self._matrix(self._X_train, self._y_train)
+        self._booster = self._xgb.train(self._params, dtrain, self.num_boost_round)
         self._rounds = self.num_boost_round
 
     def predict(self, y_test: Float[np.ndarray, " n_test"]) -> PredictStuff:
@@ -480,9 +519,9 @@ class XgboostES(Xgboost):
 
     def train(self) -> None:
         xgb = self._xgb
-        dtrain = xgb.QuantileDMatrix(self._X_train, label=self._y_train)
+        dtrain = self._matrix(self._X_train, self._y_train)
         # `ref` makes the validation set reuse the training quantile bins
-        dval = xgb.QuantileDMatrix(self._X_val, label=self._y_val, ref=dtrain)
+        dval = self._matrix(self._X_val, self._y_val, ref=dtrain)
         self._booster = xgb.train(
             self._params,
             dtrain,
