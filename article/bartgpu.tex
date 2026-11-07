@@ -140,8 +140,8 @@ was directed at computational optimization: data parallelism
 The natural non-Bayesian competitors to compare BART against are popular
 gradient-boosted trees implementations like XGBoost \citep{chen2016}, LightGBM
 \citep{ke_lightgbm_2017} and CatBoost \citep{dorogush_catboost_2018}.
-BART is known to achieve higher predictive performance than XGBoost without tuning
-\autocites[see][table~2]{linero2018b}[supplementary]{he2019}[table~4]{he_stochastic_2023}[\S A]{nguyen2025oblique}. 
+BART is known to achieve comparable performance to XGBoost with less tuning
+\autocites[or better performance with comparable tuning, etc., see][table~2]{linero2018b}[supplementary]{he2019}[\S A]{nguyen2025oblique}. 
 Furthermore, as a
 Bayesian method, BART includes out-of-the-box uncertainty quantification, and,
 as illustrated by the many variants in the literature, it can be extended to
@@ -159,21 +159,20 @@ $O(1000)$ times slower. The two largest BART analyses we know of had
 $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features
 \citep{pratola2020}, and $n\approx\num{7000000},p=3$ \autocite[\S7.2]{pratola2014}, while XGBoost boasts ``billions of examples'' on
 its home page and was presented with a 1.7B$\times$67 dataset \autocite[table~2]{chen2016}.
-Second, software ecosystem: even though \citet{he_stochastic_2023} showed
-how XBART is fast enough to be an alternative to non-Bayesian methods, the
+Second, software ecosystem: for example, \citet{he_stochastic_2023} showed
+how XBART was a Pareto improvement on speed-accuracy over XGBoost and Random Forests, but the
 software implementation was not maintained to the quality standards of popular
 data science packages, with only recent efforts at providing a well-maintained
 package \citep{herren_stochtree_2026}.
 
-This paper re-addresses the speed gap by re-implementing BART on GPU. While
-XBART is 20--30 times faster than BART at the cost of renouncing a well-defined
-statistical model, our plain BART implementation is 100 times faster on GPU
+This paper addresses the speed gap by re-implementing BART on GPU.
+Our plain BART implementation is 100 times faster on GPU
 vs.\ CPU (at $n \gtrsim \num{10000000}$, on an Nvidia RTX PRO 5000 Blackwell vs.\
 an Apple M1 Pro), while also surpassing the previous state of the art
 \autocite{dorie2024} by 5x on CPU, for a total 500x speed-up at large $n$. This
 makes BART fast enough to be a (still generally slower) alternative to
-non-Bayesian methods on large datasets with less methodological compromise than
-XBART, but with the inconvenience of requiring a GPU.\footnote{In a previous
+non-Bayesian methods on large datasets,
+with the inconvenience of requiring a GPU.\footnote{In a previous
 	version of this manuscript, we claimed running time ``comparable'' to
 XGBoost, and a 200x speed-up vs.\ CPU. We moderated these claims as both XGBoost
 and our CPU implementation became faster in the intervening time before this
