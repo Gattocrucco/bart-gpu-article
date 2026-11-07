@@ -1296,8 +1296,8 @@ the fundamental constraint.
 \section{On increasing the number of trees}
 \label{sec:moretrees}
 
-Here we discuss how the speed of this implementation allows to run BART with many
-more trees than usual, which is an unexplored route in the BART literature, and
+Here we discuss how the speed of this implementation allows running BART with many
+more trees than usual, which is a little-explored route in the BART literature, and
 potentially connects to various scaling behaviors of BART. Our a priori best
 guess is that, since 1) the total number of leaves in the set of trees is the
 effective number of parameters of the regression model, 2) the optimal number
@@ -1319,14 +1319,6 @@ consider the \texttt{bartz} vs.{} XGBoost comparison in \autoref{tab:fullbench-f
 ``bartz-2000'' (2000 trees) dominates ``bartz'' (200 trees) on RMSE and MCMC
 mixing (``empty trees'', ``acceptance'', ``tree life'').
 
-Nobody, that we know of, ever explored the effect of increasing the number of
-trees this much. We run BART with up to 1000 trees in
-Figures~\ref{fig:rmse-all}, \ref{fig:coverage-all} and up to 2000 in
-\autoref{tab:fullbench-full}. We've never seen more than 200 trees in the
-literature, but for the experiments in \textcite[][fig.~6, p.~286, 300 trees]{chipman2010},
-\textcite[][800 trees]{collins_improved_2023}, and recently \textcite[][500 trees]{tan2026computationalefficiencybayesianadditive}. For comparison, the example notebook that
-we provide in the documentation of \texttt{bartz} runs with \num{10000} trees.
-
 The number of trees bears on the acceptance of the BART MCMC, together with the
 level of noise in the data. If the number of trees is too small, each tree has
 to grow deep to do its part in explaining the patterns in the data, and the MCMC
@@ -1342,21 +1334,37 @@ disfavored, so the MCMC gets stuck. Thus the signal/noise ratio (SNR) is an
 important influence on the optimal number of trees; high SNR datasets may need
 more trees.
 
-Specifically, consider these examples from the literature, where it appears the
+\textcite[pp.~61--64]{collins_improved_2023} reaches similar conclusions: the
+number of trees should in general increase with number of datapoints, SNR, and
+complexity of the signal.
+
+Our work pushes the number of trees farther past everything else we found in
+the literature, which mostly uses the common 200 trees default. We run BART with up to 1024 trees in
+Figures~\ref{fig:rmse-all}, \ref{fig:coverage-all} and up to 2000 in
+\autoref{tab:fullbench-full}. The example notebook we provide with the
+documentation of \texttt{bartz} uses \num{10000} trees.
+The other works using the next highest number of trees, that we know of,
+are \textcites
+[][\S5.3, p.~289, 800 trees]{chipman2010}
+[][\S7.3, p.~849, 500 trees]{pratola2014}
+[][Fig.~3.4, p.~57, 800 trees]{collins_improved_2023}
+[][Fig.~6, p.~26, 500 trees]{tan2026computationalefficiencybayesianadditive}.
+
+Consider these examples from the literature, where it appears the
 authors were not considering increasing the number of trees as an option:
 
 \begin{itemize}
 
-	\item \citet[\S4.1]{ronen2022} (the first version of
+	\item \citet[\S4.1]{ronen2022} (the precursor of
 		\cite{tan2026computationalefficiencybayesianadditive}) showed
 		numerically how the convergence of the MCMC degrades at high
 		$n$, but didn't consider increasing the number of trees. The
-		2024 revision of
+		2024 version of
 		\textcite{tan2026computationalefficiencybayesianadditive}
 		suggested increasing the number of trees, but did not seem to
 		consider it as interesting as other options, and only tried up
-		to 10~trees in experiments. Finally, the last revision formally
-		proves keeping the number of trees fixed is worse for MCMC
+		to 10~trees in experiments on varying the number of trees. Then at last, the 2026 revision
+		frames increasing the number of trees as an important knob for MCMC
 		mixing, and runs experiments with up to 500 trees.
 
 	\item \citet{pratola2016} develops complex Metropolis proposals to increase
@@ -1364,18 +1372,15 @@ authors were not considering increasing the number of trees as an option:
 	      solution might be again to increase the number of trees.
 
 	\item \citet{lakshminarayanan_particle_2015} introduce an alternative BART
-	      MCMC algorithm, claiming that it solves scaling problems of the standard
+	      MCMC algorithm, claiming that it addresses scaling problems of the standard
 	      BART MCMC. However, in their empirical comparisons (\S4), to fit a
 	      high-dimensional dataset, they set the BART hyperparameters to make the
-	      trees grow very deep, instead of simply increasing the number of trees.
-
-	\item \citet[\S2, p.~8]{yannotty_combining_2026} express the worry that
-		on large datasets the trees will have to grow deep. In our
-		experience, and as shown in \autoref{tab:fullbench-full} row
-		``leaves'', the trees become immediately shallower when their
-		number is increased.
+	      trees grow very deep, or keep the number of trees fixed on complex datasets, instead of simply increasing the number of trees.
 
 \end{itemize}
+%
+We hypothesize that the inconvenience of running BART with many trees, simply
+due to running time, may have slowed progress in this area.
 
 \section{Code and data}
 \label{sec:code}
