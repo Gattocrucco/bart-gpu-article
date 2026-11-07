@@ -47,12 +47,12 @@
 	\item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
 	\item[] Answer: \answerNo{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
 	\item[] Justification: To keep the crowded plots easier to parse, and for
-	      some benchmarks to reduce the running time, there are no uncertainties.
-	      Since all results are repeated measurements across a fine grid, we think
-	      that glancing the variability in the trend lines is sufficient to understand
+	      some benchmarks to reduce the running time, there are no uncertainties on data reported only in plots.
+	      Since these results are repeated measurements across a fine grid, we think
+	      that glancing at the variability in the trend lines is sufficient to understand
 	      the statistical accuracy of the measurements. For what concerns systematic
 	      biases, we briefly commented about them in the main text and explained the
-	      methodology.
+	      methodology. The data reported in tables comes with uncertainty instead.
 
 	\item {\bf Experiments compute resources}
 	\item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
@@ -104,6 +104,6 @@
 	\item {\bf Declaration of LLM usage}
 	\item[] Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research? Note that if the LLM is used only for writing, editing, or formatting purposes and does \emph{not} impact the core methodology, scientific rigor, or originality of the research, declaration is not required.
 	\item[] Answer: \answerNA{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
-	\item[] Justification: Nothing more to say.
+	\item[] Justification: Various Claude models greatly helped in revising and improving this work, but the first two versions came out before AIs were good enough to help in a substantial way (most of the work was done in spring 2024), so the bulk of the work is human-only.
 
 \end{enumerate}

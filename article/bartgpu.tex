@@ -711,7 +711,7 @@ is too easy and so it would not have discriminative power.
 
 Finally, having shown that our BART implementation is the fastest on large datasets,
 we compare \texttt{bartz} against XGBoost on GPU
-on full runs on a few large datasets. We select 5 large datasets from OpenML,
+on full runs on a few large datasets. We select 5 large datasets from OpenML \autocite{OpenML2025},
 and simulate one large dataset from \autoref{eq:dgp} with $p_\text{eff}/p =
 0.1$ and $q=32$. We run XGBoost and \texttt{bartz} with the default settings of their
 high-level interfaces (no cross-validation), but for using a single MCMC chain in \texttt{bartz} instead of
@@ -1139,7 +1139,7 @@ details.}
 We use the main XGBoost Python interface, \texttt{xgboost.train()}, but
 imitating the settings of the high-level scikit-learn-like interfaces
 \texttt{xgboost.XGBRegressor} and \texttt{xgboost.XGBClassifier}. The only change we make is that we move the data
-to GPU using CuPy before passing it into \texttt{xgboost.QuantileDMatrix}, and
+to GPU using CuPy \autocite{cupy_learningsys2017} before passing it into \texttt{xgboost.QuantileDMatrix}, and
 instead of using \texttt{cupy.array(...)} as in the XGBoost GPU tutorial, we
 use \texttt{x = cupy.empty(...); x.set(...)} because we found this to be much
 faster. With the default \texttt{XGBRegressor}-like code path, the predictors would
@@ -1179,7 +1179,7 @@ interpolations rather than forward predictions.
 We mostly followed the pre-processing of the paper introducing the dataset
 where we found one: \textcite{grinsztajn_why_2022} for ``poker'' and ``zurich
 delays'', \textcite{baldi_searching_2014} for ``higgs''. We presume the full
-chain of provenance of our ``poker'' dataset is: UCI Poker Hand dataset, LibSVM
+chain of provenance of our ``poker'' dataset is: UCI Poker Hand dataset \autocite{poker_hand_158}, LibSVM
 datasets, OpenML id 354, \textcite{grinsztajn_why_2022}'s pipeline, OpenML id
 43955. The ``radar traffic'' dataset comes from public data
 \autocite{austin2019radar}; ``electricity'' comes from \textcite{godahewa_2021_4659727}. For the full details of our pre-processing, see the
@@ -1384,7 +1384,13 @@ due to running time, may have slowed progress in this area.
 \label{sec:code}
 
 The results in this paper are fully reproducible with
-\redactedcite{\citet{petrillo2025}}.
+\redactedcite{\citet{petrillo2025}}. We use the following open-source software
+which is not mentioned elsewhere in the paper: Matplotlib \autocite{matplotlib},
+SciPy \autocite{scipy}, polars \autocite{ritchie_vink_2026_19699949},
+pandas \autocite{mckinney-proc-scipy-2010}, R \autocite{erre}, rpy2
+\autocite{gautier2026rpy2}.
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -120,3 +120,7 @@ This one does not have a cpu variant, it would be too slow.
 ## Troubleshooting
 
 If there is a problem, [open a new issue on github](https://github.com/Gattocrucco/bart-gpu-article/issues).
+
+## License
+
+The code in this repository is released under the MIT license. This license does not apply to `article/` which is licensed according to its arxiv copy, and conference article templates that have their own licenses.
