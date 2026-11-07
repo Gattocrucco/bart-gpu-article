@@ -478,7 +478,7 @@ Metropolis steps. The original BART picks at random amongst 4 types of moves:
 GROW (add two children to a leaf node), PRUNE (remove two sibling leaves), SWAP
 (permute the parameters of two directly connected decision nodes), and CHANGE
 (change the parameters of a decision node) \citep[\S5.1, p.~940]{chipman1998}.
-Following the implementation of the \texttt{BART} package, we use only GROW and
+Following the implementation of the \texttt{BART} package, and against the advice of \textcite[106]{daniels2023}, we use only GROW and
 PRUNE for simplicity \citep[\S C, p.~57]{sparapani2021}. To stay branchless, we
 have to execute all the calculations for both moves, even if we end up using
 only one. However, GROW and PRUNE have the nice properties that one is the inverse of the other, the proposed moves can not
