@@ -769,7 +769,7 @@ We provide the first GPU implementation of BART as a Python package,
 (\texttt{dbarts}) on CPU by 5x, and achieve a further 100x speed-up on GPU (with
 some given CPU and GPU models), for a total 500x. This makes 2000 iterations of
 the BART MCMC about 10x slower than one XGBoost run (excl.\ predictor
-quantization, same number of trees), while the analogous factor on CPU would be
+quantization, same number of trees, at $p=100$), while the analogous factor on CPU would be
 50x with \texttt{bartz} and would have been 250x with \texttt{dbarts}. Beside
 the absolute speed-up, this suggests that BART might in general parallelize better
 than non-Bayesian tree learning. Our package beats the previous state of the
@@ -777,8 +777,8 @@ art on CPU and is written in pure Python without custom GPU kernels, so this
 observation is not simply an artifact of comparing a good GPU implementation to
 a poor CPU one.
 
-XBART, the previous most successful attempt at substantially accelerating BART,
-achieved a 20--30x speed-up (at given implementation quality), but at the cost
+XBART, the previous most successful attempt at accelerating BART,
+achieved at most a 20--30x speed-up at the time \autocite[table~4, p.~560]{he_stochastic_2023}, but at the cost
 of changing the algorithm and not being an implementation of BART but rather a
 BART-inspired non-Bayesian algorithm. Note again with ``previous state of the
 art'' above we refer to the BART implementation \texttt{dbarts} rather than
@@ -786,11 +786,11 @@ XBART.
 
 Our speed-up significantly increases the scope of application of BART. While our
 ambition would ultimately be to make Bayesian methods as common as non-Bayesian
-methods in this class, we note that raw speed is not sufficient, as shown by
-the surprisingly shy adoption of XBART: popular gradient boosting libraries are
+methods in this class, we note that raw speed is not sufficient:
+popular gradient boosting libraries are
 feature-packed high-quality software packages, not matched by the academic
 implementations of BART, including ours. Furthermore, BART has no fast
-method to infer the number of trees. Because of this, we were not able to prove
+method to infer the number of trees. Because of this, we were not able to show
 a general BART advantage on RMSE on large ($n$ in the millions) datasets. It's
 plausible the known BART performance on small datasets would generalize to
 large ones, but it currently stands as an open question, and suggests the most
@@ -804,9 +804,9 @@ GPU implementation could push BART up along $p$ (number of predictors) rather
 than $n$ (number of datapoints). Alas, our implementation runs out of GPU
 memory when the number of predictors $p$ or the number of trees are high enough
 (see \autoref{sec:gpumem}). While the limitation on the number of trees could
-be avoided with a compromise on speed by removing caches, the algorithm
+be avoided with a compromise on speed by removing the leaf indices cache, the algorithm
 requires random access to the predictors, so all of them must reside in memory.
-For the same reason, data parallelism is possible only sharding $n$, not $p$,
+For the same reason, data parallelism is worthwhile only sharding $n$, not $p$,
 thus, if multiple GPUs were employed to keep a very-high-$p$ predictors matrix
 in memory, each GPU would end up with a small $n$, blocking effective
 parallelization.
