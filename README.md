@@ -38,7 +38,7 @@ uv run fullbench-plot --help
 
 ### Hardware setup
 
-Running the GPU benchmarks requires a NVIDIA GPU. Virtual machines with GPUs can be conveniently rented in places like https://cloud.vast.ai starting from about 0.10 $/hour. The GPU used in the article is an RTX PRO 5000 which currently costs about 0.70 $/hour and has 48 GiB RAM.
+Running the GPU benchmarks requires a NVIDIA GPU. Virtual machines with GPUs can be conveniently rented in places like https://cloud.vast.ai starting from about 0.10 bucks/hour. The GPU used in the article is an RTX PRO 5000 which currently costs about 0.70 bucks/hour and has 48 GiB RAM.
 
 Other things can be run on any computer with at least 16 GiB of RAM.
 
