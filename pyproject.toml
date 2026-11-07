@@ -1,7 +1,7 @@
 [project]
 name = "bart-gpu-article"
 version = "0.1.0"
-description = "Add your description here"
+description = "Code to reproduce 'Very Fast BART on GPU'"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
