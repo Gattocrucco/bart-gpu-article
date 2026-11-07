@@ -1156,7 +1156,11 @@ one produced).
 We use the high-level interface \texttt{bartz.Bart}, changing only the number
 of chains from the default 4 to 1. With small datasets, using more chains would
 be near-free on GPU due to parallelization, while with the large datasets of
-this benchmark, the dataset itself already saturates the GPU.
+this benchmark, the dataset itself already saturates the GPU. There is possibly
+one unfair advantage compared to the XGBoost setup, in that CUDA initialization
+probably happens outside the timed region for \texttt{bartz}, but inside it for
+XGBoost. This may be relevant on smaller datasets without early stopping, where
+the XGBoost training time is below 1\,s. We haven't investigated further.
 
 \paragraph{Dataset selection and preprocessing}
 
@@ -1166,11 +1170,9 @@ appeared low quality on a subjective judgement, were not apt for a
 \texttt{bartz} run without nontrivial pre-processing (mainly, \texttt{bartz}
 does not support missing predictors and high-cardinality categorical
 predictors), or were not apt for a simple generic out-of-sample predictive
-comparison. The selection of these datasets was finalized before running the
-benchmark and looking at the results. The dataset simulated from
-\autoref{eq:dgp} was coarsely tuned to have an out-of-sample MSE around 0.5 on
-\texttt{bartz}, without checking the corresponding XGBoost accuracy to
-choose the hyperparameters.
+comparison. A pre-selection of 27 datasets was finalized before preparing the
+benchmark. Further pre-processing and inclusion decisions were made based on general considerations like signal-to-noise ratio without taking into account \texttt{bartz} vs.{} XGBoost comparisons, except for the dataset simulated from
+\autoref{eq:dgp}, which was added to have at least one high-$p$ dataset, with full awareness that BART would probably do better because of that, though only a priori. The hyperparameters of the DGP were coarsely tuned to have an out-of-sample MSE around 0.5.
 
 The train/test split is random and does not take into account temporal ordering
 on time series data. Thus, on datasets with a time axis, predictions are
@@ -1182,7 +1184,7 @@ delays'', \textcite{baldi_searching_2014} for ``higgs''. We presume the full
 chain of provenance of our ``poker'' dataset is: UCI Poker Hand dataset, LibSVM
 datasets, OpenML id 354, \textcite{grinsztajn_why_2022}'s pipeline, OpenML id
 43955. The ``radar traffic'' dataset comes from public data
-\autocite{austin2019radar}. For the full details of our pre-processing, see the
+\autocite{austin2019radar}; ``electricity'' comes from \textcite{godahewa_2021_4659727}. For the full details of our pre-processing, see the
 supplemental code (\autoref{sec:code}).
 
 \paragraph{Definition of measurements reported in the table}
@@ -1211,7 +1213,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\item[test sdev] The standard deviation of the test set. Always close
 		to 1.000 for continuous outcomes because they are standardized,
 		while for binary outcomes it indicates balancing. Both our
-		binary datasets are perfectly balanced.
+		binary datasets are balanced.
 
 	\item[RMSE] The root mean squared error of out-of-sample predictions on
 		the test set. The MSE is averaged over 5 independent train/test
@@ -1220,12 +1222,12 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\item[error sdev] The posterior RMS error standard deviation of BART.
 
 	\item[MSE/test var] Fraction of the variance unexplained by the
-		predictions. Reports the same information of RMSE, but ranges
-		from 0 to 1.
+		predictions. Reports the same information as the RMSE, but
+		ranges from 0 to 1.
 
-	\item[log loss] The logarithm of the probability (density) assigned to the
-		correct test label (outcome) by the model. Posterior mean in the case of
-		BART. For XGBoost, this is available only for classification.
+	\item[log loss] The negative logarithm of the probability (density) assigned to the
+		correct test label (outcome) by the model, averaged over the test set.
+		For XGBoost, this is available only for classification.
 
 	\item[50\,\% coverage] BART-only. Coverage of the \SI{50}{\%} credible
 		intervals on test outcomes, when outcomes are continuous.
@@ -1234,20 +1236,21 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 		split, starting cold. Each method handles copying the data from
 		CPU to GPU and pre-processing it, included in this time.
 	
-	\item[cold predict] The time taken to compute predictions given a
+	\item[cold predict] The time taken to compute predictions and scores given a
 		trained model, on the first prediction after training.
 
-	\item[warm predict] The time taken to compute predictions given a
+	\item[warm predict] The time taken to compute predictions and scores given a
 		trained model, re-computing them a second time.
 
 	\item[peak GPU mem.] Maximum GPU memory used during a full run
 		(loading, training, prediction, scoring). For XGBoost, this
 		measures the total allocated GPU memory. This is not possible
-		with \texttt{bartz} because JAX aggressively pre-allocates memory and
-		does not relinquish it, so we query the total size of allocated
-		JAX arrays instead. This is an underestimate by probably about
-		\SI{1}{GB} because there is additional memory usage beyond the
-		arrays.
+		with \texttt{bartz} because JAX aggressively keeps memory ownership,
+		so we query the JAX allocator instead.
+		This is an underestimate by probably about
+		\SI{1}{GB} because there is additional memory usage beyond JAX
+		arrays. The figures for \texttt{bartz} have no variation because
+		they were measured on a single run instead of 5 times.
 
 	\item[trees] The number of trees.
 
@@ -1257,9 +1260,9 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 
 	\item[empty trees] BART-only. The fraction of empty (i.e., root-only,
 		depth-0) trees across post-burn-in MCMC samples, reported as a
-		fraction to the a-priori expected fraction which is an upper
-		bound (the data can only push the trees to grow more than the
-		prior, not less).
+		fraction to the a-priori expected fraction. This fraction is
+		typically below 1, but it can go above 1 if there are more
+		trees than needed to explain the signal.
 	
 	\item[acceptance] BART-only. The average acceptance of the tree
 		structure Metropolis-Hastings in the post-burn-in MCMC samples.
