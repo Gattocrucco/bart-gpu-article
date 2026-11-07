@@ -375,6 +375,9 @@ def run_slave(cfg: Config) -> None:
             prior_var=train.prior_var.item(),
             pop_var=train.pop_var.item(),
             eps_var=train.eps_var.item(),
+            # KNOWN ISSUE, kept because the saved results were produced with
+            # it: this is the time of the last repetition, not the mean `time`
+            # over the repetitions that is printed above.
             time=timer.time,
             **means,
             **sdevs,
