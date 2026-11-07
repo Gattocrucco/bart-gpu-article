@@ -139,7 +139,7 @@ was directed at computational optimization: data parallelism
 
 The natural non-Bayesian competitors to compare BART against are popular
 gradient-boosted trees implementations like XGBoost \citep{chen2016}, LightGBM
-\citep{ke_lightgbm_2017} and CatBoost \citep{dorogush_catboost_2018}.
+\citep{ke_lightgbm_2017} and CatBoost \citep{prokhorenkova_catboost_2018}.
 BART is known to achieve comparable performance to XGBoost with less tuning
 \autocites[or better performance with comparable tuning, etc., see][table~2]{linero2018b}[supplementary]{he2019}[\S A]{nguyen2025oblique}. 
 Furthermore, as a
@@ -160,10 +160,10 @@ $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features
 \citep{pratola2020}, and $n\approx\num{7000000},p=3$ \autocite[\S7.2]{pratola2014}, while XGBoost boasts ``billions of examples'' on
 its home page and was presented with a 1.7B$\times$67 dataset \autocite[table~2]{chen2016}.
 Second, software ecosystem: for example, \citet{he_stochastic_2023} showed
-how XBART was a Pareto improvement on speed-accuracy over XGBoost and Random Forests, but the
+that XBART was competitive in speed and accuracy with cross-validated XGBoost and Random Forests, but then their
 software implementation was not maintained to the quality standards of popular
 data science packages, with only recent efforts at providing a well-maintained
-package \citep{herren_stochtree_2026}.
+XBART implementation \citep{herren_stochtree_2026}.
 
 This paper addresses the speed gap by re-implementing BART on GPU.
 Our plain BART implementation is 100 times faster on GPU
@@ -173,12 +173,11 @@ an Apple M1 Pro), while also surpassing the previous state of the art
 makes BART fast enough to be a (still generally slower) alternative to
 non-Bayesian methods on large datasets,
 with the inconvenience of requiring a GPU.\footnote{In a previous
-	version of this manuscript, we claimed running time ``comparable'' to
-XGBoost, and a 200x speed-up vs.\ CPU. We moderated these claims as both XGBoost
-and our CPU implementation became faster in the intervening time before this
-revision, more than the improvement in our GPU implementation.} While XGBoost
-\& co.{} have their own GPU implementations as well, we find that BART achieves
-higher speed-up with parallelization. We provide a Python package,
+	version of this manuscript, we claimed running time ``competitive with''
+XGBoost, and a 200x speed-up vs.\ CPU. We moderated these claims as our CPU implementation improved more than our GPU one in the intervening time before this revision, and we fixed issues with the way we benchmarked XGBoost.}
+While XGBoost
+\& co.{} have their own GPU implementations as well, we find that our BART implementation gains more from GPU than XGBoost.
+We provide a Python package,
 \texttt{bartz} \redactedcite{\citep{gattocrucco_2026_23932737}}. In
 \autoref{sec:bart} we summarize the background knowledge on BART, then in
 \autoref{sec:impl} we describe how to adapt BART to run on GPU, and in

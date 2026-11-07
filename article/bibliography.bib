@@ -1308,8 +1308,6 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 
 @misc{lima_minnesota_2025,
 	title = {Minnesota {BART}},
-	url = {http://arxiv.org/abs/2503.13759},
-	doi = {10.48550/arXiv.2503.13759},
 	abstract = {Vector autoregression ({VAR}) models are widely used for forecasting and macroeconomic analysis, yet they remain limited by their reliance on a linear parameterization. Recent research has introduced nonparametric alternatives, such as Bayesian additive regression trees ({BART}), which provide flexibility without strong parametric assumptions. However, existing {BART}-based frameworks do not account for time dependency or allow for sparse estimation in the construction of regression tree priors, leading to noisy and inefficient high-dimensional representations. This paper introduces a sparsity-inducing Dirichlet hyperprior on the regression tree's splitting probabilities, allowing for automatic variable selection and high-dimensional {VARs}. Additionally, we propose a structured shrinkage prior that decreases the probability of splitting on higher-order lags, aligning with the Minnesota prior's principles. Empirical results demonstrate that our approach improves predictive accuracy over the baseline {BART} prior and Bayesian {VAR} ({BVAR}), particularly in capturing time-dependent relationships and enhancing density forecasts. These findings highlight the potential of developing domain-specific nonparametric methods in macroeconomic forecasting.},
 	number = {{arXiv}:2503.13759},
 	publisher = {{arXiv}},
@@ -1324,8 +1322,6 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 
 @misc{goh_joint_2024,
 	title = {Joint Models for Handling Non-Ignorable Missing Data using Bayesian Additive Regression Trees: Application to Leaf Photosynthetic Traits Data},
-	url = {http://arxiv.org/abs/2412.14946},
-	doi = {10.48550/arXiv.2412.14946},
 	shorttitle = {Joint Models for Handling Non-Ignorable Missing Data using Bayesian Additive Regression Trees},
 	abstract = {Dealing with missing data poses signiﬁcant challenges in predictive analysis, often leading to biased conclusions when oversimpliﬁed assumptions about the missing data process are made. In cases where the data are missing not at random ({MNAR}), jointly modeling the data and missing data indicators is essential. Motivated by a real data application with partially missing multivariate outcomes related to leaf photosynthetic traits and several environmental covariates, we propose two methods under a selection model framework for handling data with missingness in the response variables suitable for recovering various missingness mechanisms. Both approaches use a multivariate extension of Bayesian additive regression trees ({BART}) to ﬂexibly model the outcomes. The ﬁrst approach simultaneously uses a probit regression model to jointly model the missingness. In scenarios where the relationship between the missingness and the data is more complex or non-linear, we propose a second approach using a probit {BART} model to characterize the missing data process, thereby employing two {BART} models simultaneously. Both models also e!ectively handle ignorable covariate missingness. The e”cacy of both models compared to existing missing data approaches is demonstrated through extensive simulations, in both univariate and multivariate settings, and through the aforementioned application to the leaf photosynthetic trait data.},
 	number = {{arXiv}:2412.14946},
@@ -1352,11 +1348,8 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	file = {Full Text PDF:/Users/giacomo/Zotero/storage/Q56MN3UL/Ke et al. - 2017 - LightGBM A Highly Efficient Gradient Boosting Decision Tree.pdf:application/pdf},
 }
 
-
 @misc{dorogush_catboost_2018,
 	title = {{CatBoost}: gradient boosting with categorical features support},
-	url = {http://arxiv.org/abs/1810.11363},
-	doi = {10.48550/arXiv.1810.11363},
 	shorttitle = {{CatBoost}},
 	abstract = {In this paper we present {CatBoost}, a new open-sourced gradient boosting library that successfully handles categorical features and outperforms existing publicly available implementations of gradient boosting in terms of quality on a set of popular publicly available datasets. The library has a {GPU} implementation of learning algorithm and a {CPU} implementation of scoring algorithm, which are significantly faster than other gradient boosting libraries on ensembles of similar sizes.},
 	number = {{arXiv}:1810.11363},
@@ -1365,10 +1358,23 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	date = {2018-10-24},
 	eprinttype = {arxiv},
 	eprint = {1810.11363 [cs]},
-	keywords = {Computer Science - Machine Learning, Computer Science - Mathematical Software, Statistics - Machine Learning},
+	keywords = {Computer Science - Machine Learning, Statistics - Machine Learning, Computer Science - Mathematical Software},
 	file = {Preprint PDF:/Users/giacomo/Zotero/storage/HQR4N2IU/Dorogush et al. - 2018 - CatBoost gradient boosting with categorical features support.pdf:application/pdf;Snapshot:/Users/giacomo/Zotero/storage/GQ8ZWPXT/1810.html:text/html},
 }
 
+@inproceedings{prokhorenkova_catboost_2018,
+	title = {{CatBoost}: unbiased boosting with categorical features},
+	volume = {31},
+	url = {https://proceedings.neurips.cc/paper_files/paper/2018/hash/14491b756b3a51daac41c24863285549-Abstract.html},
+	shorttitle = {{CatBoost}},
+	abstract = {This paper presents the key algorithmic techniques behind {CatBoost}, a new gradient boosting toolkit. Their combination leads to {CatBoost} outperforming other publicly available boosting implementations in terms of quality on a variety of datasets. Two critical algorithmic advances introduced in {CatBoost} are the implementation of ordered boosting, a permutation-driven alternative to the classic algorithm, and an innovative algorithm for processing categorical features. Both techniques were created to fight a prediction shift caused by a special kind of target leakage present in all currently existing implementations of gradient boosting algorithms. In this paper, we provide a detailed analysis of this problem and demonstrate that proposed algorithms solve it effectively, leading to excellent empirical results.},
+	booktitle = {Advances in Neural Information Processing Systems},
+	publisher = {Curran Associates, Inc.},
+	author = {Prokhorenkova, Liudmila and Gusev, Gleb and Vorobev, Aleksandr and Dorogush, Anna Veronika and Gulin, Andrey},
+	urldate = {2026-11-07},
+	date = {2018},
+	file = {Full Text PDF:/Users/giacomo/Zotero/storage/4VPFJBGG/Prokhorenkova et al. - 2018 - CatBoost unbiased boosting with categorical features.pdf:application/pdf},
+}
 
 @article{murray_log-linear_2021,
 	title = {Log-Linear Bayesian Additive Regression Trees for Multinomial Logistic and Count Regression Models},
@@ -1388,8 +1394,6 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 
 @misc{herren_stochtree_2026,
 	title = {{StochTree}: {BART}-based modeling in R and Python},
-	url = {http://arxiv.org/abs/2512.12051},
-	doi = {10.48550/arXiv.2512.12051},
 	shorttitle = {{StochTree}},
 	abstract = {stochtree is a C++ library for Bayesian tree ensemble models such as {BART} and Bayesian Causal Forests ({BCF}), as well as user-specified variations. Unlike previous {BART} packages, stochtree provides bindings to both R and Python for full interoperability. stochtree boasts a more comprehensive range of models relative to previous packages, including heteroskedastic forests, random effects, and treed linear models. Additionally, stochtree offers flexible handling of model fits: the ability to save model fits, reinitialize models from existing fits (facilitating improved model initialization heuristics), and pass fits between R and Python. On both platforms, stochtree exposes lower-level functionality, allowing users to specify models incorporating Bayesian tree ensembles without needing to modify C++ code. We illustrate the use of stochtree in three settings: i) straightfoward applications of existing models such as {BART} and {BCF}, ii) models that include more sophisticated components like heteroskedasticity and leaf-wise regression models, and iii) as a component of custom {MCMC} routines to fit nonstandard tree ensemble models.},
 	number = {{arXiv}:2512.12051},
