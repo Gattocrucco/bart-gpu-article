@@ -142,6 +142,7 @@
     volume = {7},
     number = {1},
     author = {Hill, Jennifer L. and Linero, Antonio R. and Murray, Jared S.},
+    pages = {251--278},
     addendum = {A recent comprehensive review.},
     year = {2020}
 }
@@ -199,7 +200,9 @@
 }
 
 @misc{ronen2022,
-    doi = {10.48550/ARXIV.2210.09352},
+    eprint = {2210.09352},
+    archivePrefix = {arXiv},
+    primaryClass = {stat.ML},
     url = {https://arxiv.org/abs/2210.09352},
     author = {Ronen, Omer and Saarinen, Theo and Tan, Yan Shuo and Duncan, James and Yu, Bin},
     keywords = {Machine Learning (stat.ML), Artificial Intelligence (cs.AI), Machine Learning (cs.LG), Statistics Theory (math.ST), FOS: Computer and information sciences, FOS: Computer and information sciences, FOS: Mathematics, FOS: Mathematics},
@@ -357,7 +360,6 @@
                  Warren Weckesser and Hameer Abbasi and Christoph Gohlke and
                  Travis E. Oliphant},
     year          = {2020},
-    month         = {sep},
     journal       = {Nature},
     volume        = {585},
     number        = {7825},
@@ -489,18 +491,6 @@ author={Imbens, Guido W. and Rubin, Donald B.}, year={2015}}
     location={New York},
 }
 
-@inproceedings{gardner2018,
- author = {Gardner, Jacob and Pleiss, Geoff and Weinberger, Kilian Q and Bindel, David and Wilson, Andrew G},
- booktitle = {Advances in Neural Information Processing Systems},
- editor = {S. Bengio and H. Wallach and H. Larochelle and K. Grauman and N. Cesa-Bianchi and R. Garnett},
- pages = {},
- publisher = {Curran Associates, Inc.},
- title = {GPyTorch: Blackbox Matrix-Matrix Gaussian Process Inference with GPU Acceleration},
- url = {https://proceedings.neurips.cc/paper/2018/file/27e8e17134dd7083b050476733207ea1-Paper.pdf},
- volume = {31},
- year = {2018}
-}
-
 @article{quinonero2005,
   author  = {Joaquin Qui{{\~n}}onero-Candela and Carl Edward Rasmussen},
   title   = {A Unifying View of Sparse Approximate Gaussian Process Regression},
@@ -524,14 +514,6 @@ doi = {10.1002/sim.8347},
 eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/sim.8347},
 abstract = {Bayesian additive regression trees (BART) is a flexible prediction model/machine learning approach that has gained widespread popularity in recent years. As BART becomes more mainstream, there is an increased need for a paper that walks readers through the details of BART, from what it is to why it works. This tutorial is aimed at providing such a resource. In addition to explaining the different components of BART using simple examples, we also discuss a framework, the General BART model that unifies some of the recent BART extensions, including semiparametric models, correlated outcomes, and statistical matching problems in surveys, and models with weaker distributional assumptions. By showing how these models fit into a single framework, we hope to demonstrate a simple way of applying BART to research problems that go beyond the original independent continuous or binary outcomes framework.},
 year = {2019}
-}
-
-@book{vandervaart1998,
-    title = {Asymptotic Statistics},
-    author = {{van der Vaart}, A. W.},
-    year = {1998},
-    publisher = {Cambridge University Press},
-    isbn = {0 521 49603 9},
 }
 
 @misc{imai2022,
@@ -1074,7 +1056,7 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 
 @article{pratola2014,
      ISSN = {10618600},
-     URL = {http://www.jstor.org/stable/43304924},
+     doi = {10.1080/10618600.2013.841584},
      abstract = {Bayesian additive regression trees (BART) is a Bayesian approach to flexible nonlinear regression which has been shown to be competitive with the best modern predictive methods such as those based on bagging and boosting. BART offers some advantages. For example, the stochastic search Markov chain Monte Carlo (MCMC) algorithm can provide a more complete search of the model space and variation across MCMC draws can capture the level of uncertainty in the usual Bayesian way. The BART prior is robust in that reasonable results are typically obtained with a default prior specification. However, the publicly available implementation of the BART algorithm in the R package Bayes Tree is not fast enough to be considered interactive with over a thousand observations, and is unlikely to even run with 50,000 to 100,000 observations. In this article we show how the BART algorithm may be modified and then computed using single program, multiple data (SPMD) parallel computation implemented using the Message Passing Interface (MPI) library. The approach scales nearly linearly in the number of processor cores, enabling the practitioner to perform statistical inference on massive datasets. Our approach can also handle datasets too massive to fit on any single data repository.},
      author = {Matthew T. Pratola and Hugh A. Chipman and James R. Gattiker and David M. Higdon and Robert McCulloch and William N. Rust},
      journal = {Journal of Computational and Graphical Statistics},
@@ -1203,7 +1185,7 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 @misc{petrillo2024f,
       title={On the Gaussian process limit of Bayesian Additive Regression Trees},
       author={Giacomo Petrillo},
-      year={2024},
+      year={2025},
       eprint={2410.20289},
       archivePrefix={arXiv},
       primaryClass={stat.ML},
@@ -1216,7 +1198,6 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
   month        = jul,
   year         = 2025,
   publisher    = {Zenodo},
-  version      = {second-version},
   doi          = {10.5281/zenodo.15847872},
   url          = {https://doi.org/10.5281/zenodo.15847872},
   swhid        = {swh:1:dir:9b9934387edde67c4b0bd4a2189d9307102d4289
@@ -1277,7 +1258,7 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 
 @thesis{collins_improved_2023,
 	title = {Improved Efficiency of Inference for the Bayesian Additive Regression Trees Model},
-	url = {https://etd.ohiolink.edu/acprod/odb_etd/etd/r/1501/10?clear=10&p10_accession_num=osu1681304630999273},
+	url = {http://rave.ohiolink.edu/etdc/view?acc_num=osu1681304630999273},
 	institution = {The Ohio State University},
 	type = {phdthesis},
 	author = {Collins, Gavin Quinn},
@@ -1314,7 +1295,8 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	author = {Lima, Pedro A. and Carvalho, Carlos M. and Lopes, Hedibert F. and Herren, Andrew},
 	date = {2025-03-17},
 	eprinttype = {arxiv},
-	eprint = {2503.13759 [stat]},
+	eprint = {2503.13759},
+	eprintclass = {stat.ME},
 	keywords = {Economics - Econometrics, Statistics - Methodology},
 	file = {Preprint PDF:/Users/giacomo/Zotero/storage/CHGP5STS/Lima et al. - 2025 - Minnesota BART.pdf:application/pdf;Snapshot:/Users/giacomo/Zotero/storage/6HI2NF69/2503.html:text/html},
 }
@@ -1330,7 +1312,8 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	date = {2024-12-19},
 	langid = {english},
 	eprinttype = {arxiv},
-	eprint = {2412.14946 [stat]},
+	eprint = {2412.14946},
+	eprintclass = {stat.ME},
 	keywords = {Statistics - Methodology, Statistics - Machine Learning, Statistics - Applications},
 	file = {PDF:/Users/giacomo/Zotero/storage/DDU6KDQZ/Goh et al. - 2024 - Joint Models for Handling Non-Ignorable Missing Data using Bayesian Additive Regression Trees Appli.pdf:application/pdf},
 }
@@ -1357,7 +1340,8 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	author = {Dorogush, Anna Veronika and Ershov, Vasily and Gulin, Andrey},
 	date = {2018-10-24},
 	eprinttype = {arxiv},
-	eprint = {1810.11363 [cs]},
+	eprint = {1810.11363},
+	eprintclass = {cs.LG},
 	keywords = {Computer Science - Machine Learning, Statistics - Machine Learning, Computer Science - Mathematical Software},
 	file = {Preprint PDF:/Users/giacomo/Zotero/storage/HQR4N2IU/Dorogush et al. - 2018 - CatBoost gradient boosting with categorical features support.pdf:application/pdf;Snapshot:/Users/giacomo/Zotero/storage/GQ8ZWPXT/1810.html:text/html},
 }
@@ -1371,7 +1355,6 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	booktitle = {Advances in Neural Information Processing Systems},
 	publisher = {Curran Associates, Inc.},
 	author = {Prokhorenkova, Liudmila and Gusev, Gleb and Vorobev, Aleksandr and Dorogush, Anna Veronika and Gulin, Andrey},
-	urldate = {2026-11-07},
 	date = {2018},
 	file = {Full Text PDF:/Users/giacomo/Zotero/storage/4VPFJBGG/Prokhorenkova et al. - 2018 - CatBoost unbiased boosting with categorical features.pdf:application/pdf},
 }
@@ -1401,7 +1384,8 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	author = {Herren, Andrew and Hahn, P. Richard and Murray, Jared and Carvalho, Carlos},
 	date = {2026-02-20},
 	eprinttype = {arxiv},
-	eprint = {2512.12051 [stat]},
+	eprint = {2512.12051},
+	eprintclass = {stat.CO},
 	keywords = {Statistics - Computation},
 	file = {PDF:/Users/giacomo/Zotero/storage/X855JQN7/Herren et al. - StochTree BART-based modeling in R and Python.pdf:application/pdf},
 }
@@ -1412,9 +1396,11 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 	issn = {1938-7228},
 	url = {https://proceedings.mlr.press/v38/lakshminarayanan15.html},
 	abstract = {Additive regression trees are flexible non-parametric models and popular off-the-shelf tools for real-world non-linear regression. In application domains, such as bioinformatics, where there is also demand for probabilistic predictions with measures of uncertainty, the Bayesian additive regression trees ({BART}) model, introduced by Chipman et al. (2010), is increasingly popular. As data sets have grown in size, however, the standard Metropolis–Hastings algorithms used to per- form inference in {BART} are proving inadequate. In particular, these Markov chains make local changes to the trees and suffer from slow mixing when the data are high- dimensional or the best-fitting trees are more than a few layers deep. We present a novel sampler for {BART} based on the Particle Gibbs ({PG}) algorithm (Andrieu et al., 2010) and a top-down particle filtering algorithm for Bayesian decision trees (Lakshminarayanan et al., 2013). Rather than making local changes to individual trees, the {PG} sampler proposes a complete tree to fit the residual. Experiments show that the {PG} sampler outperforms existing samplers in many settings.},
-	eventtitle = {Artificial Intelligence and Statistics},
 	pages = {553--561},
 	booktitle = {Proceedings of the Eighteenth International Conference on Artificial Intelligence and Statistics},
+	editor = {Lebanon, Guy and Vishwanathan, S. V. N.},
+	volume = {38},
+	series = {Proceedings of Machine Learning Research},
 	publisher = {{PMLR}},
 	author = {Lakshminarayanan, Balaji and Roy, Daniel and Teh, Yee Whye},
 	date = {2015-02-21},
@@ -1449,14 +1435,15 @@ abstract = {Abstract Spurred on by recent successes in causal inference competit
 }
 
 
-@article{grinsztajn_why_2022,
+@inproceedings{grinsztajn_why_2022,
 	title = {Why do tree-based models still outperform deep learning on typical tabular data?},
 	volume = {35},
 	url = {https://proceedings.neurips.cc/paper_files/paper/2022/hash/0378c7692da36807bdec87ab043cdadc-Abstract-Datasets_and_Benchmarks.html},
 	doi = {10.52202/068431-0037},
 	pages = {507--520},
-	journaltitle = {Advances in Neural Information Processing Systems},
-	author = {Grinsztajn, Leo and Oyallon, Edouard and Varoquaux, Gael},
+	booktitle = {Advances in Neural Information Processing Systems},
+	publisher = {Curran Associates, Inc.},
+	author = {Grinsztajn, Léo and Oyallon, Edouard and Varoquaux, Gaël},
 	date = {2022-12-06},
 	langid = {english},
 	file = {Full Text PDF:/Users/giacomo/Zotero/storage/BDQY68X6/Grinsztajn et al. - 2022 - Why do tree-based models still outperform deep learning on typical tabular data.pdf:application/pdf},
@@ -1566,7 +1553,6 @@ note={}
   month        = apr,
   year         = 2026,
   publisher    = {Zenodo},
-  version      = {py-1.40.1},
   doi          = {10.5281/zenodo.19699949},
   url          = {https://doi.org/10.5281/zenodo.19699949},
 }
