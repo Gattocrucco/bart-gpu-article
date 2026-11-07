@@ -157,7 +157,7 @@ First, speed: a single BART run produces an ensemble of $\mathord{\sim}
 	1000$ forests, representing the posterior distribution. Accordingly, BART is
 $O(1000)$ times slower. The two largest BART analyses we know of had
 $n\approx\num{500000}$ observations/examples and $p=90$ predictors/features
-\citep{pratola2020}, and $n\approx\num{7000000},p=3$ \autocite[\S7.2]{pratola2014}, while XGBoost boasts ``billions of examples'' on
+\citep{pratola2020}, and $n\approx\num{7000000}$, $p=3$ \autocite[\S7.2]{pratola2014}, while XGBoost boasts ``billions of examples'' on
 its home page and was presented with a 1.7B$\times$67 dataset \autocite[table~2]{chen2016}.
 Second, software ecosystem: for example, \citet{he_stochastic_2023} showed
 that XBART was competitive in speed and accuracy with cross-validated XGBoost and Random Forests, but then their
@@ -219,7 +219,7 @@ using a binary tree. Each internal (i.e., non-leaf) node contains a \emph{decisi
 pair $(i, s)$ combining a splitting axis $i$ with a splitting point $s$ along such axis,
 partitioning the input space into two half-spaces along the hyperplane $\{\mathbf x \in \mathbb
 	R^p: x_i = s\}$, orthogonal to axis $i$. Each half is assigned to a child of the node.
-Children nodes in turn further divide their space amongst their own children. Leaf nodes
+Child nodes in turn further divide their space amongst their own children. Leaf nodes
 contain the constant function value to be associated with their whole assigned rectangular
 subregion. A minimal tree consisting of a single root leaf node represents a flat
 function. See \autoref{fig:tree} for an illustration.
@@ -328,7 +328,7 @@ scans over trees. On each tree, the structure $T_j$ is updated with MH,
 conditional on the other trees, but marginalizing the leaves $M_j$ of the
 current tree. Then, $M_j$ is conjugately sampled conditional on the other trees
 and the updated $T_j$. After scanning all trees, $\sigma^2$ is conjugately
-sampled, conditional on the rest. More in detail, each iteration of the MCMC
+sampled, conditional on the rest. In more detail, each iteration of the MCMC
 proceeds as follows. A random small modification is proposed for $T_1$,
 proposing to grow a leaf into a node with two leaves, to prune two sibling
 leaves making their parent a leaf, or other more complex moves. The change is
@@ -354,7 +354,7 @@ differently from the burn-in defaults of popular BART packages, which range from
 It is useful to run at least 2 chains and compare the
 distributions of the function value at a few points; if the distributions do not
 coincide, it may be useful to burn more initial samples. Each tree should not
-end up with more than 10 leaves, the algorithm is meant to work with shallow
+end up with more than 10 leaves: the algorithm is meant to work with shallow
 trees. If the trees grow deeper, increase the number of trees.
 
 This MCMC is quite complex, and moves the tree structures slowly. In practice
@@ -778,7 +778,7 @@ a poor CPU one.
 XBART, the previous most successful attempt at accelerating BART,
 achieved at most a 20--30x speed-up at the time \autocite[table~4, p.~560]{he_stochastic_2023}, but at the cost
 of changing the algorithm and not being an implementation of BART but rather a
-BART-inspired non-Bayesian algorithm. Note again with ``previous state of the
+BART-inspired non-Bayesian algorithm. Note again: with ``previous state of the
 art'' above we refer to the BART implementation \texttt{dbarts} rather than
 XBART.
 
@@ -812,7 +812,7 @@ parallelization.
 This indicates that, beside optimization at high $n$, low-$n$ speed-ups are
 also valuable. A potential solution could be to implement XBART on GPU: since
 it scans through predictors or subsets of predictors, instead of accessing them
-at random, we expect it would allow to complement parallelization/sharding
+at random, we expect it would allow complementing parallelization/sharding
 along $n$ with parallelization/sharding along $p$. Another potential solution
 could be to devise variations of the BART model and MCMC that do not require
 fully random access to all predictors in all trees. A conceptually simpler
@@ -872,7 +872,7 @@ common technique is Markov chain Monte Carlo (MCMC): setting $\theta=(\sigma^2,
 	\{T_j\}, \{M_j\})$ for brevity, it is possible to define an iterative numerical
 procedure that, starting from an initial choice of parameter values
 $\theta^{(0)}$, evaluating numerically the joint density function
-$\theta\mapsto p(\mathbf y,\theta)$ only in some points, picks a new set of
+$\theta\mapsto p(\mathbf y,\theta)$ only at some points, picks a new set of
 values $\theta^{(1)}$, and so on $\theta^{(2)}, \theta^{(3)}, \ldots$, yielding
 overall a sequence of parameter values which is a random sample from the
 posterior. Then, e.g., the mean of the distribution is approximated by the
@@ -923,8 +923,7 @@ With these notions in hand, the high-level description of an iteration of the BA
 	\sigma^2                  & \sim p(\sigma^2\mid\mathbf T,\mathbf M,\mathbf y),
 \end{align}
 %
-where the subscript ``$-j$'' means ``all indices but for $j$''.
-
+where the subscript ``$-j$'' means ``all indices but $j$''.
 
 \section{Further details on the implementation}
 \label{sec:impldetails}
@@ -1016,7 +1015,7 @@ and~\ref{fig:time-all-1000}. Further details on the setup:
 	\item \texttt{dbarts} has an \texttt{n.threads} parameter to use
 		parallelization, but we found we could get at most a 1.3x
 		speed-up at $n \ge \num{10000}$ trying up to \texttt{n.threads=6}, so we do not enable
-		parallelization in \texttt{dbarts}. Similarly, we don't use
+		parallelization in \texttt{dbarts}. Similarly, we don't
 		use the data-sharding capability of \texttt{bartz} across
 		virtual CPU devices, which can make it faster by up to 2x.
 
@@ -1253,12 +1252,12 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 	\item[trees] The number of trees.
 
 	\item[leaves] The average number of leaves per tree (averaged over
-		post-burn-in MCMC samples for BART), reported as a fraction to
+		post-burn-in MCMC samples for BART), reported as a fraction of
 		the total number of leaves allowed by the method.
 
 	\item[empty trees] BART-only. The fraction of empty (i.e., root-only,
 		depth-0) trees across post-burn-in MCMC samples, reported as a
-		fraction to the a-priori expected fraction. This fraction is
+		ratio to the a-priori expected fraction. This ratio is
 		typically below 1, but it can go above 1 if there are more
 		trees than needed to explain the signal.
 	
@@ -1267,7 +1266,7 @@ The meaning of the rows in \autoref{tab:fullbench-full} is:
 
 	\item[tree life] BART-only. The number of iterations since the last
 		time the tree was pruned back to empty, averaged over trees at
-		the last MCMC iteration, and reported as a fraction to the
+		the last MCMC iteration, and reported as a fraction of the
 		total number of iterations.
 
 \end{description}
