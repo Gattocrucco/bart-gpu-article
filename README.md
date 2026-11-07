@@ -111,10 +111,13 @@ This requires a machine with at least ~64 GiB cpu ram, ~32 GiB gpu ram, and ~64 
 
 ```sh
 make fullbench-data  # downloads data from OpenML
+rm -f results/fullbench-*.json  # fullbench skips the methods that already have results
 make fullbench-gpu  # ~6 hours
 ```
 
 This one does not have a cpu variant, it would be too slow.
+
+The article table is made from the results of the RTX PRO 5000. If you used a different GPU, pass its name as it appears in the result file names to `make article-plots`, e.g., `make article-plots FULLBENCH_GPU=NVIDIA_GeForce_RTX_4090`.
 
 
 ## Troubleshooting
