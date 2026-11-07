@@ -1281,13 +1281,17 @@ A striking feature of the speed benchmarks in \autoref{fig:time-all} is that
 with high $p$ or $n_\text{tree}$ the \texttt{bartz-P5000} line terminates at
 small $n$ like the other methods despite being faster. Our benchmark harness
 increases $n$ until timeout or out-of-memory error, so this indicates that
-\texttt{bartz} is running out of GPU memory. The memory installed on GPU cards
+the benchmark is running out of GPU memory. The memory installed on GPU cards
 is fixed, it can't be expanded, and there is no swap, so this is a hard limit.
 The speed premium of the GPU kicks in only at high $n$, so this memory limit
 indirectly limits the speed gain. The practical consequence is that, with 48
 GiB of GPU memory, running the algorithm in ``high'' $p$ or $n_\text{tree}$
-settings allows a GPU over CPU speed gain of at most about 20x rather than the
+settings allows a GPU over CPU speed gain of at most about 25--50x (extrapolating the CPU lines) rather than the
 asymptotic 100x.
+Some of this limitation comes from our benchmark setup, which incidentally
+limits memory usage for JAX to 75\,\% of the total, and in high~$p$ squats a large fraction of this memory for
+generating the simulated data. However, fixing these issues would not change
+the fundamental constraint.
 
 \section{On increasing the number of trees}
 \label{sec:moretrees}
